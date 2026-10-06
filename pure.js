@@ -126,6 +126,85 @@ function codePart(line) {
 
 const hasComment = (l) => stripEsc(l).includes('%');
 
+/* ---- inline \tikz[...]{...} / \tikz ...; : ranges that no typography rule may touch ---- */
+const TIKZ_CMD = /\\(tikz|tikzset|tikzstyle|pgfkeys|pgfset|pgfplotsset|tikzmath|pgfmathsetmacro|pgfmathparse)(?![A-Za-z@])/y;
+function tikzInlineRanges(text) {
+  const out = [];
+  const n = text.length;
+  const skipWs = (j) => { while (j < n && /\s/.test(text[j])) j++; return j; };
+  // index just after the group opened at `j` (text[j] is the opener); -1 if it never closes
+  const group = (j, open, close) => {
+    let depth = 0;
+    for (; j < n; j++) {
+      const c = text[j];
+      if (c === '\\') { j++; continue; }
+      if (c === '%') { while (j < n && text[j] !== '\n') j++; continue; }
+      if (c === open) depth++;
+      else if (c === close && --depth === 0) return j + 1;
+    }
+    return -1;
+  };
+  let i = 0;
+  while (i < n) {
+    const c = text[i];
+    if (c === '%') { while (i < n && text[i] !== '\n') i++; continue; }
+    if (c !== '\\') { i++; continue; }
+    TIKZ_CMD.lastIndex = i;
+    const tm = TIKZ_CMD.exec(text);
+    if (tm && tm[1] !== 'tikz') {
+      // \tikzset{...}, \pgfkeys{...}, \pgfmathsetmacro{\x}{...}, \tikzstyle name=[...]: argument groups are code
+      let j = skipWs(i + tm[0].length);
+      let end = -1;
+      if (tm[1] === 'tikzstyle') {
+        const k = text.indexOf('[', j);
+        if (k >= 0 && k - j < 80) end = group(k, '[', ']');
+      } else {
+        if (text[j] === '[') { const e = group(j, '[', ']'); j = e < 0 ? -1 : skipWs(e); }
+        end = j;
+        for (let g = tm[1] === 'pgfmathsetmacro' ? 2 : 1; g > 0 && end >= 0; g--) {
+          if (text[end] !== '{') { end = g === (tm[1] === 'pgfmathsetmacro' ? 2 : 1) ? -1 : end; break; }
+          end = group(end, '{', '}');
+          if (end >= 0 && g > 1) end = skipWs(end);
+        }
+      }
+      if (end > i) { out.push([i, end]); i = end; continue; }
+    } else if (tm) {
+      let j = skipWs(i + 5);
+      if (text[j] === '[') { const e = group(j, '[', ']'); j = e < 0 ? -1 : skipWs(e); }
+      let end = -1;
+      if (j >= 0) {
+        if (text[j] === '{') end = group(j, '{', '}');
+        else {
+          // `\tikz \draw ...;` form: up to the first `;` outside braces, but not past a blank line
+          let depth = 0;
+          for (let k = j; k < n; k++) {
+            const d = text[k];
+            if (d === '\\') { k++; continue; }
+            if (d === '%') { while (k < n && text[k] !== '\n') k++; continue; }
+            if (d === '\n' && /^\s*\n/.test(text.slice(k + 1))) break;
+            if (d === '{') depth++;
+            else if (d === '}') depth--;
+            else if (d === ';' && depth <= 0) { end = k + 1; break; }
+          }
+        }
+      }
+      if (end > i) { out.push([i, end]); i = end; continue; }
+    }
+    i += 2; // skip `\x`
+  }
+  return out;
+}
+
+// same text with the given ranges overwritten by spaces (newlines and length kept)
+function blankRanges(text, ranges) {
+  if (!ranges.length) return text;
+  let r = '';
+  let last = 0;
+  for (const [a, b] of ranges) { r += text.slice(last, a) + text.slice(a, b).replace(/[^\n]/g, ' '); last = b; }
+  return r + text.slice(last);
+}
+
+
 /* ------------------------------ wrap ------------------------------- */
 function vlen(s, tab) {
   let n = 0;
@@ -163,7 +242,7 @@ function wrapLines(lines, width, tab) {
 /* --------------------------- typography ---------------------------- */
 const PROT_ENVS =
   'equation|align|gather|multline|eqnarray|flalign|alignat|displaymath|math|verbatim|minted|lstlisting|' +
-  'tikzpicture|tblr|longtblr|talltblr|tabular|tabularx|longtable|array|split|cases|smallmatrix|matrix|' +
+  'tikzpicture|pgfpicture|circuitikz|axis|tblr|longtblr|talltblr|tabular|tabularx|longtable|array|split|cases|smallmatrix|matrix|' +
   'pmatrix|bmatrix|vmatrix|Bmatrix|Vmatrix';
 const PROT_CMDS =
   'label|ref|eqref|autoref|cref|Cref|pageref|nameref|vref|subref|cite[A-Za-z]*|input|include|includegraphics|' +
@@ -193,6 +272,7 @@ function protectedRanges(text) {
     if (!m[0].length) { PROT.lastIndex++; continue; }
     out.push([m.index, m.index + m[0].length]);
   }
+  for (const r of tikzInlineRanges(text)) out.push(r);
   return out;
 }
 
@@ -254,6 +334,15 @@ function commaInMath(text) {
 }
 
 function typography(text, opts) {
+  // inline \tikz[...]{...} is code, not text: hide it behind \u0004 and put it back at the end
+  const tikzSpans = [];
+  const tk = tikzInlineRanges(text);
+  if (tk.length) {
+    let t2 = '';
+    let l2 = 0;
+    for (const [a, b] of tk) { t2 += text.slice(l2, a) + '\u0004'; tikzSpans.push(text.slice(a, b)); l2 = b; }
+    text = t2 + text.slice(l2);
+  }
   const spans = [];
   let masked = '';
   let last = 0;
@@ -270,7 +359,8 @@ function typography(text, opts) {
   let k = 0;
   const restored = r.text.replace(/\u0001/g, () => spans[k++]);
   const dec = commaInMath(restored);
-  return { text: dec.text, count: r.count + dec.count };
+  let q = 0;
+  return { text: tikzSpans.length ? dec.text.replace(/\u0004/g, () => tikzSpans[q++]) : dec.text, count: r.count + dec.count };
 }
 
 /* ---------------------------- sentences ---------------------------- */
@@ -1961,7 +2051,7 @@ function imagePreviewPlan(size, mode, maxMB) {
 
 module.exports = {
   splitRow, alignLines, lineKind, noJoinAfter, canJoin, unwrapLines, stripEsc,
-  codePart, wrapLines, wrapLine, typography, splitSentences, sentenceLines,
+  codePart, tikzInlineRanges, blankRanges, wrapLines, wrapLine, typography, splitSentences, sentenceLines,
   ALIGN_ENVS, parseRows, colAt, tableOp, envTokensPure, pairEnvsPure, bodyStartLine, tableBlockLines,
   convertEnv, CONVERTIBLE, scanLabelsAndRefs, labelAtPos, renamePositions, syntaxChecks,
   frameSections, FRAME_RULE, FRAME_EQ_RULE,

@@ -188,11 +188,13 @@ function maskLine(code) {
 }
 
 const DEF_LINE = /^\s*\\(?:newcommand|renewcommand|providecommand|DeclareRobustCommand|NewDocumentCommand|RenewDocumentCommand|ProvideDocumentCommand|DeclareDocumentCommand|def|gdef|edef|xdef|let|DeclareMathOperator|newenvironment|renewenvironment|NewDocumentEnvironment|newtheorem|newtcolorbox|usepackage|RequirePackage)\b/;
-const SKIP_ENVS = /^(?:verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblisting|tikzpicture|equation\*?|align\*?|gather\*?|multline\*?|eqnarray\*?|flalign\*?|alignat\*?|displaymath|math|filecontents\*?)$/;
+const SKIP_ENVS = /^(?:verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblisting|tikzpicture|pgfpicture|circuitikz|axis|equation\*?|align\*?|gather\*?|multline\*?|eqnarray\*?|flalign\*?|alignat\*?|displaymath|math|filecontents\*?)$/;
 
 // extra typography checks: non-breaking spaces, dashes, mixed-script words, mixed \vec / \vect
 // returns [{ line, col, len, code, message }]
 function typographyChecks(lines, opts) {
+  // inline \tikz[...]{...} (also across lines) is code: blank it out, columns stay the same
+  lines = P.blankRanges(lines.join('\n'), P.tikzInlineRanges(lines.join('\n'))).split('\n');
   const out = [];
   const stack = [];
   let dollars = false; // inside a $$ ... $$ block
