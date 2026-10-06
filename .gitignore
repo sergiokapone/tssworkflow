@@ -1,9 +1,7 @@
 node_modules/
 *.vsix
 vsix/
-.vscode-test/
 *.log
-.DS_Store
 Thumbs.db
 extension.vsixmanifest
 [Content_Types].xml
