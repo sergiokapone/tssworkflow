@@ -6,6 +6,8 @@
  * Nothing here touches the text it cannot parse: a table with a "%" inside a row, a \verb, a blank line inside a cell
  * or unbalanced braces is skipped with a reason. */
 
+const P = require('./pure');
+
 /* ------------------------------ scanning helpers ----------------------------- */
 const VERB_ENVS = 'verbatim\\*?|Verbatim\\*?|lstlisting|minted|alltt|comment';
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -213,6 +215,22 @@ function ruleEnd(s, i) {
   }
 }
 
+// a cell with inline \tikz{...} (or \tikzset{...} ...) spread over several lines keeps its line breaks, because the
+// code inside is written line by line on purpose. Returns the cell text with "\n" between lines (the first line
+// trimmed, the others indented relative to the least indented one, blank lines kept), or null for an ordinary cell.
+function keepLines(c) {
+  if (!c.includes('\n') || P.tikzInlineRanges(c).length === 0) return null;
+  const ls = c.replace(/\r/g, '').split('\n').map((l) => l.replace(/[ \t]+$/, ''));
+  while (ls.length && !ls[0].trim()) ls.shift();
+  while (ls.length && !ls[ls.length - 1].trim()) ls.pop();
+  if (ls.length < 2) return ls.length ? ls[0].trim() : '';
+  const rest = ls.slice(1);
+  const wid = (l) => Array.from(/^[ \t]*/.exec(l)[0]).reduce((a, ch) => a + (ch === '\t' ? 4 : 1), 0);
+  const min = Math.min(...rest.filter((l) => l.trim()).map(wid));
+  const body = rest.map((l) => (l.trim() ? ' '.repeat(wid(l) - (Number.isFinite(min) ? min : 0)) + l.trim() : ''));
+  return [ls[0].trim()].concat(body).join('\n');
+}
+
 // body -> blocks [{type: 'row'|'rule'|'comment'|'blank', ...}] or { skip: reason, at: offset }
 function parseBody(body) {
   const blocks = [];
@@ -224,7 +242,12 @@ function parseBody(body) {
   let sameLine = false; // the last block ended on the current line
   const boundary = () => cells.length === 0 && buf.trim() === '' && depth === 0 && nest === 0;
   let blankInCell = false;
-  const cleanCells = () => cells.map((c) => { if (/\n[ \t]*\n/.test(c)) blankInCell = true; return collapseWs(c); });
+  const cleanCells = () => cells.map((c) => {
+    const kept = keepLines(c);
+    if (kept) return kept;
+    if (/\n[ \t]*\n/.test(c)) blankInCell = true;
+    return collapseWs(c);
+  });
   const bad = (reason, at) => ({ skip: reason, at });
   const n = body.length;
   let i = 0;
@@ -341,7 +364,8 @@ function layoutBody(blocks, indent, unit, opts) {
   const indW = indentWidth(ind, opts.tabSize);
   const rows = blocks.filter((b) => b.type === 'row');
   const isEmptyRow = (r) => r.cells.length === 1 && r.cells[0] === '';
-  const content = rows.filter((r) => !isEmptyRow(r));
+  const isMulti = (r) => r.cells.some((c) => c.includes('\n'));
+  const content = rows.filter((r) => !isEmptyRow(r) && !isMulti(r));
   // grid candidate
   const ncol = Math.max(0, ...content.map((r) => r.cells.length));
   const w = [];
@@ -361,6 +385,20 @@ function layoutBody(blocks, indent, unit, opts) {
     if (b.type === 'comment') { lines.push(ind + b.text); continue; }
     if (b.type === 'rule') { lines.push(withTc(ind + b.text, b)); continue; }
     if (isEmptyRow(b)) { lines.push(withTc(ind + (b.term || ''), b)); continue; }
+    if (isMulti(b)) {
+      // cells with multi-line TikZ code: first line as in the vertical layout, the rest one level deeper than the row
+      const deeper = ind + unit;
+      const last = b.cells.length - 1;
+      b.cells.forEach((c, j) => {
+        const cl = c.split('\n');
+        if (j === 0 && c === '') return;
+        lines.push(trimEnd((j === 0 ? ind : deeper + '& ') + cl[0]));
+        for (let k = 1; k < cl.length; k++) lines.push(trimEnd(deeper + cl[k]));
+        if (j === last) lines[lines.length - 1] += termOf(b);
+      });
+      if (b.tc) lines[lines.length - 1] += ' ' + b.tc;
+      continue;
+    }
     if (grid) {
       const k = b.cells.length;
       const parts = b.cells.map((c, j) => (j < k - 1 || k === ncol ? c + ' '.repeat(Math.max(0, w[j] - dispLen(c))) : c));
