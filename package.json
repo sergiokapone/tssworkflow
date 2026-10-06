@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -97,7 +97,9 @@
     "onCommand:tssworkflow.notationReport",
     "onCommand:tssworkflow.buildParts",
     "onCommand:tssworkflow.refreshProblems",
-    "onView:tssworkflow.problemsView"
+    "onView:tssworkflow.problemsView",
+    "onCommand:tssworkflow.formatTblr",
+    "onCommand:tssworkflow.renumberBeamer"
   ],
   "contributes": {
     "commands": [
@@ -386,6 +388,16 @@
         "command": "tssworkflow.refreshProblems",
         "title": "TSS Workflow: Refresh the Problems panel",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "tssworkflow.formatTblr",
+        "title": "TSS Workflow: Format tblr / longtblr / talltblr (options and cells)",
+        "icon": "$(table)"
+      },
+      {
+        "command": "tssworkflow.renumberBeamer",
+        "title": "TSS Workflow: Renumber Beamer Slides (% === Слайд N ===)",
+        "icon": "$(list-ordered)"
       }
     ],
     "menus": {
@@ -439,6 +451,11 @@
       "editor/context": [
         {
           "command": "tssworkflow.alignTable",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.formatTblr",
           "when": "resourceLangId == latex || resourceLangId == tex",
           "group": "1_modification"
         },
@@ -527,6 +544,10 @@
           "group": "3_structure@2"
         },
         {
+          "command": "tssworkflow.renumberBeamer",
+          "group": "3_structure@5"
+        },
+        {
           "command": "tssworkflow.convertEnv",
           "group": "3_structure@3"
         },
@@ -536,6 +557,10 @@
         },
         {
           "command": "tssworkflow.alignTable",
+          "group": "4_tables@1"
+        },
+        {
+          "command": "tssworkflow.formatTblr",
           "group": "4_tables@1"
         },
         {
@@ -1433,6 +1458,44 @@
               "variants"
             ]
           }
+        },
+        "tssworkflow.tblr.environments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "tblr",
+            "longtblr",
+            "talltblr"
+          ],
+          "description": "Environments handled by \"Format tblr\"."
+        },
+        "tssworkflow.tblr.maxWidth": {
+          "type": "number",
+          "default": 100,
+          "minimum": 40,
+          "description": "Format tblr: a table whose rows fit in this width gets a grid (cells aligned at &); otherwise a long row is written one cell per line."
+        },
+        "tssworkflow.tblr.sortOptions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format tblr: order the keys colspec, rowhead/rowfoot, hline/vline, column, row, cell, the rest (the order inside a group is kept, a later key still overrides an earlier one). Off: keep the original order."
+        },
+        "tssworkflow.tblr.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format all tblr / longtblr / talltblr tables of a .tex file when it is saved (no preview; one Ctrl+Z undoes it)."
+        },
+        "tssworkflow.beamer.autoRenumber": {
+          "type": "boolean",
+          "default": false,
+          "description": "Renumber the \"% === Слайд N ===\" banners of a beamer file when it is saved (no preview; one Ctrl+Z undoes it)."
+        },
+        "tssworkflow.beamer.skipTitleFrame": {
+          "type": "boolean",
+          "default": true,
+          "description": "Renumber Beamer Slides: do not number the frame with \\titlepage / \\maketitle; the first following frame is slide 1."
         }
       }
     },

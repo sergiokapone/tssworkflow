@@ -12,7 +12,7 @@ A VS Code extension for large LaTeX projects (books, lecture notes) with many ch
 
 **Labels, references, bibliography.** Project-wide label completion and rename, duplicate and undefined label checks, equations nobody refers to, completion and hover for `\cite{…}` from `.bib` files (author, year, title), add an entry from a DOI.
 
-**Text and formulas.** Ukrainian typography (non-breaking spaces, dashes, «guillemets»), table alignment, column operations, normalize a file or the whole project, frames around headings and formulas, formula environment conversion, Unicode → LaTeX.
+**Text and formulas.** Ukrainian typography (non-breaking spaces, dashes, «guillemets»), table alignment, `Format tblr` for `tblr`/`longtblr`/`talltblr` (options one per line, cells in a grid), `Renumber Beamer Slides`, column operations, normalize a file or the whole project, frames around headings and formulas, formula environment conversion, Unicode → LaTeX.
 
 **Refactoring.** Rename and reorder chapters with updates to lists, paths, and references; project-wide replace that skips comments and `verbatim`; notation consistency checks (`\varepsilon`/`\epsilon`, etc.); project snapshots with restore.
 

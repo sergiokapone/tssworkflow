@@ -1550,4 +1550,4 @@ async function showHooks() {
     }));
 }
 
-module.exports = { register, onBuildFinished, frameSettings, _t: { imageHoverMd, wrapParagraph, typographyCmd, sentencesCmd, tableOps, convertEnv, refCompletion, renameProvider } };
+module.exports = { register, onBuildFinished, frameSettings, applyWithPreview, _t: { imageHoverMd, wrapParagraph, typographyCmd, sentencesCmd, tableOps, convertEnv, refCompletion, renameProvider } };

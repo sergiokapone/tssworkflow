@@ -42,6 +42,8 @@ const GROUPS = [
     ['frameSections', 'Обрамити заголовки й формули', 'symbol-boolean'],
     ['reframeSections', 'Переобрамити заголовки й формули', 'refresh'],
     ['alignTable', 'Вирівняти таблицю по &', 'table'],
+    ['formatTblr', 'Форматувати tblr / longtblr (параметри й клітинки)', 'table'],
+    ['renumberBeamer', 'Пронумерувати слайди beamer', 'list-ordered'],
     ['tableOps', 'Дії з таблицею', 'table'],
     ['extractTikz', 'Винести tikzpicture під курсором у tikz/', 'export'],
     ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export']
