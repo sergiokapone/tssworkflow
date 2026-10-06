@@ -1,0 +1,41 @@
+{
+  "Environment (begin/end, name mirrored)": {
+    "prefix": [
+      "env",
+      "benv"
+    ],
+    "body": [
+      "\\begin{${1|equation,equation*,align,align*,gather,itemize,enumerate,figure,table,center,minipage,proof,frame|}}",
+      "\t$0",
+      "\\end{$1}"
+    ],
+    "description": "\\begin{env} ... \\end{env}; changing the name changes both"
+  },
+  "Debug preamble (lost chars, overfull rule, listfiles)": {
+    "prefix": [
+      "debugpre",
+      "dbg"
+    ],
+    "body": [
+      "% --- налагодження: прибрати після пошуку ---",
+      "\\errorcontextlines=10",
+      "\\tracinglostchars=3",
+      "\\overfullrule=5pt",
+      "\\listfiles",
+      "$0"
+    ],
+    "description": "Debug lines: error context, lost characters as errors, black bar at overfull boxes, list of loaded files"
+  },
+  "Show shipout hooks in the log": {
+    "prefix": [
+      "showhooks"
+    ],
+    "body": [
+      "\\AddToHook{begindocument/end}{%",
+      "  \\ShowHook{shipout/before}\\ShowHook{shipout/foreground}%",
+      "  \\ShowHook{shipout/background}\\ShowHook{shipout/after}%",
+      "}$0"
+    ],
+    "description": "Print the shipout hooks (who runs code when a page is output) into the log"
+  }
+}

@@ -1,0 +1,14 @@
+% !TSS name: Таблиця (table)
+% !TSS description: table з tabular на три стовпці, підписом і міткою (питає мітку)
+% !TSS kind: fragment
+\begin{table}[h!]
+	\centering
+	\caption{${cursor}\label{tab:${ask:label:table}}}
+	\begin{tabular}{lcc}
+		\hline
+		A & B & C \\
+		\hline
+		  &   &   \\
+		\hline
+	\end{tabular}
+\end{table}

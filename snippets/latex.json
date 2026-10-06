@@ -1,0 +1,337 @@
+{
+    "TeX Magic Comments": {
+        "prefix": [
+            "mc",
+            "%!"
+        ],
+        "body": [
+            "% !TeX program = lualatex",
+            "% !TeX encoding = utf8",
+            "% !TeX spellcheck = uk_UA",
+            "% !BIB program = biber",
+            ""
+        ],
+        "description": "TeX magic comments"
+    },
+    "TeX root = this file": {
+        "prefix": "rt",
+        "body": "% !TeX root = ${TM_FILENAME}",
+        "description": "TeX root = current file name"
+    },
+    "TeX root = main file": {
+        "prefix": "rm",
+        "body": "% !TeX root = ../main.tex",
+        "description": "TeX root = main file"
+    },
+    "LaTeX Packages": {
+        "prefix": [
+            "lng",
+            "%L"
+        ],
+        "body": [
+            "\\usepackage{fontsetup}",
+            "\\usepackage[english, russian, ukrainian]{babel}",
+            ""
+        ],
+        "description": "LaTeX packages"
+    },
+    "Problem/Solution": {
+        "prefix": [
+            "prb",
+            "!t"
+        ],
+        "body": [
+            "%=========================================================",
+            "\\begin{problem}%",
+            "\t${1:problem}",
+            "\\begin{solution}",
+            "\t$0",
+            "\\end{solution}",
+            "\\end{problem}",
+            "%========================================================="
+        ],
+        "description": "Problem/Solution environment"
+    },
+    "Section": {
+        "prefix": [
+            "sec",
+            "!s"
+        ],
+        "body": [
+            "%%% --------------------------------------------------------",
+            "\\section*{$1}",
+            "%%% --------------------------------------------------------",
+            ""
+        ],
+        "description": "Section"
+    },
+    "Inline math-mode": {
+        "prefix": [
+            "!e",
+            "ie"
+        ],
+        "body": [
+            "\\(",
+            "\t$0",
+            "\\)"
+        ],
+        "description": "Inline math mode \\( \\)"
+    },
+    "Display math-mode": {
+        "prefix": [
+            "!a",
+            "da"
+        ],
+        "body": [
+            "\\[",
+            "\t$0",
+            "\\]"
+        ],
+        "description": "Display math mode \\[ \\]"
+    },
+    "Paste clipboard as LaTeX table": {
+        "prefix": [
+            "tbl",
+            "%T"
+        ],
+        "body": "${CLIPBOARD/(\\t)|(\\r?\\n)/${1:+ & }${2:+ \\\\\\\\\n}/g}",
+        "description": "Clipboard (tab/newline separated) -> LaTeX table rows"
+    },
+    "Figure (tikz)": {
+        "prefix": [
+            "!f",
+            "fig"
+        ],
+        "body": [
+            "%---------------------------------------------------------",
+            "\\begin{figure}[h!]\\centering",
+            "\t\\begin{tikzpicture}",
+            "\t\t$1",
+            "\t\\end{tikzpicture}",
+            "\\caption{$2}",
+            "\\label{$3}",
+            "\\end{figure}",
+            "%---------------------------------------------------------"
+        ],
+        "description": "Figure with tikzpicture"
+    },
+    "Figure + two subfigures": {
+        "prefix": [
+            "!z",
+            "fsub"
+        ],
+        "body": [
+            "%=========================================================",
+            "\\begin{figure}[h!]\\centering",
+            "%---------------------------------------------------------",
+            "\\begin{subfigure}[t]{0.45\\linewidth}\\centering",
+            "\t$1",
+            "\\caption{До задачі~\\ref{prb:$2}}",
+            "\\label{$3}",
+            "\\end{subfigure}",
+            "%---------------------------------------------------------",
+            "\\begin{subfigure}[t]{0.45\\linewidth}\\centering",
+            "\t$4",
+            "\\caption{До задачі~\\ref{prb:$5}}",
+            "\\label{$6}",
+            "\\end{subfigure}",
+            "%---------------------------------------------------------",
+            "\\end{figure}",
+            "%========================================================="
+        ],
+        "description": "Figure with two subfigures"
+    },
+    "Enumerate (a) in problem": {
+        "prefix": [
+            "!n",
+            "enm"
+        ],
+        "body": [
+            "\\begin{enumerate*}[label=(\\alph*)]",
+            "\t\\item $0",
+            "\\end{enumerate*}"
+        ],
+        "description": "enumerate* with (a) labels"
+    },
+    "Beamer Frame": {
+        "prefix": [
+            "!bf",
+            "frm"
+        ],
+        "body": [
+            "% ============================== Слайд ## ===================================",
+            "\\begin{frame}{$1}{$2}",
+            "\t$0",
+            "\\end{frame}",
+            "% ==========================================================================="
+        ],
+        "description": "Beamer frame"
+    },
+    "Columns in Frame": {
+        "prefix": [
+            "!c",
+            "col"
+        ],
+        "body": [
+            "\\begin{columns}",
+            "\t\\begin{column}{0.5\\linewidth}",
+            "\t\t$1",
+            "\t\\end{column}",
+            "\t\\begin{column}{0.5\\linewidth}",
+            "\t\t$2",
+            "\t\\end{column}",
+            "\\end{columns}"
+        ],
+        "description": "Two columns in a Beamer frame"
+    },
+    "Two minipages": {
+        "prefix": [
+            "!m",
+            "mpg"
+        ],
+        "body": [
+            "%---------------------------------------------------------",
+            "\\begin{minipage}[t]{0.5\\linewidth}\\centering",
+            "\t$1",
+            "\\end{minipage}%",
+            "%---------------------------------------------------------",
+            "\\begin{minipage}[t]{0.5\\linewidth}\\centering",
+            "\t$2",
+            "\\end{minipage}",
+            "%---------------------------------------------------------"
+        ],
+        "description": "Two side-by-side minipages"
+    },
+    "ExplSyntax": {
+        "prefix": [
+            "!E",
+            "expl"
+        ],
+        "body": [
+            "\\ExplSyntaxOn",
+            "\t$0",
+            "\\ExplSyntaxOff"
+        ],
+        "description": "ExplSyntaxOn/Off block"
+    },
+    "Table (tblr)": {
+        "prefix": [
+            "!r",
+            "tblr"
+        ],
+        "body": [
+            "\\begin{tblr}{",
+            "  colspec={Q[l,t]Q[l,t, 2.5cm]X[l,t]},",
+            "  row{1} = {font=\\bfseries},",
+            "  lines,",
+            "  vlines",
+            "  }",
+            "  Метод",
+            "  &",
+            "  Параметри",
+            "  &",
+            "  Опис\\\\\\\\",
+            "  $1%",
+            "  &",
+            "  $2%",
+            "  &",
+            "  $3%",
+            "  \\\\\\\\",
+            "\\end{tblr}"
+        ],
+        "description": "tabularray table with header row"
+    },
+    "Beamer block": {
+        "prefix": [
+            "!bb",
+            "blk"
+        ],
+        "body": [
+            "\\begin{block}{$1}",
+            "\t$0",
+            "\\end{block}"
+        ],
+        "description": "Beamer block"
+    },
+    "tikzpicture": {
+        "prefix": [
+            "!p",
+            "tkz"
+        ],
+        "body": [
+            "\\begin{tikzpicture}[$1]",
+            "\t$0",
+            "\\end{tikzpicture}"
+        ],
+        "description": "tikzpicture environment"
+    },
+    "includegraphics": {
+        "prefix": [
+            "!g",
+            "img"
+        ],
+        "body": "\\includegraphics[width=\\linewidth]{$1}",
+        "description": "includegraphics at line width"
+    },
+    "bigskip": {
+        "prefix": [
+            "!1",
+            "bsk"
+        ],
+        "body": [
+            "\\bigskip",
+            "",
+            "$0"
+        ],
+        "description": "bigskip followed by empty line"
+    },
+    "Picture reference": {
+        "prefix": [
+            "!i",
+            "rpic"
+        ],
+        "body": "(рис.~\\ref{pic:$1})",
+        "description": "Reference to a figure"
+    },
+    "Input code (minted)": {
+        "prefix": [
+            "~m",
+            "icode"
+        ],
+        "body": "\\inputcode{$1}",
+        "description": "\\inputcode{file}"
+    },
+    "Hello World": {
+        "prefix": [
+            "%HW",
+            "hw"
+        ],
+        "body": [
+            "\\begin{center}",
+            "\tHello World!",
+            "\\end{center}"
+        ],
+        "description": "Centered Hello World!"
+    },
+    "Wrapstuff figure": {
+        "prefix": [
+            "!w",
+            "wrap"
+        ],
+        "body": [
+            "\\begin{wrapstuff}[type=figure, o, top=2, width=0.4\\linewidth]",
+            "\t\\centering",
+            "\t\\includegraphics[width=\\linewidth]{${1:example-image.pdf}}",
+            "\\end{wrapstuff}"
+        ],
+        "description": "wrapstuff figure with includegraphics"
+    },
+    "TeX root": {
+        "prefix": [
+            "!R",
+            "root"
+        ],
+        "body": "% !TeX root = ${1:../../test.tex}",
+        "description": "TeX root magic comment"
+    }
+}

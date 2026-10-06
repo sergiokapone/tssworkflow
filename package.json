@@ -1,0 +1,1682 @@
+{
+  "name": "tssworkflow",
+  "displayName": "TeXstudio-style Workflow",
+  "description": "TeXstudio-style workflow for VS Code: clickable file names, standalone chapter/figure compile, project-wide labels, quick error checks, Ukrainian typography, table/environment tools, frames, change preview, hovers, heading navigator, build-log warnings, quick fixes, outline, document templates (documents, fragments, several files), Activity Bar panels (commands, chapters)",
+  "version": "0.5.0",
+  "publisher": "REPLACE-WITH-YOUR-PUBLISHER-ID",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:tex",
+    "onCommand:tssworkflow.compilePdf",
+    "onCommand:tssworkflow.compile",
+    "onCommand:tssworkflow.clean",
+    "onCommand:tssworkflow.cleanAux",
+    "onCommand:tssworkflow.pickFile",
+    "onCommand:tssworkflow.alignTable",
+    "onCommand:tssworkflow.unwrap",
+    "onCommand:tssworkflow.wrap",
+    "onCommand:tssworkflow.typography",
+    "onCommand:tssworkflow.sentences",
+    "onCommand:tssworkflow.tableOps",
+    "onCommand:tssworkflow.convertEnv",
+    "onCommand:tssworkflow.pictures",
+    "onCommand:tssworkflow.unusedFiles",
+    "onCommand:tssworkflow.checkLabels",
+    "onCommand:tssworkflow.checkCitations",
+    "onCommand:tssworkflow.initProjectSettings",
+    "onCommand:tssworkflow.ltexDictionary",
+    "onCommand:tssworkflow.externalForwardSearch",
+    "onCommand:tssworkflow.toggleCompileOnSave",
+    "onCommand:tssworkflow.frameSections",
+    "onCommand:tssworkflow.normalize",
+    "onCommand:tssworkflow.goToHeading",
+    "onCommand:tssworkflow.compileMainPdf",
+    "onCommand:tssworkflow.compileMain",
+    "workspaceContains:**/*.tex",
+    "workspaceContains:**/*.tikz",
+    "onCommand:tssworkflow.normalizeOptions",
+    "onCommand:tssworkflow.openPdfExternal",
+    "onCommand:tssworkflow.pickMacro",
+    "onCommand:tssworkflow.reloadMacros",
+    "workspaceContains:**/*.cls",
+    "onCommand:tssworkflow.generateMathJax",
+    "onCommand:tssworkflow.extractTikz",
+    "onCommand:tssworkflow.extractTikzAll",
+    "onCommand:tssworkflow.stopBuild",
+    "onCommand:tssworkflow.displayToEquation",
+    "onCommand:tssworkflow.reframeSections",
+    "onCommand:tssworkflow.unusedEquations",
+    "onCommand:tssworkflow.projectStats",
+    "onCommand:tssworkflow.todoList",
+    "onCommand:tssworkflow.todoRefresh",
+    "onCommand:tssworkflow.macroInfo",
+    "onView:tssworkflow.todoView",
+    "onCommand:tssworkflow.newChapter",
+    "onCommand:tssworkflow.toggleIffalse",
+    "onCommand:tssworkflow.unicodeToLatex",
+    "onCommand:tssworkflow.bibFromDoi",
+    "onCommand:tssworkflow.latexdiff",
+    "onCommand:tssworkflow.newFromTemplate",
+    "onCommand:tssworkflow.makeTemplate",
+    "onCommand:tssworkflow.manageTemplates",
+    "onCommand:tssworkflow.openTemplatesFolder",
+    "onView:tssworkflow.commandsView",
+    "onCommand:tssworkflow.insertTemplate",
+    "onCommand:tssworkflow.openChapter",
+    "onCommand:tssworkflow.buildChapter",
+    "onCommand:tssworkflow.chapterHooks",
+    "onCommand:tssworkflow.refreshChapters",
+    "onView:tssworkflow.chaptersView",
+    "onCommand:tssworkflow.checkEnvironment",
+    "onView:tssworkflow.startView",
+    "onCommand:tssworkflow.renameChapter",
+    "onCommand:tssworkflow.moveChapterUp",
+    "onCommand:tssworkflow.moveChapterDown",
+    "onCommand:tssworkflow.replaceInProject",
+    "onCommand:tssworkflow.makeSnapshot",
+    "onCommand:tssworkflow.restoreSnapshot",
+    "onCommand:tssworkflow.normalizeProject",
+    "onCommand:tssworkflow.notationReport",
+    "onCommand:tssworkflow.buildParts",
+    "onCommand:tssworkflow.refreshProblems",
+    "onView:tssworkflow.problemsView"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "tssworkflow.compilePdf",
+        "title": "TSS Workflow: Compile + open PDF",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tssworkflow.compile",
+        "title": "TSS Workflow: Compile (no PDF)",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "tssworkflow.clean",
+        "title": "TSS Workflow: Delete aux files and PDF",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "tssworkflow.cleanAux",
+        "title": "TSS Workflow: Delete aux files (keep PDF)"
+      },
+      {
+        "command": "tssworkflow.pickFile",
+        "title": "TSS Workflow: Pick file name for \\localinput / \\includegraphics"
+      },
+      {
+        "command": "tssworkflow.alignTable",
+        "title": "TSS Workflow: Align table columns (&)"
+      },
+      {
+        "command": "tssworkflow.unwrap",
+        "title": "TSS Workflow: Join lines of paragraph (unwrap)",
+        "icon": "$(list-flat)"
+      },
+      {
+        "command": "tssworkflow.wrap",
+        "title": "TSS Workflow: Wrap paragraph to width (wrapWidth)"
+      },
+      {
+        "command": "tssworkflow.typography",
+        "title": "TSS Workflow: Ukrainian typography (~, ---, «»)",
+        "icon": "$(symbol-text)"
+      },
+      {
+        "command": "tssworkflow.sentences",
+        "title": "TSS Workflow: One sentence per line"
+      },
+      {
+        "command": "tssworkflow.tableOps",
+        "title": "TSS Workflow: Table operations (columns, sort, transpose)",
+        "icon": "$(table)"
+      },
+      {
+        "command": "tssworkflow.convertEnv",
+        "title": "TSS Workflow: Convert formula environment / label"
+      },
+      {
+        "command": "tssworkflow.displayToEquation",
+        "title": "TSS Workflow: Convert \\[ ... \\] to equation*"
+      },
+      {
+        "command": "tssworkflow.pictures",
+        "title": "TSS Workflow: Pictures browser",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "tssworkflow.unusedFiles",
+        "title": "TSS Workflow: Files in Pictures/ and tikz/ with no references"
+      },
+      {
+        "command": "tssworkflow.checkLabels",
+        "title": "TSS Workflow: Check duplicate / undefined labels",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "tssworkflow.checkCitations",
+        "title": "TSS Workflow: Check \\cite keys against .bib files"
+      },
+      {
+        "command": "tssworkflow.initProjectSettings",
+        "title": "TSS Workflow: Create .vscode/settings.json for this project"
+      },
+      {
+        "command": "tssworkflow.ltexDictionary",
+        "title": "TSS Workflow: Add LTeX spelling hits to the dictionary"
+      },
+      {
+        "command": "tssworkflow.externalForwardSearch",
+        "title": "TSS Workflow: Show cursor line in the external viewer (SyncTeX)"
+      },
+      {
+        "command": "tssworkflow.toggleCompileOnSave",
+        "title": "TSS Workflow: Toggle compile on save"
+      },
+      {
+        "command": "tssworkflow.frameSections",
+        "title": "TSS Workflow: Frame headings and formula environments (%% ---- / % ==== lines)"
+      },
+      {
+        "command": "tssworkflow.normalize",
+        "title": "TSS Workflow: Normalize file (typography, tables, line breaks, frames, blank lines) with preview",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "tssworkflow.goToHeading",
+        "title": "TSS Workflow: Go to heading (whole project)",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "tssworkflow.compileMainPdf",
+        "title": "TSS Workflow: Compile whole document (main) + open PDF",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "tssworkflow.compileMain",
+        "title": "TSS Workflow: Compile whole document (main), no PDF"
+      },
+      {
+        "command": "tssworkflow.normalizeOptions",
+        "title": "TSS Workflow: Normalize options (steps, line breaks)",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "tssworkflow.openPdfExternal",
+        "title": "TSS Workflow: Open PDF in external viewer (SumatraPDF)",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "tssworkflow.pickMacro",
+        "title": "TSS Workflow: Go to macro (from project .cls/.sty)"
+      },
+      {
+        "command": "tssworkflow.reloadMacros",
+        "title": "TSS Workflow: Reload macros from .cls/.sty"
+      },
+      {
+        "command": "tssworkflow.generateMathJax",
+        "title": "TSS Workflow: Generate MathJax macros file (for LaTeX Workshop formula preview)"
+      },
+      {
+        "command": "tssworkflow.extractTikz",
+        "title": "TSS Workflow: Extract tikzpicture/circuitikz at cursor to tikz/ and insert \\localinput"
+      },
+      {
+        "command": "tssworkflow.extractTikzAll",
+        "title": "TSS Workflow: Extract all tikzpicture/circuitikz in file (or selection) to tikz/"
+      },
+      {
+        "command": "tssworkflow.stopBuild",
+        "title": "TSS Workflow: Stop compilation",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "tssworkflow.reframeSections",
+        "title": "TSS Workflow: Re-frame headings and formulas (replace existing frames)"
+      },
+      {
+        "command": "tssworkflow.unusedEquations",
+        "title": "TSS Workflow: Numbered equations nobody refers to"
+      },
+      {
+        "command": "tssworkflow.projectStats",
+        "title": "TSS Workflow: Project statistics (words, formulas, figures per chapter)",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "tssworkflow.todoList",
+        "title": "TSS Workflow: List TODO / FIXME comments"
+      },
+      {
+        "command": "tssworkflow.todoRefresh",
+        "title": "TSS Workflow: Refresh TODO view",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tssworkflow.macroInfo",
+        "title": "TSS Workflow: Where is this macro defined? (diagnose)"
+      },
+      {
+        "command": "tssworkflow.showHooks",
+        "title": "TSS Workflow: Show page output hooks (shipout)"
+      },
+      {
+        "command": "tssworkflow.newChapter",
+        "title": "TSS Workflow: New chapter (folder, header, main.tex)"
+      },
+      {
+        "command": "tssworkflow.toggleIffalse",
+        "title": "TSS Workflow: Wrap in / unwrap \\iffalse ... \\fi"
+      },
+      {
+        "command": "tssworkflow.unicodeToLatex",
+        "title": "TSS Workflow: Unicode math characters to LaTeX"
+      },
+      {
+        "command": "tssworkflow.bibFromDoi",
+        "title": "TSS Workflow: Add BibTeX entry from DOI"
+      },
+      {
+        "command": "tssworkflow.latexdiff",
+        "title": "TSS Workflow: Changes of this chapter since a git revision (latexdiff PDF)"
+      },
+      {
+        "command": "tssworkflow.newFromTemplate",
+        "title": "TSS Workflow: New from template..."
+      },
+      {
+        "command": "tssworkflow.makeTemplate",
+        "title": "TSS Workflow: Make template from this document (or selection)..."
+      },
+      {
+        "command": "tssworkflow.manageTemplates",
+        "title": "TSS Workflow: Manage templates (open, rename, delete)..."
+      },
+      {
+        "command": "tssworkflow.openTemplatesFolder",
+        "title": "TSS Workflow: Open user templates folder"
+      },
+      {
+        "command": "tssworkflow.insertTemplate",
+        "title": "TSS Workflow: Insert template fragment..."
+      },
+      {
+        "command": "tssworkflow.openChapter",
+        "title": "TSS Workflow: Open chapter",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "tssworkflow.buildChapter",
+        "title": "TSS Workflow: Build this chapter and open PDF",
+        "icon": "$(play)"
+      },
+      {
+        "command": "tssworkflow.chapterHooks",
+        "title": "TSS Workflow: Page output hooks of this chapter"
+      },
+      {
+        "command": "tssworkflow.refreshChapters",
+        "title": "TSS Workflow: Refresh the chapters panel",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tssworkflow.checkEnvironment",
+        "title": "TSS Workflow: Check environment (latexmk, lualatex, texlogsieve, extensions, files)"
+      },
+      {
+        "command": "tssworkflow.renameChapter",
+        "title": "TSS Workflow: Rename chapter (folder, file, lists, paths, references)"
+      },
+      {
+        "command": "tssworkflow.moveChapterUp",
+        "title": "TSS Workflow: Move chapter up",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "tssworkflow.moveChapterDown",
+        "title": "TSS Workflow: Move chapter down",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "tssworkflow.replaceInProject",
+        "title": "TSS Workflow: Replace in project (LaTeX-aware, with snapshot)"
+      },
+      {
+        "command": "tssworkflow.makeSnapshot",
+        "title": "TSS Workflow: Make snapshot of the project sources"
+      },
+      {
+        "command": "tssworkflow.restoreSnapshot",
+        "title": "TSS Workflow: Restore snapshot"
+      },
+      {
+        "command": "tssworkflow.normalizeProject",
+        "title": "TSS Workflow: Normalize all files of the project (with snapshot)"
+      },
+      {
+        "command": "tssworkflow.notationReport",
+        "title": "TSS Workflow: Notation consistency across the project (\\varepsilon/\\epsilon, \\le/\\leq, ...)"
+      },
+      {
+        "command": "tssworkflow.buildParts",
+        "title": "TSS Workflow: Build only chosen parts (\\part) of the main file"
+      },
+      {
+        "command": "tssworkflow.refreshProblems",
+        "title": "TSS Workflow: Refresh the Problems panel",
+        "icon": "$(refresh)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "tssworkflow.compilePdf",
+          "when": "(resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz) && !tssworkflow.building && resourceExtname != .cls && resourceExtname != .sty && resourceExtname != .clo && resourceExtname != .def && resourceExtname != .cfg",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tssworkflow.compile",
+          "when": "(resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz) && !tssworkflow.building && resourceExtname != .cls && resourceExtname != .sty && resourceExtname != .clo && resourceExtname != .def && resourceExtname != .cfg",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tssworkflow.compileMainPdf",
+          "when": "(resourceLangId == latex || resourceLangId == tex) && !tssworkflow.building",
+          "group": "navigation@3"
+        },
+        {
+          "command": "tssworkflow.openPdfExternal",
+          "when": "resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz",
+          "group": "navigation@4"
+        },
+        {
+          "command": "tssworkflow.normalize",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "navigation@5"
+        },
+        {
+          "submenu": "tssworkflow.submenu.text",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "navigation@6"
+        },
+        {
+          "submenu": "tssworkflow.submenu.nav",
+          "when": "resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz",
+          "group": "navigation@7"
+        },
+        {
+          "submenu": "tssworkflow.submenu.build",
+          "when": "resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz",
+          "group": "navigation@8"
+        },
+        {
+          "command": "tssworkflow.stopBuild",
+          "when": "tssworkflow.building && (resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz)",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "tssworkflow.alignTable",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.unwrap",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.typography",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.tableOps",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.convertEnv",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.displayToEquation",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.sentences",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.wrap",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.frameSections",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.normalize",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.normalizeOptions",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        }
+      ],
+      "tssworkflow.submenu.text": [
+        {
+          "command": "tssworkflow.normalize",
+          "group": "1_normalize@1"
+        },
+        {
+          "command": "tssworkflow.normalizeOptions",
+          "group": "1_normalize@2"
+        },
+        {
+          "command": "tssworkflow.typography",
+          "group": "2_paragraph@1"
+        },
+        {
+          "command": "tssworkflow.unwrap",
+          "group": "2_paragraph@2"
+        },
+        {
+          "command": "tssworkflow.wrap",
+          "group": "2_paragraph@3"
+        },
+        {
+          "command": "tssworkflow.sentences",
+          "group": "2_paragraph@4"
+        },
+        {
+          "command": "tssworkflow.frameSections",
+          "group": "3_structure@1"
+        },
+        {
+          "command": "tssworkflow.reframeSections",
+          "group": "3_structure@2"
+        },
+        {
+          "command": "tssworkflow.convertEnv",
+          "group": "3_structure@3"
+        },
+        {
+          "command": "tssworkflow.displayToEquation",
+          "group": "3_structure@4"
+        },
+        {
+          "command": "tssworkflow.alignTable",
+          "group": "4_tables@1"
+        },
+        {
+          "command": "tssworkflow.tableOps",
+          "group": "4_tables@2"
+        },
+        {
+          "command": "tssworkflow.extractTikz",
+          "group": "3_structure@5"
+        },
+        {
+          "command": "tssworkflow.extractTikzAll",
+          "group": "3_structure@6"
+        }
+      ],
+      "tssworkflow.submenu.nav": [
+        {
+          "command": "tssworkflow.goToHeading",
+          "group": "1_go@1"
+        },
+        {
+          "command": "tssworkflow.pickFile",
+          "group": "1_go@2"
+        },
+        {
+          "command": "tssworkflow.pictures",
+          "group": "1_go@3"
+        },
+        {
+          "command": "tssworkflow.checkLabels",
+          "group": "2_check@1"
+        },
+        {
+          "command": "tssworkflow.unusedFiles",
+          "group": "2_check@2"
+        },
+        {
+          "command": "tssworkflow.checkCitations",
+          "group": "2_check@3"
+        },
+        {
+          "command": "tssworkflow.ltexDictionary",
+          "group": "2_check@4"
+        },
+        {
+          "command": "tssworkflow.unusedEquations",
+          "group": "2_check@5"
+        },
+        {
+          "command": "tssworkflow.macroInfo",
+          "group": "2_check@6"
+        },
+        {
+          "command": "tssworkflow.projectStats",
+          "group": "3_info@1"
+        },
+        {
+          "command": "tssworkflow.todoList",
+          "group": "3_info@2"
+        }
+      ],
+      "tssworkflow.submenu.build": [
+        {
+          "command": "tssworkflow.compileMain",
+          "group": "1_build@1"
+        },
+        {
+          "command": "tssworkflow.toggleCompileOnSave",
+          "group": "1_build@2"
+        },
+        {
+          "command": "tssworkflow.clean",
+          "group": "2_clean@1"
+        },
+        {
+          "command": "tssworkflow.cleanAux",
+          "group": "2_clean@2"
+        },
+        {
+          "command": "tssworkflow.stopBuild",
+          "group": "1_build@3"
+        },
+        {
+          "command": "tssworkflow.externalForwardSearch",
+          "group": "3_view@1"
+        },
+        {
+          "command": "tssworkflow.initProjectSettings",
+          "group": "4_project@1"
+        },
+        {
+          "command": "tssworkflow.checkEnvironment",
+          "group": "4_project@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "tssworkflow.todoRefresh",
+          "when": "view == tssworkflow.todoView",
+          "group": "navigation"
+        },
+        {
+          "command": "tssworkflow.refreshChapters",
+          "when": "view == tssworkflow.chaptersView",
+          "group": "navigation"
+        },
+        {
+          "command": "tssworkflow.refreshProblems",
+          "when": "view == tssworkflow.problemsView",
+          "group": "navigation"
+        }
+      ],
+      "file/newFile": [
+        {
+          "command": "tssworkflow.newFromTemplate",
+          "group": "tssworkflow@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "tssworkflow.newFromTemplate",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@9"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "tssworkflow.buildChapter",
+          "when": "view == tssworkflow.chaptersView && (viewItem == chapter || viewItem == figure)",
+          "group": "inline@1"
+        },
+        {
+          "command": "tssworkflow.chapterHooks",
+          "when": "view == tssworkflow.chaptersView && viewItem == chapter",
+          "group": "navigation@2"
+        },
+        {
+          "command": "tssworkflow.buildChapter",
+          "when": "view == tssworkflow.chaptersView && (viewItem == chapter || viewItem == figure)",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tssworkflow.moveChapterUp",
+          "when": "view == tssworkflow.chaptersView && viewItem == chapter",
+          "group": "inline@2"
+        },
+        {
+          "command": "tssworkflow.moveChapterDown",
+          "when": "view == tssworkflow.chaptersView && viewItem == chapter",
+          "group": "inline@3"
+        },
+        {
+          "command": "tssworkflow.renameChapter",
+          "when": "view == tssworkflow.chaptersView && (viewItem == chapter || viewItem == chapterMissing)",
+          "group": "1_modification@1"
+        },
+        {
+          "command": "tssworkflow.moveChapterUp",
+          "when": "view == tssworkflow.chaptersView && viewItem == chapter",
+          "group": "1_modification@2"
+        },
+        {
+          "command": "tssworkflow.moveChapterDown",
+          "when": "view == tssworkflow.chaptersView && viewItem == chapter",
+          "group": "1_modification@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "tssworkflow.openChapter",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.buildChapter",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.chapterHooks",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.moveChapterUp",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.moveChapterDown",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.refreshProblems",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TSS Workflow",
+      "properties": {
+        "tssworkflow.driver": {
+          "type": "string",
+          "default": "alone.tex",
+          "description": "Driver .tex file in the workspace root"
+        },
+        "tssworkflow.latexmk": {
+          "type": "string",
+          "default": "latexmk",
+          "description": "latexmk executable"
+        },
+        "tssworkflow.pdfBeside": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the PDF in a side-by-side editor group"
+        },
+        "tssworkflow.jobname": {
+          "type": "string",
+          "default": "main",
+          "description": "Output name (jobname) for standalone builds. Empty = name of the open file. \"main\" makes SyncTeX work with % !TeX root = ../main.tex"
+        },
+        "tssworkflow.singlePass": {
+          "type": "boolean",
+          "default": true,
+          "description": "Chapter / figure builds (button, F5, Auto) run plain lualatex once instead of latexmk, so there are no reruns. The whole-document build (Shift+F5) still uses latexmk. References are taken from the existing <jobname>.aux and lag one build behind; biber/makeindex are not run."
+        },
+        "tssworkflow.showPasses": {
+          "type": "boolean",
+          "default": true,
+          "description": "In latexmk builds (singlePass = false, or the whole document with Shift+F5) show the number of the LaTeX run in the status bar, e.g. 2/4. The total is the number of runs of the previous build of the same file (unknown on the first one). Detected from changes of <job>.log; does not apply to single-pass builds"
+        },
+        "tssworkflow.lualatex": {
+          "type": "string",
+          "default": "lualatex",
+          "description": "lualatex executable used when tssworkflow.singlePass is on"
+        },
+        "tssworkflow.forceRebuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Pass -g to latexmk so a build sharing the jobname with the full document is always redone"
+        },
+        "tssworkflow.wrapWidth": {
+          "type": "integer",
+          "default": 90,
+          "minimum": 20,
+          "description": "Line width for the \"Wrap paragraph\" command and for Normalize file with normalizeLineBreaks = wrap"
+        },
+        "tssworkflow.diagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Quick error checks (missing backslash, unpaired environments, blank line in formula, missing files) and project label checks on save"
+        },
+        "tssworkflow.compileOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Compile the current chapter or figure after saving (root files are skipped). Also toggled from the status bar"
+        },
+        "tssworkflow.previewChanges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a side-by-side preview (Apply / Cancel) before frames and \"Normalize file\" change the text"
+        },
+        "tssworkflow.typographyOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Apply Ukrainian typography (~, ~---, «») to the whole .tex file on every save"
+        },
+        "tssworkflow.unusedLabels": {
+          "type": "string",
+          "enum": [
+            "off",
+            "hint",
+            "information",
+            "warning"
+          ],
+          "default": "hint",
+          "description": "How to mark labels that no \\ref points to"
+        },
+        "tssworkflow.labelPrefixes": {
+          "type": "object",
+          "default": {
+            "figure": "pic:",
+            "problem": "prb:"
+          },
+          "description": "Required label prefix by environment, e.g. {\"equation\": \"eq:\", \"figure\": \"pic:\"}. Use an empty object to disable"
+        },
+        "tssworkflow.logWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "After a build, show Overfull \\hbox and undefined references from the .log in Problems. false: with pplatex / texlogsieve only errors stay; with builtin nothing from the log"
+        },
+        "tssworkflow.overfullThreshold": {
+          "type": "number",
+          "default": 5,
+          "minimum": 0,
+          "description": "Minimum Overfull \\hbox width (pt) to report"
+        },
+        "tssworkflow.frameRules": {
+          "type": "object",
+          "default": {},
+          "description": "Rule line of the frames. Keys: \"headings\" (all sectioning commands), \"formulas\" (all formula environments), or a single command / environment name (chapter, section, subsection, subsubsection, paragraph, subparagraph, equation, align, gather, multline, eqnarray, flalign, alignat, displaymath). Value: a comment line of 8+ identical characters - = * # _ ~ . , or \"\" to switch framing off for that key. Example: {\"headings\": \"%% ----------------------\", \"section\": \"%%% ======================\", \"equation\": \"\"}. Empty object = defaults (%% + 56 dashes for headings, % + 56 \"=\" for formulas). Key \"environments\" sets the look of the extra environments from frameEnvironments."
+        },
+        "tssworkflow.frameBlankLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add a blank line above and below a framed heading"
+        },
+        "tssworkflow.mainFile": {
+          "type": "string",
+          "default": "main.tex",
+          "description": "Root file of the whole document (in the workspace root), built by Shift+F5 and when a root file is open"
+        },
+        "tssworkflow.displayMathToEquation": {
+          "type": "boolean",
+          "default": true,
+          "description": "\"Normalize file\" converts \\[ ... \\] to \\begin{equation*} ... \\end{equation*}"
+        },
+        "tssworkflow.normalizeTypography": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize file: apply Ukrainian typography (~, ---, «»)"
+        },
+        "tssworkflow.normalizeTables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize file: align tables at &"
+        },
+        "tssworkflow.normalizeFrames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize file: frame headings and formula environments (see tssworkflow.frameRules)"
+        },
+        "tssworkflow.normalizeBlankLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Normalize file: one blank line between paragraphs (tssworkflow.blankLinesParagraph), tssworkflow.blankLinesHeading blank lines before and after every sectioning command. Verbatim and formula environments are not touched"
+        },
+        "tssworkflow.normalizeLineBreaks": {
+          "type": "string",
+          "enum": [
+            "keep",
+            "join",
+            "wrap"
+          ],
+          "enumDescriptions": [
+            "Do not touch line breaks",
+            "Join the lines of every paragraph into one line",
+            "Join, then break lines longer than tssworkflow.wrapWidth"
+          ],
+          "default": "keep",
+          "description": "Normalize file: what to do with hard line breaks inside paragraphs. Formulas, verbatim, tikzpicture, tables and the preamble are never touched; nothing is done in .tikz files"
+        },
+        "tssworkflow.blankLinesParagraph": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 3,
+          "description": "Normalize file: blank lines between paragraphs"
+        },
+        "tssworkflow.blankLinesHeading": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 5,
+          "description": "Normalize file: blank lines before and after \\part, \\chapter, \\section, \\subsection, \\subsubsection, \\paragraph, \\subparagraph (with their frame lines and \\label)"
+        },
+        "tssworkflow.pdfViewer": {
+          "type": "string",
+          "enum": [
+            "vscode",
+            "latexworkshop",
+            "external",
+            "none"
+          ],
+          "enumDescriptions": [
+            "Open the PDF in VS Code (beside the editor) after a build with PDF",
+            "Open the PDF through LaTeX Workshop's viewer (command latex-workshop.view); use this when LaTeX Workshop is installed: plain 'vscode' leaves an empty tab",
+            "Open the PDF in the external viewer after a build with PDF",
+            "Do not open the PDF after a build"
+          ],
+          "default": "vscode",
+          "description": "Where the PDF opens after the buttons that compile and open the PDF"
+        },
+        "tssworkflow.externalViewerCommand": {
+          "type": "string",
+          "default": "SumatraPDF",
+          "description": "Program for the 'Open PDF in external viewer' button (must be in PATH or a full path), e.g. SumatraPDF, okular, open, xdg-open"
+        },
+        "tssworkflow.externalViewerArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "-reuse-instance",
+            "${pdf}"
+          ],
+          "description": "Arguments of the external viewer. ${pdf}: the PDF, ${file}: the active .tex file, ${line}: cursor line (1-based). If ${pdf} is absent, the PDF path is appended"
+        },
+        "tssworkflow.externalSyncArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "-reuse-instance",
+            "-forward-search",
+            "${file}",
+            "${line}",
+            "${pdf}"
+          ],
+          "description": "Arguments for the command 'Show cursor line in the external viewer (SyncTeX)'. Same placeholders as externalViewerArgs. Default is for SumatraPDF"
+        },
+        "tssworkflow.projectSettingsTemplate": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a JSON(C) file used as the template for 'Create .vscode/settings.json for this project' instead of the built-in one. The built-in template is generated for the project: mainFile (the only .tex of the root, else main.tex, else you are asked), jobname, macroFiles (.sty/.cls in subfolders), the style of the text, texlogsieve when the program is found, MathJax macros of LaTeX Workshop and files.exclude for build files. A custom template is used as it is."
+        },
+        "tssworkflow.offerProjectSettings": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a folder with .tex files has no .vscode/settings.json, offer to create it from the template (can be silenced per folder)"
+        },
+        "tssworkflow.citationChecks": {
+          "type": "boolean",
+          "default": true,
+          "description": "On save, check \\cite keys against the .bib files of the workspace (undefined keys, duplicates). Only .bib files inside the workspace are read"
+        },
+        "tssworkflow.unusedBibEntries": {
+          "type": "string",
+          "enum": [
+            "off",
+            "hint",
+            "information",
+            "warning"
+          ],
+          "default": "hint",
+          "description": "How to mark .bib entries that no \\cite refers to (not reported if the project has \\nocite{*})"
+        },
+        "tssworkflow.figureChecks": {
+          "type": "string",
+          "enum": [
+            "off",
+            "hint",
+            "information",
+            "warning"
+          ],
+          "default": "information",
+          "description": "How to mark figure / figure* / wrapfigure / wrapstuff[type=figure] without \\caption or without \\label"
+        },
+        "tssworkflow.lintRules": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "JavaScript regular expression, applied to the code part of each line (comments are skipped)"
+              },
+              "message": {
+                "type": "string",
+                "description": "Text of the diagnostic"
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "error",
+                  "warning",
+                  "information",
+                  "hint"
+                ],
+                "default": "warning"
+              },
+              "flags": {
+                "type": "string",
+                "description": "Regex flags: i, m, s, u (g is always on)"
+              },
+              "files": {
+                "type": "string",
+                "description": "Regular expression tested against the file path (with /); the rule applies only to matching files"
+              }
+            },
+            "required": [
+              "pattern"
+            ]
+          },
+          "description": "Own lint rules, e.g. [{\"pattern\": \"\\\\\\\\varepsilon_0\", \"message\": \"SI constant in a CGS text\", \"files\": \"EMConspect\"}]"
+        },
+        "tssworkflow.logParser": {
+          "type": "string",
+          "enum": [
+            "builtin",
+            "pplatex",
+            "texlogsieve"
+          ],
+          "enumDescriptions": [
+            "Errors from the latexmk output (file-line-error) plus the built-in log parser (Overfull, undefined references)",
+            "Run pplatex on <job>.log after every build and show its Errors, Warnings and BadBoxes in Problems instead",
+            "Run texlogsieve on <job>.log after every build and show its Errors, Warnings, Overfull boxes and Missing characters in Problems (project files only)"
+          ],
+          "default": "builtin",
+          "description": "Where the Problems entries after a build come from"
+        },
+        "tssworkflow.pplatexCommand": {
+          "type": "string",
+          "default": "ppluatex",
+          "description": "pplatex executable (ppluatex, ppdflatex or pplatex: it is the same program); must be in PATH or a full path. Used when tssworkflow.logParser = pplatex"
+        },
+        "tssworkflow.pplatexBadBoxes": {
+          "type": "string",
+          "enum": [
+            "off",
+            "hint",
+            "information",
+            "warning"
+          ],
+          "default": "information",
+          "description": "Severity of pplatex BadBox entries (Overfull/Underfull); Overfull narrower than tssworkflow.overfullThreshold is skipped"
+        },
+        "tssworkflow.quoteStyle": {
+          "type": "string",
+          "enum": [
+            "guillemets",
+            "enquote",
+            "keep"
+          ],
+          "enumDescriptions": [
+            "Straight \"...\" and ``...'' become «...»",
+            "\"...\", ``...'', <<...>> and «...» become \\enquote{...} (the csquotes package is needed)",
+            "Do not touch quotes"
+          ],
+          "default": "guillemets",
+          "description": "What typography (the Typography command, typographyOnSave and Normalize file) does with quotes"
+        },
+        "tssworkflow.texlogsieveCommand": {
+          "type": "string",
+          "default": "texlogsieve",
+          "description": "Executable of texlogsieve (name in PATH or full path); used when tssworkflow.logParser = texlogsieve"
+        },
+        "tssworkflow.texlogsieveArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "${log}"
+          ],
+          "description": "Arguments for texlogsieve. ${log} is replaced with the path to <job>.log (added at the end if missing). Check `texlogsieve --help` for options"
+        },
+        "tssworkflow.texlogsieveOutput": {
+          "type": "string",
+          "enum": [
+            "always",
+            "onProblems",
+            "off"
+          ],
+          "default": "always",
+          "enumDescriptions": [
+            "After every build show the grouped report in the 'texlogsieve' Output channel",
+            "Show the channel only when there is something to report (it is still refreshed after every build)",
+            "Do not write the Output channel"
+          ],
+          "description": "Grouped problem report (errors, warnings, missing characters, Overfull/Underfull; clickable file:line) in its own Output channel after each build (used when tssworkflow.logParser = texlogsieve)"
+        },
+        "tssworkflow.texlogsieveTerminal": {
+          "type": "string",
+          "enum": [
+            "always",
+            "onProblems",
+            "off"
+          ],
+          "default": "always",
+          "enumDescriptions": [
+            "After every build show the texlogsieve report in the 'texlogsieve' terminal tab",
+            "Show the tab only when there are errors or warnings (an already open tab is still refreshed)",
+            "Do not show the report"
+          ],
+          "description": "Print the full texlogsieve report in a separate terminal tab after each build (used when tssworkflow.logParser = texlogsieve)"
+        },
+        "tssworkflow.macros": {
+          "type": "boolean",
+          "default": true,
+          "description": "Completion, hover, go-to-definition and signature help for macros and environments defined in the project's own .cls/.sty (found via \\documentclass / \\usepackage in main.tex) and in the open file"
+        },
+        "tssworkflow.macroFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra files (or globs) with macro definitions, relative to the workspace folder, e.g. [\"ConspectBook.cls\", \"styles/*.sty\"]. Normally not needed: the class and local packages are found automatically"
+        },
+        "tssworkflow.macroSnippetArgs": {
+          "type": "string",
+          "enum": [
+            "mandatory",
+            "all",
+            "none"
+          ],
+          "default": "mandatory",
+          "enumDescriptions": [
+            "Insert tab stops for mandatory arguments only",
+            "Insert tab stops for optional arguments too",
+            "Insert the bare command name"
+          ],
+          "description": "What is inserted when a macro from the class is accepted from the completion list"
+        },
+        "tssworkflow.mathjaxMacrosFile": {
+          "type": "string",
+          "default": "mathjax-macros.tex",
+          "description": "File (next to main.tex) written by 'Generate MathJax macros file'. Its name goes to latex-workshop.hover.preview.newcommand.newcommandFile"
+        },
+        "tssworkflow.mathjaxAutoUpdate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Regenerate the MathJax macros file when a project .cls/.sty is saved (only if the file already exists)"
+        },
+        "tssworkflow.tikzExtractEnvs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "tikzpicture",
+            "circuitikz"
+          ],
+          "description": "Environments that 'Extract tikzpicture/circuitikz to tikz/' moves into tikz/<name>.tikz (e.g. add tikzcd or axis). The name is the \\label of the enclosing figure without the prefix before the colon"
+        },
+        "tssworkflow.frameEnvironments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra environments to frame like formulas (e.g. [\"SCfigure\", \"theorem\"]). Their rule line comes from frameRules (key = the environment name, else \"environments\", else \"formulas\"). The built-in ones (equation, align, gather, multline, eqnarray, flalign, alignat, displaymath) are always framed."
+        },
+        "tssworkflow.typographyChecks": {
+          "type": "string",
+          "enum": [
+            "off",
+            "hint",
+            "information",
+            "warning"
+          ],
+          "default": "hint",
+          "description": "Severity of the typography checks: a plain space between a number and a unit or after \"рис.\" / \"табл.\" / \"п.\" (use ~), a hyphen instead of the dash, a word mixing Cyrillic and Latin letters, \\\\vec and \\\\vect mixed in one file (see mixedMacros). \"off\" switches them off. Quick fixes are offered for the first three and for look-alike letters."
+        },
+        "tssworkflow.mixedMacros": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "default": [
+            [
+              "vec",
+              "vect"
+            ]
+          ],
+          "description": "Pairs of macro names that should not be mixed within one file, e.g. [[\"vec\", \"vect\"]]. The less frequent one is marked. Empty list = no check."
+        },
+        "tssworkflow.todoKeywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "TODO",
+            "FIXME",
+            "XXX",
+            "HACK",
+            "ПЕРЕВІРИТИ",
+            "ДОПИСАТИ"
+          ],
+          "description": "Words that mark a note in a % comment for the TSS TODO view in the Explorer. \\\\todo{...} commands are always listed."
+        },
+        "tssworkflow.statsCounters": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Extra counters of the statistics command: name -> regular expression, e.g. {\"Задачі\": \"\\\\\\\\begin\\\\{problem\\\\}\"}. Counted in the text without comments."
+        },
+        "tssworkflow.auxFile": {
+          "type": "string",
+          "default": "",
+          "description": "Path (relative to the project folder) of the .aux file used for the label number and page in hovers. Empty = <jobname>.aux, then build/<jobname>.aux."
+        },
+        "tssworkflow.imagePreviewMode": {
+          "type": "string",
+          "enum": [
+            "file",
+            "data",
+            "link"
+          ],
+          "default": "file",
+          "enumDescriptions": [
+            "Thumbnail by a file: URI (any size up to imagePreviewMaxMB)",
+            "Thumbnail embedded as base64 (only files up to 64 KB; larger ones are not drawn by VS Code)",
+            "No thumbnail, only the 'Open image' link"
+          ],
+          "description": "How the hover on \\includegraphics shows the picture"
+        },
+        "tssworkflow.imagePreviewMaxMB": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0,
+          "description": "Largest picture (MB) the hover on \\includegraphics draws as a thumbnail; a larger file gets a short message and the 'Open image' link instead. 0: never draw thumbnails"
+        },
+        "tssworkflow.figureTemplate": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "\\begin{figure}[h!]\\centering",
+            "\t\\includegraphics[width=${width}]{${name}}",
+            "\t\\caption{${caption}\\label{${label}}}",
+            "\\end{figure}"
+          ],
+          "description": "Lines inserted when a picture is dropped or pasted into a .tex file. Placeholders: ${name} (file name without extension), ${width}, ${label}, ${caption} (the cursor stops here). Inside an existing figure only \\includegraphics is inserted"
+        },
+        "tssworkflow.figureWidth": {
+          "type": "string",
+          "default": "0.6\\linewidth",
+          "description": "Value of ${width} in tssworkflow.figureTemplate"
+        },
+        "tssworkflow.newTikzTemplate": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "% Рисунок «${name}»: створено автоматично, заповни",
+            "\\begin{tikzpicture}",
+            "\t",
+            "\\end{tikzpicture}",
+            ""
+          ],
+          "description": "Content of a .tikz file created by the Quick Fix on a \\localinput without a file. Placeholder: ${name}"
+        },
+        "tssworkflow.chapterTemplate": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "% !TeX program = lualatex",
+            "% !TeX encoding = utf8",
+            "% !TeX spellcheck = uk_UA",
+            "% !TeX root = ${root}",
+            "",
+            "%=========================================================",
+            "\\chapter{${title}}\\label{\\currfilebase}\\hypertarget{\\currfilebase}{}",
+            "\\graphicspath{{\\currfilebase/Pictures}}",
+            "%=========================================================",
+            ""
+          ],
+          "description": "Content of <name>/<name>.tex created by the command New chapter. Placeholders: ${name}, ${title}, ${root} (path to the main file, ../main.tex)"
+        },
+        "tssworkflow.chapterIncludeMacro": {
+          "type": "string",
+          "default": "\\includechapter",
+          "description": "Macro whose line `\\includechapter{name}` the command New chapter adds to the main file (after the last such line)"
+        },
+        "tssworkflow.staleRefsIndicator": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show «refs застарілі» in the status bar when a source file was saved after the last whole-document build (references and table of contents of chapter builds come from <jobname>.aux)"
+        },
+        "tssworkflow.latexdiffCommand": {
+          "type": "string",
+          "default": "latexdiff",
+          "description": "latexdiff executable (part of TeX Live)"
+        },
+        "tssworkflow.latexdiffArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "--type=UNDERLINE"
+          ],
+          "description": "Arguments of latexdiff before the two file names (old, new)"
+        },
+        "tssworkflow.templatesDir": {
+          "type": "string",
+          "default": "",
+          "description": "Folder with your document templates (.tex, .tikz) for 'New from template'. Empty: the extension's own storage folder (see 'Open user templates folder'). A leading ~ is the home folder"
+        },
+        "tssworkflow.projectTemplatesDir": {
+          "type": "string",
+          "default": ".vscode/templates",
+          "description": "Folder with project templates, relative to the workspace folder (or absolute). Project templates are listed first in 'New from template'. Empty: no project templates"
+        },
+        "tssworkflow.templateAuthor": {
+          "type": "string",
+          "default": "",
+          "description": "Value of ${author} in templates (also available: ${date}, ${year}, ${time}, ${title} - asked when the template uses it, ${cursor} - where the caret stops)"
+        },
+        "tssworkflow.newFromTemplateInWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "New from template: when no folder was clicked, create the file in the folder VS Code is open in (asks only for the name; no Save As dialog). false: an untitled document, as before 0.4.4. With no folder open the document is untitled anyway."
+        },
+        "tssworkflow.chapterTemplateName": {
+          "type": "string",
+          "default": "",
+          "description": "Name of a template (see 'New from template') whose text becomes the content of a chapter made by 'New chapter'. Placeholders: ${name}, ${title}, ${root}, ${date}, ${year}, ${time}, ${author}, ${cursor}. Empty: the setting chapterTemplate is used"
+        },
+        "tssworkflow.panelLanguage": {
+          "type": "string",
+          "enum": [
+            "uk",
+            "en"
+          ],
+          "enumDescriptions": [
+            "Ukrainian labels",
+            "English labels (the titles of the commands)"
+          ],
+          "default": "uk",
+          "description": "Language of the labels in the Activity Bar panel"
+        },
+        "tssworkflow.statusBarMain": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show the status bar button 'Main' that builds the whole document and opens the PDF"
+        },
+        "tssworkflow.chapterListMacros": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "\\multiinclude"
+          ],
+          "description": "Macros that include several chapters as a comma list, e.g. \\multiinclude{A, B, C}[]. The 'Розділи' panel reads the chapters from them (together with chapterIncludeMacro) and groups them by \\part. Empty list: only chapterIncludeMacro. 'New chapter' adds the new chapter to the end of such a list when the main file has no chapterIncludeMacro lines"
+        },
+        "tssworkflow.checkEnvironmentOnStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Once, at the start of a project with .tex files, warn if latexmk or lualatex is not found in PATH and offer to run 'Check environment'."
+        },
+        "tssworkflow.snapshotsKeep": {
+          "type": "number",
+          "default": 15,
+          "minimum": 1,
+          "description": "How many project snapshots to keep (the oldest are deleted). Snapshots are taken before renaming a chapter, Replace in project, Normalize project and notation unify, and by Make snapshot."
+        },
+        "tssworkflow.citeCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Completion of keys inside \\cite{...} from the .bib files of the project (author, year, title are shown and searchable), and a hover with the entry over a key."
+        },
+        "tssworkflow.notationGroups": {
+          "type": "array",
+          "default": [],
+          "description": "Groups of notations for \"Notation consistency\". Empty = the built-in groups (\\varepsilon/\\epsilon, \\varphi/\\phi, \\leqslant/\\leq/\\le, \\geqslant/\\geq/\\ge, \\mathrm{d}/\\mathrm d, units in \\mathrm/\\text).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "variants": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string"
+                    },
+                    "pattern": {
+                      "type": "string",
+                      "description": "JavaScript regex; one capture group may carry the payload"
+                    },
+                    "make": {
+                      "type": "string",
+                      "description": "What this variant looks like when written (with $1 for the payload)"
+                    }
+                  },
+                  "required": [
+                    "label",
+                    "pattern",
+                    "make"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "name",
+              "variants"
+            ]
+          }
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "tssworkflow-latex",
+        "owner": "tssworkflow-latex",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+?\\.(?:tex|tikz)):(\\d+):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "[latex]": {
+        "editor.linkedEditing": true,
+        "editor.tabCompletion": "onlySnippets"
+      },
+      "workbench.editorAssociations": {
+        "*.pdf": "latex-workshop-pdf-hook"
+      }
+    },
+    "keybindings": [
+      {
+        "command": "tssworkflow.pickFile",
+        "key": "ctrl+alt+i",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.alignTable",
+        "key": "ctrl+alt+a",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.unwrap",
+        "key": "ctrl+alt+u",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.typography",
+        "key": "ctrl+alt+t",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.tableOps",
+        "key": "ctrl+alt+m",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.convertEnv",
+        "key": "ctrl+alt+e",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.pictures",
+        "key": "ctrl+alt+p",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.goToHeading",
+        "key": "ctrl+alt+g",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.compilePdf",
+        "key": "f5",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.compileMainPdf",
+        "key": "shift+f5",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.displayToEquation",
+        "key": "ctrl+alt+q",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "editor.action.insertSnippet",
+        "key": "ctrl+alt+n",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)",
+        "args": {
+          "snippet": "\\begin{${1|equation,equation*,align,align*,gather,itemize,enumerate,figure,table,center,minipage,proof,frame|}}\n\t$TM_SELECTED_TEXT$0\n\\end{$1}"
+        }
+      },
+      {
+        "command": "tssworkflow.toggleIffalse",
+        "key": "ctrl+alt+f",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.unicodeToLatex",
+        "key": "ctrl+alt+l",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "tssworkflow.submenu.text",
+        "label": "TSS Workflow: Текст і структура",
+        "icon": "$(edit)"
+      },
+      {
+        "id": "tssworkflow.submenu.nav",
+        "label": "TSS Workflow: Навігація й перевірка",
+        "icon": "$(list-tree)"
+      },
+      {
+        "id": "tssworkflow.submenu.build",
+        "label": "TSS Workflow: Збірка й прибирання",
+        "icon": "$(gear)"
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "tssworkflow",
+        "required": [],
+        "properties": {
+          "job": {
+            "type": "string",
+            "description": "Job name of the build"
+          },
+          "id": {
+            "type": "string",
+            "description": "Internal build id"
+          }
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.json"
+      },
+      {
+        "language": "tex",
+        "path": "./snippets/latex.json"
+      },
+      {
+        "language": "latex",
+        "path": "./snippets/tssworkflow.json"
+      },
+      {
+        "language": "tex",
+        "path": "./snippets/tssworkflow.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "latex",
+        "extensions": [
+          ".tikz"
+        ]
+      },
+      {
+        "id": "tssreport",
+        "aliases": [
+          "TSS report"
+        ]
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "tssworkflow.todoView",
+          "name": "TSS TODO",
+          "when": "workspaceFolderCount > 0 && tssworkflow.hasTex",
+          "contextualTitle": "TSS TODO"
+        }
+      ],
+      "tssworkflow": [
+        {
+          "id": "tssworkflow.commandsView",
+          "name": "Команди",
+          "contextualTitle": "TSS Workflow",
+          "when": "tssworkflow.hasTex"
+        },
+        {
+          "id": "tssworkflow.chaptersView",
+          "name": "Розділи",
+          "contextualTitle": "TSS Workflow",
+          "when": "tssworkflow.hasTex"
+        },
+        {
+          "id": "tssworkflow.startView",
+          "name": "Початок",
+          "when": "!tssworkflow.hasTex",
+          "contextualTitle": "TSS Workflow"
+        },
+        {
+          "id": "tssworkflow.problemsView",
+          "name": "Проблеми",
+          "contextualTitle": "TSS Workflow",
+          "when": "tssworkflow.hasTex"
+        }
+      ]
+    },
+    "grammars": [
+      {
+        "language": "tssreport",
+        "scopeName": "source.tssreport",
+        "path": "./syntaxes/tssreport.tmLanguage.json"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tssworkflow",
+          "title": "TSS Workflow",
+          "icon": "media/tss.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "tssworkflow.chaptersView",
+        "contents": "Розділів не знайдено. Відкрий папку проєкту: розділ це файл X/X.tex, підключений у головному файлі рядком \\includechapter{X}.\n[Новий розділ](command:tssworkflow.newChapter)"
+      },
+      {
+        "view": "tssworkflow.startView",
+        "when": "workspaceFolderCount == 0",
+        "contents": "Відкрий папку проєкту: тоді тут з'являться команди збірки, розділи й шаблони.\n[Відкрити папку](command:workbench.action.files.openFolder)"
+      },
+      {
+        "view": "tssworkflow.startView",
+        "when": "workspaceFolderCount > 0",
+        "contents": "У цій папці ще немає жодного .tex чи .tikz файла. Почни з шаблона або підготуй налаштування проєкту: коли з'явиться перший .tex, тут відкриються всі команди й розділи.\n[Новий з шаблона](command:tssworkflow.newFromTemplate)\n[Створити .vscode/settings.json](command:tssworkflow.initProjectSettings)\n[Перевірити середовище](command:tssworkflow.checkEnvironment)"
+      }
+    ]
+  },
+  "icon": "icon.png",
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "latex",
+    "tex",
+    "lualatex",
+    "latexmk",
+    "ukrainian",
+    "typography",
+    "texstudio",
+    "tikz",
+    "bibtex"
+  ],
+  "galleryBanner": {
+    "color": "#1f4e79",
+    "theme": "dark"
+  }
+}

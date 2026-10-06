@@ -1,0 +1,8 @@
+% !TSS name: Рисунок (figure)
+% !TSS description: figure з includegraphics, підписом і міткою (питає ім'я файла й ширину)
+% !TSS kind: fragment
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=${ask:width:0.6\linewidth}]{${ask:file:name}}
+	\caption{${cursor}\label{fig:${file}}}
+\end{figure}

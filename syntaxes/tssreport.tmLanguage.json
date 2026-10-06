@@ -1,0 +1,385 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TSS report",
+  "scopeName": "source.tssreport",
+  "patterns": [
+    {
+      "match": "^(══) (texlogsieve) (·) (\\S+?)(?: (·) (\\d{2}:\\d{2}:\\d{2}))? (═+)\\s*$",
+      "captures": {
+        "1": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "2": {
+          "name": "markup.heading.tssreport"
+        },
+        "3": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "4": {
+          "name": "entity.name.type.tssreport"
+        },
+        "5": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "6": {
+          "name": "constant.numeric.tssreport"
+        },
+        "7": {
+          "name": "comment.line.rule.tssreport"
+        }
+      }
+    },
+    {
+      "begin": "^(?=(?:помилок|попереджень|missing characters|overfull/underfull): \\d)",
+      "end": "$",
+      "name": "meta.summary.tssreport",
+      "patterns": [
+        {
+          "match": "(помилок)(:) (\\d+)",
+          "name": "token.error-token"
+        },
+        {
+          "match": "(попереджень)(:) (\\d+)",
+          "name": "token.warn-token"
+        },
+        {
+          "match": "(missing characters)(:) (\\d+)",
+          "name": "token.debug-token"
+        },
+        {
+          "match": "(overfull/underfull)(:) (\\d+)",
+          "name": "token.info-token"
+        },
+        {
+          "match": "·",
+          "name": "comment.line.rule.tssreport"
+        }
+      ]
+    },
+    {
+      "match": "^✓.*$",
+      "name": "markup.inserted.tssreport"
+    },
+    {
+      "match": "^\\(ще .*\\)$",
+      "name": "comment.line.tssreport"
+    },
+    {
+      "name": "meta.block.error.tssreport",
+      "begin": "^(── )(ПОМИЛКИ)( \\()(\\d+)(\\) )(─+)$",
+      "beginCaptures": {
+        "1": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "2": {
+          "name": "markup.bold.tssreport token.error-token"
+        },
+        "3": {
+          "name": "token.error-token"
+        },
+        "4": {
+          "name": "token.error-token"
+        },
+        "5": {
+          "name": "token.error-token"
+        },
+        "6": {
+          "name": "comment.line.rule.tssreport"
+        }
+      },
+      "end": "^(?=\\s*$)",
+      "patterns": [
+        {
+          "include": "#entry-error"
+        }
+      ]
+    },
+    {
+      "name": "meta.block.warning.tssreport",
+      "begin": "^(── )(ПОПЕРЕДЖЕННЯ)( \\()(\\d+)(\\) )(─+)$",
+      "beginCaptures": {
+        "1": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "2": {
+          "name": "markup.bold.tssreport token.warn-token"
+        },
+        "3": {
+          "name": "token.warn-token"
+        },
+        "4": {
+          "name": "token.warn-token"
+        },
+        "5": {
+          "name": "token.warn-token"
+        },
+        "6": {
+          "name": "comment.line.rule.tssreport"
+        }
+      },
+      "end": "^(?=\\s*$)",
+      "patterns": [
+        {
+          "include": "#entry-warning"
+        }
+      ]
+    },
+    {
+      "name": "meta.block.missing.tssreport",
+      "begin": "^(── )(MISSING CHARACTERS)( \\()(\\d+)(\\) )(─+)$",
+      "beginCaptures": {
+        "1": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "2": {
+          "name": "markup.bold.tssreport token.debug-token"
+        },
+        "3": {
+          "name": "token.debug-token"
+        },
+        "4": {
+          "name": "token.debug-token"
+        },
+        "5": {
+          "name": "token.debug-token"
+        },
+        "6": {
+          "name": "comment.line.rule.tssreport"
+        }
+      },
+      "end": "^(?=\\s*$)",
+      "patterns": [
+        {
+          "include": "#entry-missing"
+        }
+      ]
+    },
+    {
+      "name": "meta.block.badbox.tssreport",
+      "begin": "^(── )(OVERFULL / UNDERFULL)( \\()(\\d+)(\\) )(─+)$",
+      "beginCaptures": {
+        "1": {
+          "name": "comment.line.rule.tssreport"
+        },
+        "2": {
+          "name": "markup.bold.tssreport token.info-token"
+        },
+        "3": {
+          "name": "token.info-token"
+        },
+        "4": {
+          "name": "token.info-token"
+        },
+        "5": {
+          "name": "token.info-token"
+        },
+        "6": {
+          "name": "comment.line.rule.tssreport"
+        }
+      },
+      "end": "^(?=\\s*$)",
+      "patterns": [
+        {
+          "include": "#entry-badbox"
+        }
+      ]
+    },
+    {
+      "include": "#rule"
+    }
+  ],
+  "repository": {
+    "rule": {
+      "match": "[═─]{3,}",
+      "name": "comment.line.rule.tssreport"
+    },
+    "msg": {
+      "patterns": [
+        {
+          "match": "\\b(?:LaTeX|Package|Class)(?: [A-Za-z@][\\w@-]*)? (?:Warning|Error|Info)\\b:?",
+          "name": "markup.bold.tssreport"
+        },
+        {
+          "match": "\\\\[A-Za-z@]+\\*?",
+          "name": "support.function.macro.tssreport"
+        },
+        {
+          "match": "`[^'`]*'",
+          "name": "string.quoted.tssreport"
+        },
+        {
+          "match": "\\b\\d+(?:\\.\\d+)?(?:pt|bp|mm|cm|em|ex)?\\b",
+          "name": "constant.numeric.tssreport"
+        }
+      ]
+    },
+    "entry-error": {
+      "patterns": [
+        {
+          "match": "^(  )(\\S+?)(:)(\\d+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "3": {
+              "name": "punctuation.separator.tssreport"
+            },
+            "4": {
+              "name": "constant.numeric.tssreport"
+            },
+            "6": {
+              "name": "token.error-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": "^(  )(\\S+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "4": {
+              "name": "token.error-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "entry-warning": {
+      "patterns": [
+        {
+          "match": "^(  )(\\S+?)(:)(\\d+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "3": {
+              "name": "punctuation.separator.tssreport"
+            },
+            "4": {
+              "name": "constant.numeric.tssreport"
+            },
+            "6": {
+              "name": "token.warn-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": "^(  )(\\S+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "4": {
+              "name": "token.warn-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "entry-missing": {
+      "patterns": [
+        {
+          "match": "^(  )(\\S+?)(:)(\\d+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "3": {
+              "name": "punctuation.separator.tssreport"
+            },
+            "4": {
+              "name": "constant.numeric.tssreport"
+            },
+            "6": {
+              "name": "token.debug-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": "^(  )(\\S+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "4": {
+              "name": "token.debug-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "entry-badbox": {
+      "patterns": [
+        {
+          "match": "^(  )(\\S+?)(:)(\\d+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "3": {
+              "name": "punctuation.separator.tssreport"
+            },
+            "4": {
+              "name": "constant.numeric.tssreport"
+            },
+            "6": {
+              "name": "token.info-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "match": "^(  )(\\S+)(  +)(.*)$",
+          "captures": {
+            "2": {
+              "name": "entity.name.type.tssreport"
+            },
+            "4": {
+              "name": "token.info-token",
+              "patterns": [
+                {
+                  "include": "#msg"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
