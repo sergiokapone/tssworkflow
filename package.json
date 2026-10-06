@@ -2,8 +2,22 @@
   "name": "tssworkflow",
   "displayName": "TeXstudio-style Workflow",
   "description": "TeXstudio-style workflow for VS Code: clickable file names, standalone chapter/figure compile, project-wide labels, quick error checks, Ukrainian typography, table/environment tools, frames, change preview, hovers, heading navigator, build-log warnings, quick fixes, outline, document templates (documents, fragments, several files), Activity Bar panels (commands, chapters)",
+  "publisher": "Sergiy",
+  "author": {
+    "name": "Sergiy Ponomarenko",
+    "email": "sergiy.ponomarenko@gmail.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sergiokapone/tssworkflow.git"
+  },
+  "homepage": "https://github.com/sergiokapone/tssworkflow#readme",
+  "bugs": {
+    "url": "hhttps://github.com/sergiokapone/tssworkflow/issues"
+  },
+  "qna": "https://github.com/sergiokapone/tssworkflow/issues",
   "version": "0.5.0",
-  "publisher": "REPLACE-WITH-YOUR-PUBLISHER-ID",
   "engines": {
     "vscode": "^1.60.0"
   },

@@ -1,47 +1,47 @@
 # TeXstudio-style Workflow
 
-Розширення VS Code для великих LaTeX-проєктів (книги, конспекти) з багатьма розділами, рисунками й TikZ-схемами: збірка розділу чи всього документа, навігація, перевірки, українська типографіка, рефакторинг по проєкту. Повна довідка українською: файл `LaTeX-VSCode-setup.md` у репозиторії.
+A VS Code extension for large LaTeX projects (books, lecture notes) with many chapters, figures, and TikZ diagrams: standalone chapter or whole-document builds, navigation, checks, Ukrainian typography, and project-wide refactoring. Full documentation in Ukrainian: see `LaTeX-VSCode-setup.md` in the repository.
 
-*English: a LaTeX workflow extension for multi-chapter books — standalone chapter/figure builds, project-wide label and `\cite` completion, checks, Ukrainian typography, chapter rename/move, project-wide replace with snapshots.*
+*Українською: розширення VS Code для великих LaTeX-проєктів — збірка розділу чи всього документа, навігація, перевірки, українська типографіка, рефакторинг по проєкту.*
 
-## Можливості
+## Features
 
-**Збірка.** `F5`: зібрати поточний файл (розділ, рисунок) окремо й відкрити PDF; `Shift+F5`: весь документ. Збірка при збереженні, зупинка, очищення допоміжних файлів, SyncTeX у зовнішній переглядач, панель «Розділи» зі збіркою одного розділу чи вибраних `\part`.
+**Build.** `F5`: compile the current file (a chapter or a figure) standalone and open the PDF; `Shift+F5`: the whole document. Compile on save, stop, clean auxiliary files, SyncTeX in an external viewer, a "Chapters" panel with per-chapter builds or selected `\part`s.
 
-**Навігація.** Клікабельні імена файлів у `\input`, `\includegraphics`, `\localinput`; перехід до макросів з `.cls`/`.sty`; перехід до заголовків усього проєкту; структура й панелі в Activity Bar.
+**Navigation.** Clickable file names in `\input`, `\includegraphics`, `\localinput`; go to macros defined in `.cls`/`.sty`; go to any heading in the whole project; outline and panels in the Activity Bar.
 
-**Мітки, посилання, бібліографія.** Автодоповнення й перейменування міток по проєкту, перевірка дублів і невизначених міток, рівняння без посилань, доповнення й наведення для `\cite{…}` з `.bib` (автор, рік, назва), додавання запису з DOI.
+**Labels, references, bibliography.** Project-wide label completion and rename, duplicate and undefined label checks, equations nobody refers to, completion and hover for `\cite{…}` from `.bib` files (author, year, title), add an entry from a DOI.
 
-**Тексти й формули.** Українська типографіка (нерозривні пробіли, тире, «ялинки»), вирівнювання таблиць, операції з колонками, нормалізація файла чи всього проєкту, рамки навколо заголовків і формул, перетворення середовищ формул, Unicode → LaTeX.
+**Text and formulas.** Ukrainian typography (non-breaking spaces, dashes, «guillemets»), table alignment, column operations, normalize a file or the whole project, frames around headings and formulas, formula environment conversion, Unicode → LaTeX.
 
-**Рефакторинг.** Перейменування й переставлення розділів із оновленням списків, шляхів і посилань; заміна по проєкту без чіпання коментарів і `verbatim`; перевірка узгодженості позначень (`\varepsilon`/`\epsilon` тощо); знімки проєкту з відновленням.
+**Refactoring.** Rename and reorder chapters with updates to lists, paths, and references; project-wide replace that skips comments and `verbatim`; notation consistency checks (`\varepsilon`/`\epsilon`, etc.); project snapshots with restore.
 
-**Інше.** Шаблони документів і фрагментів, витягування `tikzpicture` у окремі файли, статистика проєкту, TODO-список, зміни розділу відносно git-ревізії (`latexdiff`), панель «Проблеми» з журналу збірки, перевірка середовища.
+**Other.** Document and fragment templates, extracting `tikzpicture` into separate files, project statistics, a TODO list, chapter changes against a git revision (`latexdiff`), a "Problems" panel from the build log, environment check.
 
-## Вимоги
+## Requirements
 
-- TeX Live (або MiKTeX) із `latexmk`; для шаблонів з кирилицею LuaLaTeX.
-- Необов'язково: `texlogsieve` для звіту про помилки, `latexdiff`, `git`, SumatraPDF (Windows) для зовнішнього перегляду. Команда **Check environment** покаже, що знайдено, а чого бракує.
-- VS Code 1.60 і новіше (значок-лічильник панелі «Проблеми»: 1.72+).
+- TeX Live (or MiKTeX) with `latexmk`; LuaLaTeX for Cyrillic templates.
+- Optional: `texlogsieve` for the problem report, `latexdiff`, `git`, SumatraPDF (Windows) for the external viewer. The **Check environment** command shows what is found and what is missing.
+- VS Code 1.60 or newer (the Problems panel badge counter: 1.72+).
 
-## Важливо: на які угоди розраховано
+## Important: which conventions are assumed
 
-Частина функцій припускає структуру проєкту автора: розділи в папках `X/X.tex`, у них `Pictures/` і `tikz/`, головний файл підключає розділи макросами `\includechapter{X}` та `\multiinclude{A, B}`, у розділах використовується `\localinput` і `\currfilebase`. Імена макросів і головного файла задаються в налаштуваннях (`tssworkflow.mainFile`, `tssworkflow.chapterIncludeMacro`, `tssworkflow.chapterListMacros`). Решта функцій (типографіка, таблиці, мітки, `\cite`, перевірки) від цього не залежить.
+Some features assume the author's project layout: chapters in `X/X.tex` folders with `Pictures/` and `tikz/` inside, the main file including chapters via the `\includechapter{X}` and `\multiinclude{A, B}` macros, and chapters using `\localinput` and `\currfilebase`. Macro names and the main file are configurable (`tssworkflow.mainFile`, `tssworkflow.chapterIncludeMacro`, `tssworkflow.chapterListMacros`). The remaining features (typography, tables, labels, `\cite`, checks) do not depend on this.
 
-## Початок роботи
+## Getting started
 
-1. Відкрий папку проєкту. Якщо в ній ще немає `.tex`, у панелі розширення натисни **Створити з шаблону** або **Create project settings**.
-2. Команда **Create project settings** створює `.vscode/settings.json` із головним файлом і потрібними параметрами.
-3. Усі команди: палітра (`Ctrl+Shift+P`), рядок `TSS Workflow`, або панель розширення в Activity Bar. Налаштування: `Settings → tssworkflow`.
+1. Open your project folder. If it has no `.tex` files yet, click **New from template** or **Create project settings** in the extension panel.
+2. The **Create project settings** command creates `.vscode/settings.json` with the main file and the required parameters.
+3. All commands: the Command Palette (`Ctrl+Shift+P`), the `TSS Workflow` prefix, or the extension panel in the Activity Bar. Settings: `Settings → tssworkflow`.
 
-## Приватність
+## Privacy
 
-Розширення не збирає й не надсилає даних. Єдиний мережевий запит: команда **Add BibTeX entry from DOI** звертається до `doi.org` з введеним DOI.
+The extension does not collect or send any data. The only network request: the **Add BibTeX entry from DOI** command contacts `doi.org` with the DOI you enter.
 
-## Безпека змін
+## Safety of changes
 
-Команди, що змінюють багато файлів (перейменування розділу, заміна по проєкту, нормалізація проєкту, уніфікація позначень), перед роботою зберігають знімок джерел проєкту у сховищі розширення; повернути його можна командою **Restore snapshot**. Це доповнення до git, а не заміна.
+Commands that modify many files (chapter rename, project-wide replace, project normalize, notation unification) take a snapshot of the project sources in the extension storage before running; it can be restored with the **Restore snapshot** command. This complements git, not replaces it.
 
-## Відомі обмеження
+## Known limitations
 
-Назви розділів для команди перейменування: лише латиниця, цифри, `_`, `-`. Пакетні команди слід спершу пробувати на копії великого проєкту.
+Chapter names for the rename command: Latin letters, digits, `_`, `-` only. Batch commands should first be tried on a copy of a large project.

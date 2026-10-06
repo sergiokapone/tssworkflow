@@ -5,6 +5,7 @@ build.js
 node_modules/**
 vsix/**
 *.vsix
+tests/**
 **/*.map
 LaTeX-VSCode-setup.md
 extension.vsixmanifest
