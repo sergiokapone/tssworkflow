@@ -199,6 +199,175 @@ function optionLines(items, indent) {
 }
 const flatOptions = (items) => items.map((i) => (i.val === null ? i.key : i.key + '=' + i.val)).join(', ');
 
+/* -------------- one-line \tikz[...]{...} laid out one statement per line (0.6.1) -------------- */
+const isWordChar = (ch) => /[A-Za-z@]/.test(ch || ' ');
+
+// statements of the body of a \tikz group:
+//   { t: 'stmt', v }                      up to `;` at brace depth 0 (or up to a \foreach / \begin / \end that follows)
+//   { t: 'foreach', head, body }          \foreach <header> { body }  (the last of the consecutive {..} groups is the body)
+//   { t: 'begin', v } / { t: 'end', v }   \begin{scope}[...] / \end{scope}
+// null when the braces do not balance
+function tikzStatements(s) {
+  const n = s.length;
+  const out = [];
+  let i = 0;
+  const group = (j) => {
+    let d = 0;
+    for (; j < n; j++) {
+      const c = s[j];
+      if (c === '\\') { j++; continue; }
+      if (c === '{') d++;
+      else if (c === '}' && --d === 0) return j + 1;
+    }
+    return -1;
+  };
+  const bracket = (j) => {
+    let d = 0;
+    for (; j < n; j++) {
+      const c = s[j];
+      if (c === '\\') { j++; continue; }
+      if (c === '{') { const e = group(j); if (e < 0) return -1; j = e - 1; continue; }
+      if (c === '[') d++;
+      else if (c === ']' && --d === 0) return j + 1;
+    }
+    return -1;
+  };
+  const wsEnd = (j) => { while (j < n && /\s/.test(s[j])) j++; return j; };
+  const startsBlock = (j) => (s.startsWith('\\foreach', j) && !isWordChar(s[j + 8])) || /^\\(begin|end)\{/.test(s.slice(j, j + 8));
+  while (true) {
+    i = wsEnd(i);
+    if (i >= n) break;
+    if (s.startsWith('\\foreach', i) && !isWordChar(s[i + 8])) {
+      let j = i + 8;
+      let lastStart = -1;
+      let last = -1;
+      while (j < n) {
+        if (s[j] === '{') {
+          const e = group(j);
+          if (e < 0) return null;
+          lastStart = j;
+          last = e;
+          const p = wsEnd(e);
+          if (s[p] === '{') { j = p; continue; }
+          break;
+        }
+        if (s[j] === ';' || (j > i + 8 && startsBlock(j))) break;
+        j++;
+      }
+      if (lastStart >= 0) {
+        out.push({ t: 'foreach', head: s.slice(i, lastStart).trim(), body: s.slice(lastStart + 1, last - 1) });
+        i = last;
+        continue;
+      }
+    }
+    const be = /^\\(begin|end)\{[^}]*\}/.exec(s.slice(i, i + 80));
+    if (be) {
+      let e = i + be[0].length;
+      if (be[1] === 'begin') {
+        const p = wsEnd(e);
+        if (s[p] === '[') { const c = bracket(p); if (c < 0) return null; e = c; }
+      }
+      out.push({ t: be[1], v: s.slice(i, e) });
+      i = e;
+      continue;
+    }
+    let d = 0;
+    let j = i;
+    let end = -1;
+    for (; j < n; j++) {
+      const c = s[j];
+      if (c === '\\') {
+        if (d === 0 && j > i && startsBlock(j)) { end = j; break; }
+        j++;
+        continue;
+      }
+      if (c === '{') d++;
+      else if (c === '}') { d--; if (d < 0) return null; }
+      else if (c === ';' && d === 0) { end = j + 1; break; }
+    }
+    if (d !== 0) return null;
+    if (end < 0) end = n;
+    out.push({ t: 'stmt', v: s.slice(i, end).trim() });
+    i = end;
+  }
+  return out;
+}
+
+function tikzLines(stmts, level, unit, base, out) {
+  let lv = level;
+  for (const st of stmts) {
+    const ind = base + unit.repeat(lv);
+    if (st.t === 'foreach') {
+      const inner = tikzStatements(st.body);
+      if (!inner) return false;
+      out.push(ind + st.head + ' {');
+      if (!tikzLines(inner, lv + 1, unit, base, out)) return false;
+      out.push(ind + '}');
+    } else if (st.t === 'begin') {
+      out.push(ind + st.v);
+      lv++;
+    } else if (st.t === 'end') {
+      lv = Math.max(level, lv - 1);
+      out.push(base + unit.repeat(lv) + st.v);
+    } else out.push(ind + st.v);
+  }
+  return true;
+}
+
+// Lays out every inline \tikz[...]{...} that sits on ONE line and is at least opts.minLength (default 100) characters long:
+//   \tikz[opts]{
+//       statement;
+//       \foreach ... {
+//           statement;
+//       }
+//   }
+// Ranges that already span several lines are not touched (so a second run changes nothing). Only whitespace changes;
+// a result that differs from the input in anything else is dropped.
+// opts: { unit: '    ', minLength: 100, only: [from, to] (offsets; ranges that touch it) } -> { text, formatted, skipped, found }
+function formatInlineTikz(text, opts) {
+  opts = opts || {};
+  const unit = opts.unit || '    ';
+  const minLen = typeof opts.minLength === 'number' ? opts.minLength : 100;
+  const edits = [];
+  const skipped = [];
+  let found = 0;
+  const lineOf = (o) => text.slice(0, o).split('\n').length;
+  for (const [a, b] of P.tikzInlineRanges(text, [])) {
+    const src = text.slice(a, b);
+    if (!/^\\tikz(?![A-Za-z@])/.test(src) || src.includes('\n')) continue;
+    if (opts.only && !(a < opts.only[1] && b > opts.only[0]) && !(opts.only[0] === opts.only[1] && a <= opts.only[0] && opts.only[0] <= b)) continue;
+    found++;
+    if (src.length < minLen) continue;
+    // \tikz [options] { body }
+    let j = 5;
+    while (/\s/.test(src[j] || '')) j++;
+    if (src[j] === '[') {
+      let d = 0;
+      for (; j < src.length; j++) {
+        if (src[j] === '\\') { j++; continue; }
+        if (src[j] === '{') { let g = 0; for (; j < src.length; j++) { if (src[j] === '\\') { j++; continue; } if (src[j] === '{') g++; else if (src[j] === '}' && --g === 0) break; } continue; }
+        if (src[j] === '[') d++;
+        else if (src[j] === ']' && --d === 0) { j++; break; }
+      }
+    }
+    while (/\s/.test(src[j] || '')) j++;
+    if (src[j] !== '{' || src[src.length - 1] !== '}') { skipped.push({ line: lineOf(a), reason: '\\tikz без дужок {…}' }); continue; }
+    const head = src.slice(0, j).trimEnd();
+    const stmts = tikzStatements(src.slice(j + 1, -1));
+    const ls = text.lastIndexOf('\n', a - 1) + 1;
+    const base = /^[ \t]*/.exec(text.slice(ls, a))[0];
+    const lines = [];
+    if (!stmts || !tikzLines(stmts, 1, unit, base, lines)) { skipped.push({ line: lineOf(a), reason: 'дужки в коді TikZ не збігаються' }); continue; }
+    if (lines.length < 2) continue;
+    const res = head + '{\n' + lines.join('\n') + '\n' + base + '}';
+    if (res.replace(/\s+/g, '') !== src.replace(/\s+/g, '')) { skipped.push({ line: lineOf(a), reason: 'результат відрізнявся б не лише пробілами' }); continue; }
+    edits.push({ a, b, res });
+  }
+  let out = text;
+  for (const e of edits.slice().reverse()) out = out.slice(0, e.a) + e.res + out.slice(e.b);
+  return { text: out, formatted: edits.length, skipped, found };
+}
+
 /* ----------------------------- table body parsing ---------------------------- */
 const RULE_CMD = /^\\(hline|cline|toprule|midrule|bottomrule|specialrule|cmidrule|hdashline|Hline)(?![A-Za-z])/;
 const LEN_ARG = /^\s*[-+]?\s*(\d*\.?\d+)\s*[a-z]{2}\s*$|^\s*[-+]?\s*(\d*\.?\d*\s*)?\\[A-Za-z]+/;
@@ -215,20 +384,28 @@ function ruleEnd(s, i) {
   }
 }
 
-// a cell with inline \tikz{...} (or \tikzset{...} ...) spread over several lines keeps its line breaks, because the
-// code inside is written line by line on purpose. Returns the cell text with "\n" between lines (the first line
-// trimmed, the others indented relative to the least indented one, blank lines kept), or null for an ordinary cell.
+// a cell keeps its line structure when it holds multi-line TikZ code (inline \tikz{...}, \tikzset{...} ...), because that code
+// is written line by line on purpose, or a % comment (a comment ends at the line end: joining the lines would comment out
+// the rest). Returns the cell text with "\n" between lines (the first line trimmed, the others indented relative to the
+// least indented one, blank lines kept); a trailing "\n" means the last line ends with a comment, so whatever follows the
+// cell (the next `&`, the row terminator) must start on a new line. null for an ordinary cell.
+const lineHasComment = (l) => P.codePart(l) !== l;
 function keepLines(c) {
-  if (!c.includes('\n') || P.tikzInlineRanges(c).length === 0) return null;
+  const hasComment = c.split('\n').some(lineHasComment);
+  if (!hasComment && (!c.includes('\n') || P.tikzInlineRanges(c).length === 0)) return null;
   const ls = c.replace(/\r/g, '').split('\n').map((l) => l.replace(/[ \t]+$/, ''));
   while (ls.length && !ls[0].trim()) ls.shift();
   while (ls.length && !ls[ls.length - 1].trim()) ls.pop();
-  if (ls.length < 2) return ls.length ? ls[0].trim() : '';
+  if (ls.length < 2) {
+    const one = ls.length ? ls[0].trim() : '';
+    return lineHasComment(one) ? one + '\n' : one;
+  }
   const rest = ls.slice(1);
   const wid = (l) => Array.from(/^[ \t]*/.exec(l)[0]).reduce((a, ch) => a + (ch === '\t' ? 4 : 1), 0);
   const min = Math.min(...rest.filter((l) => l.trim()).map(wid));
   const body = rest.map((l) => (l.trim() ? ' '.repeat(wid(l) - (Number.isFinite(min) ? min : 0)) + l.trim() : ''));
-  return [ls[0].trim()].concat(body).join('\n');
+  const text = [ls[0].trim()].concat(body).join('\n');
+  return lineHasComment(body[body.length - 1]) ? text + '\n' : text;
 }
 
 // body -> blocks [{type: 'row'|'rule'|'comment'|'blank', ...}] or { skip: reason, at: offset }
@@ -287,7 +464,14 @@ function parseBody(body) {
       nl = 0;
       sameLine = false;
     }
-    if (ch === '%') return bad('знак % усередині рядка таблиці (коментар посеред клітинок)', i);
+    if (ch === '%') {
+      // a comment inside a row: it stays in the cell text up to the line end (braces and & in it do not count)
+      let e = body.indexOf('\n', i);
+      if (e < 0) e = n;
+      buf += body.slice(i, e);
+      i = e;
+      continue;
+    }
     if (ch === '\\') {
       const nx = body[i + 1];
       if (nx === '\\') {
@@ -390,11 +574,16 @@ function layoutBody(blocks, indent, unit, opts) {
       const deeper = ind + unit;
       const last = b.cells.length - 1;
       b.cells.forEach((c, j) => {
-        const cl = c.split('\n');
+        const brk = c.endsWith('\n'); // the last line of the cell ends with a comment
+        const cl = (brk ? c.slice(0, -1) : c).split('\n');
         if (j === 0 && c === '') return;
         lines.push(trimEnd((j === 0 ? ind : deeper + '& ') + cl[0]));
         for (let k = 1; k < cl.length; k++) lines.push(trimEnd(deeper + cl[k]));
-        if (j === last) lines[lines.length - 1] += termOf(b);
+        if (j === last) {
+          const t = termOf(b);
+          if (!brk) lines[lines.length - 1] += t;
+          else if (t) lines.push(deeper + t.trimStart());
+        }
       });
       if (b.tc) lines[lines.length - 1] += ' ' + b.tc;
       continue;
@@ -622,5 +811,6 @@ function diffRange(oldL, newL) {
 
 module.exports = {
   deadRanges, findEnvs, matchBracket, splitTop, splitKeyVal, parseOptions, parseBody, formatTblrEnv, formatTblr,
-  isBeamerDoc, renumberBeamer, banner, bottomRule, diffRange, RANK_INNER, RANK_OUTER, RULE_W
+  isBeamerDoc, renumberBeamer, banner, bottomRule, diffRange, RANK_INNER, RANK_OUTER, RULE_W,
+  formatInlineTikz, tikzStatements, keepLines
 };

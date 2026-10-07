@@ -1176,6 +1176,9 @@ function onBuildFinished(folder, job) {
   return undefined;
 }
 
+/* ------- code that typography leaves alone: tssworkflow.protectedCommands ------ */
+const syncUserCode = () => P.setProtectedCommands(cfg().get('protectedCommands', []));
+
 /* ----------------------- typography on save -------------------------- */
 function typographyOnWillSave(e) {
   const d = e.document;
@@ -1393,6 +1396,7 @@ const symbolProvider = {
 function register(context, api) {
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const subs = context.subscriptions;
+  syncUserCode();
   require('./macros').register(context, { log: (m) => outLog.appendLine(m), exclude: EXCLUDE });
   require('./tikzExtract').register(context);
   require('./extra').register(context, {
@@ -1483,6 +1487,7 @@ function register(context, api) {
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('tssworkflow')) {
+        syncUserCode();
         refreshAuto();
         vscode.workspace.textDocuments.forEach(checkSyntax);
       }

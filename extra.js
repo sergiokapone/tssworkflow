@@ -14,6 +14,7 @@ const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const info = (m, ...btn) => vscode.window.showInformationMessage(m, ...btn);
 const SEL_ANY = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
 const QF = vscode.CodeActionKind.QuickFix;
+const FIXALL = vscode.CodeActionKind.SourceFixAll.append('tssworkflow');
 const eolOf = (doc) => (doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
 const relPath = (fp) => {
   const f = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(fp));
@@ -219,6 +220,30 @@ async function todoList() {
 }
 
 /* ------------------------ quick fixes for typography ----------------- */
+// which hints "fix all" touches: tssworkflow.fixAllCodes (default only the non-breaking spaces)
+const TYPO_FIXABLE = { 'typo-nbsp': 'нерозривні пробіли', 'typo-dash': 'дефіс замість тире', 'typo-mixed-script': 'кирилиця й латиниця в одному слові' };
+const fixCodes = () => {
+  const v = cfg().get('fixAllCodes', ['typo-nbsp']);
+  return Array.isArray(v) ? v.filter((c) => TYPO_FIXABLE[c]) : ['typo-nbsp'];
+};
+const linesOfDoc = (doc) => doc.getText().split(/\r?\n/);
+function planEdit(doc, plan) {
+  const we = new vscode.WorkspaceEdit();
+  for (const e of plan) we.replace(doc.uri, new vscode.Range(e.line, e.col, e.line, e.col + e.len), e.text);
+  return we;
+}
+
+// "Fix typography hints in file": the same edits as source.fixAll.tssworkflow, from the command palette
+async function fixTypographyHints() {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed || !/\.(tex|tikz)$/i.test(ed.document.fileName)) { info('Відкрий .tex-файл.'); return; }
+  const codes = fixCodes();
+  const plan = X.typoFixPlan(linesOfDoc(ed.document), { codes });
+  if (!plan.length) { info('Нічого виправляти: ' + (codes.length ? codes.join(', ') : 'tssworkflow.fixAllCodes порожній') + '.'); return; }
+  await vscode.workspace.applyEdit(planEdit(ed.document, plan));
+  info('Типографічних зауважень виправлено: ' + plan.length + ' (' + codes.join(', ') + ').');
+}
+
 const typoFixes = {
   async provideCodeActions(doc, range, ctx) {
     const out = [];
@@ -253,6 +278,24 @@ const typoFixes = {
           a.edit.replace(doc.uri, new vscode.Range(it.line, 0, it.endLine, lines[it.endLine].length), X.starEquation(lines, it).join(eolOf(doc)));
           out.push(a);
         }
+      }
+    }
+    // all hints of the same kind in the file, from the current text
+    const kinds = new Set(ctx.diagnostics.filter((d) => d.source === 'TSS Workflow').map((d) => (d.code && typeof d.code === 'object' ? d.code.value : d.code)).filter((c) => TYPO_FIXABLE[c]));
+    for (const code of kinds) {
+      const plan = X.typoFixPlan(linesOfDoc(doc), { codes: [code] });
+      if (plan.length < 2) continue;
+      const a = new vscode.CodeAction('Виправити всі в файлі (' + TYPO_FIXABLE[code] + '): ' + plan.length, QF);
+      a.edit = planEdit(doc, plan);
+      out.push(a);
+    }
+    // source.fixAll.tssworkflow (Source Action menu, editor.codeActionsOnSave)
+    if (ctx.only && ctx.only.contains(FIXALL)) {
+      const plan = X.typoFixPlan(linesOfDoc(doc), { codes: fixCodes() });
+      if (plan.length) {
+        const a = new vscode.CodeAction('TSS Workflow: виправити типографічні зауваження (' + plan.length + ')', FIXALL);
+        a.edit = planEdit(doc, plan);
+        out.push(a);
       }
     }
     return out;
@@ -314,7 +357,8 @@ function register(context, apiIn) {
     vscode.commands.registerCommand('tssworkflow.todoList', todoList),
     vscode.commands.registerCommand('tssworkflow.todoRefresh', () => todo.refresh()),
     vscode.commands.registerCommand('tssworkflow.macroInfo', macroInfo),
-    vscode.languages.registerCodeActionsProvider(SEL_ANY, typoFixes, { providedCodeActionKinds: [QF] }),
+    vscode.languages.registerCodeActionsProvider(SEL_ANY, typoFixes, { providedCodeActionKinds: [QF, FIXALL] }),
+    vscode.commands.registerCommand('tssworkflow.fixTypographyHints', fixTypographyHints),
     vscode.workspace.onDidSaveTextDocument((d) => {
       if (!/\.(tex|tikz)$/i.test(d.fileName)) return;
       clearTimeout(timer);

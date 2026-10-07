@@ -32,6 +32,37 @@ function findPictures(lines, envNames) {
 
 const before = (a, b) => a.line < b.line || (a.line === b.line && a.col < b.col);
 
+// inline pictures: \tikz[opts]{...} and \tikz \draw ...; (not \tikzset and the like): [{ env: 'tikz', inline: true, begin, end }].
+// Those that sit inside one of `pics` (an environment picture) are left out: the environment is moved as a whole.
+function findInlinePictures(lines, pics) {
+  const text = lines.join('\n');
+  const starts = [];
+  let o = 0;
+  for (const l of lines) { starts.push(o); o += l.length + 1; }
+  const pos = (off) => {
+    let lo = 0;
+    let hi = starts.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= off) lo = mid; else hi = mid - 1; }
+    return { line: lo, col: off - starts[lo] };
+  };
+  const out = [];
+  for (const [a, b] of P.tikzInlineRanges(text, [])) {
+    if (!/^\\tikz(?![A-Za-z@])/.test(text.slice(a, a + 6))) continue;
+    const begin = pos(a);
+    const end = pos(b);
+    if ((pics || []).some((p) => !before(begin, p.begin) && !before(p.end, end))) continue;
+    out.push({ env: 'tikz', inline: true, begin, end });
+  }
+  return out;
+}
+
+// environment pictures and (with `inline`) inline \tikz pictures, in the order of the source
+function allPictures(lines, envNames, inline) {
+  const envs = findPictures(lines, envNames);
+  if (!inline) return envs;
+  return envs.concat(findInlinePictures(lines, envs)).sort((x, y) => (before(x.begin, y.begin) ? -1 : before(y.begin, x.begin) ? 1 : 0));
+}
+
 // innermost figure-like environment around position `pos`: { name, from: {line,col}, to: {line,col} } or null
 function enclosingFigure(lines, pos) {
   const stack = [];
@@ -142,6 +173,9 @@ function register(context, helpers) {
     return out;
   };
   const envNames = () => cfg().get('tikzExtractEnvs', ['tikzpicture', 'circuitikz']);
+  const inlineOn = () => cfg().get('tikzExtractInline', true) !== false;
+  const what = () => envNames().join(' / ') + (inlineOn() ? ' / \\tikz{…}' : '');
+  const pictures = (lines) => allPictures(lines, envNames(), inlineOn());
   const tikzDir = (doc) => path.join(path.dirname(doc.uri.fsPath), 'tikz');
   const eolOf = (doc) => (doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
 
@@ -168,14 +202,14 @@ function register(context, helpers) {
 
   async function extractOne() {
     const ed = vscode.window.activeTextEditor;
-    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture чи circuitikz.'); return; }
+    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.'); return; }
     const doc = ed.document;
     const lines = docLines(doc);
-    const pics = findPictures(lines, envNames());
-    if (!pics.length) { info('У файлі немає ' + envNames().join(' / ') + '.'); return; }
+    const pics = pictures(lines);
+    if (!pics.length) { info('У файлі немає ' + what() + '.'); return; }
     const cur = ed.selection.active;
     const at = pictureAt(lines, pics, { line: cur.line, col: cur.character });
-    if (!at.pic) { info(at.many ? 'У цьому рисунку кілька малюнків: постав курсор усередину потрібного.' : 'Постав курсор усередину ' + envNames().join(' / ') + '.'); return; }
+    if (!at.pic) { info(at.many ? 'У цьому рисунку кілька малюнків: постав курсор усередину потрібного.' : 'Постав курсор усередину ' + what() + '.'); return; }
     const pic = at.pic;
     const sug = suggestName(lines, pic);
     let name = sug.name;
@@ -204,13 +238,13 @@ function register(context, helpers) {
 
   async function extractAll() {
     const ed = vscode.window.activeTextEditor;
-    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture чи circuitikz.'); return; }
+    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.'); return; }
     const doc = ed.document;
     const lines = docLines(doc);
-    let pics = findPictures(lines, envNames());
+    let pics = pictures(lines);
     const sel = ed.selection;
     if (sel && !sel.isEmpty) pics = pics.filter((p) => p.begin.line >= sel.start.line && p.end.line <= sel.end.line);
-    if (!pics.length) { info('Немає ' + envNames().join(' / ') + (sel && !sel.isEmpty ? ' у виділенні.' : ' у файлі.')); return; }
+    if (!pics.length) { info('Немає ' + what() + (sel && !sel.isEmpty ? ' у виділенні.' : ' у файлі.')); return; }
     const dir = tikzDir(doc);
     const used = new Set();
     const todo = [];
@@ -252,4 +286,4 @@ function register(context, helpers) {
   );
 }
 
-module.exports = { register, findPictures, enclosingFigure, figureLabels, nameFromLabel, suggestName, pictureAt, plan, validName };
+module.exports = { register, findPictures, findInlinePictures, allPictures, enclosingFigure, figureLabels, nameFromLabel, suggestName, pictureAt, plan, validName };

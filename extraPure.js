@@ -193,8 +193,11 @@ const SKIP_ENVS = /^(?:verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblist
 // extra typography checks: non-breaking spaces, dashes, mixed-script words, mixed \vec / \vect
 // returns [{ line, col, len, code, message }]
 function typographyChecks(lines, opts) {
-  // inline \tikz[...]{...} (also across lines) is code: blank it out, columns stay the same
-  lines = P.blankRanges(lines.join('\n'), P.tikzInlineRanges(lines.join('\n'))).split('\n');
+  // TikZ-like code (inline \tikz{...}, \tikzset{...}, the user's protectedCommands; also across lines) is not text:
+  // blank it out, columns stay the same. Lines marked `% tss-ignore` are dropped from the result at the end.
+  const joined = lines.join('\n');
+  const ignored = P.ignoredLineSet(lines);
+  lines = P.blankRanges(joined, P.tikzInlineRanges(joined, opts && opts.protectedCommands)).split('\n');
   const out = [];
   const stack = [];
   let dollars = false; // inside a $$ ... $$ block
@@ -260,7 +263,7 @@ function typographyChecks(lines, opts) {
     }
   }
   out.sort((a, b) => a.line - b.line || a.col - b.col);
-  return out;
+  return ignored.size ? out.filter((r) => !ignored.has(r.line)) : out;
 }
 
 // Latin letters of a mixed word -> Cyrillic look-alikes; null when some letter has none
@@ -334,7 +337,38 @@ function starEquation(lines, item) {
   return res;
 }
 
+// Fixes for the typography hints, computed from the current text (never from stale diagnostics).
+// opts.codes: which hints to fix, default ["typo-nbsp"]; the rest of opts goes to typographyChecks.
+// -> [{ line, col, len, text }] sorted by position, without overlaps
+const FIXABLE = ['typo-nbsp', 'typo-dash', 'typo-mixed-script'];
+function typoFixPlan(lines, opts) {
+  opts = opts || {};
+  const codes = new Set((opts.codes || ['typo-nbsp']).filter((c) => FIXABLE.includes(c)));
+  const edits = [];
+  for (const r of typographyChecks(lines, opts)) {
+    if (!codes.has(r.code)) continue;
+    const old = lines[r.line].substr(r.col, r.len);
+    let neu = null;
+    if (r.code === 'typo-nbsp') neu = old.replace(/[ \u00a0]/, '~');
+    else if (r.code === 'typo-dash') neu = ' --- ';
+    else neu = fixHomoglyphs(old);
+    if (neu === null || neu === old) continue;
+    const last = edits[edits.length - 1];
+    if (last && last.line === r.line && r.col < last.col + last.len) continue;
+    edits.push({ line: r.line, col: r.col, len: r.len, text: neu });
+  }
+  return edits;
+}
+
+// the same edits applied to an array of lines -> { lines, count }
+function applyTypoFixes(lines, opts) {
+  const plan = typoFixPlan(lines, opts);
+  const out = lines.slice();
+  for (const ed of plan.slice().reverse()) out[ed.line] = out[ed.line].slice(0, ed.col) + ed.text + out[ed.line].slice(ed.col + ed.len);
+  return { lines: out, count: plan.length };
+}
+
 module.exports = {
   parseAux, auxInputs, countWords, textStats, fileStats, addStats, emptyStats, scanTodos,
-  typographyChecks, fixHomoglyphs, numberedEquations, starEquation, stripComments
+  typographyChecks, typoFixPlan, applyTypoFixes, fixHomoglyphs, numberedEquations, starEquation, stripComments
 };

@@ -1,6 +1,7 @@
 'use strict';
 /* TSS Workflow 0.5.1:
  *   Format tblr            tblr / longtblr / talltblr: options one per line with "=" aligned, cells in a grid
+ *   Format inline \\tikz     (0.6.1) one-line \\tikz[...]{...} -> one statement per line
  *   Renumber Beamer Slides "% ==== Слайд N ====" banners around frames, renumbered on every run
  * Both can also run on save (tssworkflow.tblr.formatOnSave, tssworkflow.beamer.autoRenumber).
  * The logic without VS Code is in extra4Pure.js. */
@@ -83,6 +84,38 @@ async function formatTblrCmd(api) {
   if (res.skipped.length) warn('Пропущено ' + res.skipped.length + ': ' + reasons(res.skipped) + '.');
 }
 
+// Format inline \tikz: one-line \tikz[...]{...} (selection, the one under the cursor, or all in the file) -> one statement per line
+async function formatTikzCmd(api) {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл із \\tikz{…}.'); return; }
+  const doc = ed.document;
+  const text = doc.getText().replace(/\r\n/g, '\n');
+  const st = lineStarts(text);
+  const off = (p) => (st[p.line] === undefined ? text.length : st[p.line] + p.character);
+  const o = tblrOptions(ed);
+  const min = Number(cfg().get('tikzFormat.minLength', 100));
+  const opts = { unit: o.unit, minLength: Number.isFinite(min) ? Math.max(0, min) : 100 };
+  let scope = 'у файлі';
+  if (!ed.selection.isEmpty) { opts.only = [off(ed.selection.start), off(ed.selection.end)]; scope = 'у виділенні'; }
+  else {
+    const c = off(ed.selection.active);
+    const here = X.formatInlineTikz(text, Object.assign({}, opts, { only: [c, c] }));
+    if (here.found) { opts.only = [c, c]; scope = 'під курсором'; }
+  }
+  const res = X.formatInlineTikz(text, opts);
+  const skippedMsg = res.skipped.length ? ' Пропущено ' + res.skipped.length + ': ' + reasons(res.skipped) + '.' : '';
+  if (!res.found) { info('Немає \\tikz{…} ' + scope + '.'); return; }
+  const oldL = text.split('\n');
+  const d = X.diffRange(oldL, res.text.split('\n'));
+  if (!d) {
+    if (res.skipped.length) warn('\\tikz ' + scope + ' не змінено.' + skippedMsg);
+    else info('Нічого розкладати ' + scope + ': код або вже в кілька рядків, або коротший за ' + opts.minLength + ' символів (tssworkflow.tikzFormat.minLength).');
+    return;
+  }
+  const sum = 'Розкладено \\tikz: ' + res.formatted + ' (' + scope + ').' + skippedMsg;
+  if (await api.applyWithPreview(ed, d.s, d.e, d.lines, 'Форматування \\tikz', sum)) vscode.window.setStatusBarMessage(sum, 4000);
+}
+
 async function renumberBeamerCmd(api) {
   const ed = vscode.window.activeTextEditor;
   if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл презентації beamer.'); return; }
@@ -122,10 +155,11 @@ function register(context, api) {
   api = api || {};
   context.subscriptions.push(
     vscode.commands.registerCommand('tssworkflow.formatTblr', () => formatTblrCmd(api)),
+    vscode.commands.registerCommand('tssworkflow.formatTikz', () => formatTikzCmd(api)),
     vscode.commands.registerCommand('tssworkflow.renumberBeamer', () => renumberBeamerCmd(api)),
     vscode.workspace.onWillSaveTextDocument(onWillSave)
   );
 }
 
 exports.register = register;
-exports._t = { formatTblrCmd, renumberBeamerCmd, onWillSave, tblrOptions };
+exports._t = { formatTblrCmd, formatTikzCmd, renumberBeamerCmd, onWillSave, tblrOptions };

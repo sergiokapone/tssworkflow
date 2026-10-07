@@ -9,7 +9,7 @@ const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };
 
 t('parse: meta lines are cut, CRLF and BOM normalised', () => {
   const p = T.parseTemplate('\uFEFF% !TSS name: Моя\r\n% !TSS description: опис  \r\n\\documentclass{article}\r\n', 'x.tex');
-  assert.deepStrictEqual(p, { name: 'Моя', description: 'опис', body: '\\documentclass{article}\n' });
+  assert.deepStrictEqual(p, { name: 'Моя', description: 'опис', kind: 'document', body: '\\documentclass{article}\n' });
 });
 t('parse: no meta -> file name is the name; meta only at the top', () => {
   const p = T.parseTemplate('% !TeX program = lualatex\n% !TSS description: пізно\n', 'Стаття.tex');
@@ -74,7 +74,8 @@ t('built-in template of the package is valid and loses its meta lines', () => {
   assert.strictEqual(p.name, 'Стаття: LuaLaTeX, кирилиця (укр.)');
   assert.ok(p.description.startsWith('article 14 pt'));
   assert.ok(p.body.startsWith('%%====') && p.body.includes('\\begin{document}') && !p.body.includes('!TSS'));
-  const src = fs.readFileSync('/mnt/user-data/uploads/template_Lua_Pdf_LaTeX_Cyrilics.tex', 'utf8').replace(/\r\n/g, '\n');
-  assert.strictEqual(p.body, src, 'body must equal the uploaded template');
+  const upl = process.env.TSS_TEMPLATE_SRC || '/mnt/user-data/uploads/template_Lua_Pdf_LaTeX_Cyrilics.tex';
+  if (fs.existsSync(upl)) assert.strictEqual(p.body, fs.readFileSync(upl, 'utf8').replace(/\r\n/g, '\n'), 'body must equal the uploaded template');
+  else console.log('    (skipped the comparison with the uploaded template: ' + upl + ' not found; set TSS_TEMPLATE_SRC)');
 });
 console.log('\n' + n + ' tests passed');

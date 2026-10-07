@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.5.3",
+  "version": "0.6.1",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -34,6 +34,7 @@
     "onCommand:tssworkflow.unwrap",
     "onCommand:tssworkflow.wrap",
     "onCommand:tssworkflow.typography",
+    "onCommand:tssworkflow.fixTypographyHints",
     "onCommand:tssworkflow.sentences",
     "onCommand:tssworkflow.tableOps",
     "onCommand:tssworkflow.convertEnv",
@@ -99,6 +100,7 @@
     "onCommand:tssworkflow.refreshProblems",
     "onView:tssworkflow.problemsView",
     "onCommand:tssworkflow.formatTblr",
+    "onCommand:tssworkflow.formatTikz",
     "onCommand:tssworkflow.renumberBeamer"
   ],
   "contributes": {
@@ -143,6 +145,10 @@
         "command": "tssworkflow.typography",
         "title": "TSS Workflow: Ukrainian typography (~, ---, «»)",
         "icon": "$(symbol-text)"
+      },
+      {
+        "command": "tssworkflow.fixTypographyHints",
+        "title": "TSS Workflow: Fix typography hints in file (see fixAllCodes)"
       },
       {
         "command": "tssworkflow.sentences",
@@ -395,6 +401,11 @@
         "icon": "$(table)"
       },
       {
+        "command": "tssworkflow.formatTikz",
+        "title": "TSS Workflow: Format inline \\tikz{...} (one statement per line)",
+        "icon": "$(list-tree)"
+      },
+      {
         "command": "tssworkflow.renumberBeamer",
         "title": "TSS Workflow: Renumber Beamer Slides (% === Слайд N ===)",
         "icon": "$(list-ordered)"
@@ -562,6 +573,10 @@
         {
           "command": "tssworkflow.formatTblr",
           "group": "4_tables@1"
+        },
+        {
+          "command": "tssworkflow.formatTikz",
+          "group": "4_tables@2"
         },
         {
           "command": "tssworkflow.tableOps",
@@ -1186,6 +1201,11 @@
           ],
           "description": "Environments that 'Extract tikzpicture/circuitikz to tikz/' moves into tikz/<name>.tikz (e.g. add tikzcd or axis). The name is the \\label of the enclosing figure without the prefix before the colon"
         },
+        "tssworkflow.tikzExtractInline": {
+          "type": "boolean",
+          "default": true,
+          "description": "Extract tikzpicture/circuitikz to tikz/: also move inline \\tikz[...]{...} and \\tikz \\draw ...; (not \\tikzset and the like) into tikz/<n>.tikz. The ones inside a moved environment go with it. false: environments from tikzExtractEnvs only (as before 0.6.1)."
+        },
         "tssworkflow.frameEnvironments": {
           "type": "array",
           "items": {
@@ -1222,6 +1242,30 @@
             ]
           ],
           "description": "Pairs of macro names that should not be mixed within one file, e.g. [[\"vec\", \"vect\"]]. The less frequent one is marked. Empty list = no check."
+        },
+        "tssworkflow.protectedCommands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Names of your own commands whose arguments are code, not text. The typography checks and the typography command (Ctrl+Alt+T, normalize) do not touch them, just like \\tikz{...}, \\tikzset{...}, \\pgfkeys{...}, which are always protected. A name takes one {...} group (after any [...] groups); 'name:2' takes two. Example: ['mytikz', 'myfig:2']. The backslash is optional. Single lines can also be excluded with % tss-ignore comments."
+        },
+        "tssworkflow.fixAllCodes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "typo-nbsp",
+              "typo-dash",
+              "typo-mixed-script"
+            ]
+          },
+          "default": [
+            "typo-nbsp"
+          ],
+          "uniqueItems": true,
+          "description": "Which typography hints 'fix all' corrects: the command Fix typography hints in file and the code action source.fixAll.tssworkflow (for editor.codeActionsOnSave). typo-nbsp = plain space after a number or abbreviation (becomes ~), typo-dash = hyphen instead of the dash (becomes ---), typo-mixed-script = Latin look-alikes inside Cyrillic words. Default: only typo-nbsp."
         },
         "tssworkflow.todoKeywords": {
           "type": "array",
@@ -1476,6 +1520,12 @@
           "default": 100,
           "minimum": 40,
           "description": "Format tblr: a table whose rows fit in this width gets a grid (cells aligned at &); otherwise a long row is written one cell per line."
+        },
+        "tssworkflow.tikzFormat.minLength": {
+          "type": "number",
+          "default": 100,
+          "minimum": 0,
+          "description": "Format inline \\tikz{...}: only a \\tikz[...]{...} written on one line and at least this many characters long is laid out one statement per line (shorter ones, like a small icon in the text, stay as they are; 0 = all). Code already in several lines is never touched."
         },
         "tssworkflow.tblr.sortOptions": {
           "type": "boolean",

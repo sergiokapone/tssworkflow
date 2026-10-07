@@ -126,9 +126,40 @@ function codePart(line) {
 
 const hasComment = (l) => stripEsc(l).includes('%');
 
-/* ---- inline \tikz[...]{...} / \tikz ...; : ranges that no typography rule may touch ---- */
-const TIKZ_CMD = /\\(tikz|tikzset|tikzstyle|pgfkeys|pgfset|pgfplotsset|tikzmath|pgfmathsetmacro|pgfmathparse)(?![A-Za-z@])/y;
-function tikzInlineRanges(text) {
+/* ---- code that no typography rule may touch: inline \tikz{...}, \tikzset{...}, the user's own commands, % tss-ignore ---- */
+// command -> number of {..} groups that are code. `tikz` and `tikzstyle` have their own forms (see tikzInlineRanges)
+const TIKZ_BUILTIN = { tikzset: 1, tikzstyle: 'style', pgfkeys: 1, pgfset: 1, pgfplotsset: 1, tikzmath: 1, pgfmathsetmacro: 2, pgfmathparse: 1 };
+let userProtected = {};
+
+// ["mytikz", "\\myfig:2"] -> { mytikz: 1, myfig: 2 }; entries that are not a command name (with an optional :N) are dropped
+function parseProtectedCommands(list) {
+  const out = {};
+  for (const it of Array.isArray(list) ? list : []) {
+    const m = /^\\?([A-Za-z@]+)(?::(\d))?$/.exec(String(it).trim());
+    if (m && m[1] !== 'tikz') out[m[1]] = m[2] ? Math.max(1, +m[2]) : 1;
+  }
+  return out;
+}
+// the list from tssworkflow.protectedCommands; used whenever no list is passed explicitly
+function setProtectedCommands(list) { userProtected = parseProtectedCommands(list); }
+
+const cmdReCache = new Map();
+function protectedCmdRe(names) {
+  const key = names.join('|');
+  let re = cmdReCache.get(key);
+  if (!re) { re = new RegExp('\\\\(' + names.join('|') + ')(?![A-Za-z@])', 'y'); cmdReCache.set(key, re); }
+  return re;
+}
+
+// ranges [from, to) of code in `text`. `extra` (a list as in tssworkflow.protectedCommands) replaces the stored list.
+//   \tikz[opts]{...}             also over several lines
+//   \tikz \draw ...;             up to the first `;` outside braces (not past a blank line)
+//   \tikzset{...} and the rest of TIKZ_BUILTIN, and the commands of the user's list: [opts] and the given number of {..} groups
+function tikzInlineRanges(text, extra) {
+  const user = extra === undefined ? userProtected : parseProtectedCommands(extra);
+  const table = Object.assign({}, user, TIKZ_BUILTIN);
+  const names = Object.keys(table).concat('tikz').sort((x, y) => y.length - x.length);
+  const re = protectedCmdRe(names);
   const out = [];
   const n = text.length;
   const skipWs = (j) => { while (j < n && /\s/.test(text[j])) j++; return j; };
@@ -144,49 +175,56 @@ function tikzInlineRanges(text) {
     }
     return -1;
   };
+  // after the command name at `j`: [..] groups, then `want` {..} groups; end of the last group found, or -1
+  const argsEnd = (j, want) => {
+    let p = skipWs(j);
+    while (text[p] === '[') { const e = group(p, '[', ']'); if (e < 0) return -1; p = skipWs(e); }
+    let end = -1;
+    for (let g = 0; g < want; g++) {
+      if (text[p] !== '{') return end;
+      const e = group(p, '{', '}');
+      if (e < 0) return -1;
+      end = e;
+      p = skipWs(e);
+    }
+    return end;
+  };
   let i = 0;
   while (i < n) {
     const c = text[i];
     if (c === '%') { while (i < n && text[i] !== '\n') i++; continue; }
     if (c !== '\\') { i++; continue; }
-    TIKZ_CMD.lastIndex = i;
-    const tm = TIKZ_CMD.exec(text);
-    if (tm && tm[1] !== 'tikz') {
-      // \tikzset{...}, \pgfkeys{...}, \pgfmathsetmacro{\x}{...}, \tikzstyle name=[...]: argument groups are code
-      let j = skipWs(i + tm[0].length);
+    re.lastIndex = i;
+    const tm = re.exec(text);
+    if (tm) {
+      const name = tm[1];
+      const at = i + tm[0].length;
       let end = -1;
-      if (tm[1] === 'tikzstyle') {
-        const k = text.indexOf('[', j);
-        if (k >= 0 && k - j < 80) end = group(k, '[', ']');
-      } else {
+      if (name === 'tikz') {
+        let j = skipWs(at);
         if (text[j] === '[') { const e = group(j, '[', ']'); j = e < 0 ? -1 : skipWs(e); }
-        end = j;
-        for (let g = tm[1] === 'pgfmathsetmacro' ? 2 : 1; g > 0 && end >= 0; g--) {
-          if (text[end] !== '{') { end = g === (tm[1] === 'pgfmathsetmacro' ? 2 : 1) ? -1 : end; break; }
-          end = group(end, '{', '}');
-          if (end >= 0 && g > 1) end = skipWs(end);
-        }
-      }
-      if (end > i) { out.push([i, end]); i = end; continue; }
-    } else if (tm) {
-      let j = skipWs(i + 5);
-      if (text[j] === '[') { const e = group(j, '[', ']'); j = e < 0 ? -1 : skipWs(e); }
-      let end = -1;
-      if (j >= 0) {
-        if (text[j] === '{') end = group(j, '{', '}');
-        else {
-          // `\tikz \draw ...;` form: up to the first `;` outside braces, but not past a blank line
-          let depth = 0;
-          for (let k = j; k < n; k++) {
-            const d = text[k];
-            if (d === '\\') { k++; continue; }
-            if (d === '%') { while (k < n && text[k] !== '\n') k++; continue; }
-            if (d === '\n' && /^\s*\n/.test(text.slice(k + 1))) break;
-            if (d === '{') depth++;
-            else if (d === '}') depth--;
-            else if (d === ';' && depth <= 0) { end = k + 1; break; }
+        if (j >= 0) {
+          if (text[j] === '{') end = group(j, '{', '}');
+          else {
+            // `\tikz \draw ...;`: up to the first `;` outside braces, but not past a blank line
+            let depth = 0;
+            for (let k = j; k < n; k++) {
+              const d = text[k];
+              if (d === '\\') { k++; continue; }
+              if (d === '%') { while (k < n && text[k] !== '\n') k++; continue; }
+              if (d === '\n' && /^\s*\n/.test(text.slice(k + 1))) break;
+              if (d === '{') depth++;
+              else if (d === '}') depth--;
+              else if (d === ';' && depth <= 0) { end = k + 1; break; }
+            }
           }
         }
+      } else if (table[name] === 'style') {
+        // \tikzstyle{name}=[...]  or  \tikzstyle name=[...]
+        const k = text.indexOf('[', skipWs(at));
+        if (k >= 0 && k - at < 80) end = group(k, '[', ']');
+      } else {
+        end = argsEnd(at, table[name]);
       }
       if (end > i) { out.push([i, end]); i = end; continue; }
     }
@@ -194,6 +232,56 @@ function tikzInlineRanges(text) {
   }
   return out;
 }
+
+// "% tss-ignore" markers -> inclusive line ranges [from, to]:
+//   code % tss-ignore          this line
+//   % tss-ignore-next          the next line (a bare "% tss-ignore" on a line of its own does the same)
+//   % tss-ignore-start / -end  everything between (to the end of the file if -end is missing)
+const IGNORE_RE = /^%+\s*tss-ignore(?:-(next|start|end))?(?![\w-])/i;
+function ignoreLineRanges(lines) {
+  const out = [];
+  let open = -1;
+  lines.forEach((l, i) => {
+    const code = codePart(l);
+    const m = IGNORE_RE.exec(l.slice(code.length));
+    if (!m) return;
+    const kind = (m[1] || '').toLowerCase();
+    if (kind === 'start') { if (open < 0) open = i + 1; }
+    else if (kind === 'end') { if (open >= 0) { if (i - 1 >= open) out.push([open, i - 1]); open = -1; } }
+    else if (kind === 'next' || code.trim() === '') { if (i + 1 < lines.length) out.push([i + 1, i + 1]); }
+    else out.push([i, i]);
+  });
+  if (open >= 0 && open < lines.length) out.push([open, lines.length - 1]);
+  return out;
+}
+function ignoredLineSet(lines) {
+  const s = new Set();
+  for (const [a, b] of ignoreLineRanges(lines)) for (let i = a; i <= b; i++) s.add(i);
+  return s;
+}
+
+// offsets [from, to) of the ignored lines (without the last line break)
+function ignoreRanges(text) {
+  const lines = text.split('\n');
+  const starts = [];
+  let o = 0;
+  for (const l of lines) { starts.push(o); o += l.length + 1; }
+  return ignoreLineRanges(lines).map(([a, b]) => [starts[a], starts[b] + lines[b].length]);
+}
+
+function mergeRanges(rs) {
+  const s = rs.slice().sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  const out = [];
+  for (const r of s) {
+    const last = out[out.length - 1];
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1]);
+    else out.push([r[0], r[1]]);
+  }
+  return out;
+}
+
+// everything typography must leave alone: TikZ-like code and ignored lines
+const codeRanges = (text, extra) => mergeRanges(tikzInlineRanges(text, extra).concat(ignoreRanges(text)));
 
 // same text with the given ranges overwritten by spaces (newlines and length kept)
 function blankRanges(text, ranges) {
@@ -272,7 +360,7 @@ function protectedRanges(text) {
     if (!m[0].length) { PROT.lastIndex++; continue; }
     out.push([m.index, m.index + m[0].length]);
   }
-  for (const r of tikzInlineRanges(text)) out.push(r);
+  for (const r of codeRanges(text)) out.push(r);
   return out;
 }
 
@@ -334,9 +422,9 @@ function commaInMath(text) {
 }
 
 function typography(text, opts) {
-  // inline \tikz[...]{...} is code, not text: hide it behind \u0004 and put it back at the end
+  // TikZ-like code and `% tss-ignore` lines are not text: hide them behind \u0004 and put them back at the end
   const tikzSpans = [];
-  const tk = tikzInlineRanges(text);
+  const tk = codeRanges(text, opts && opts.protectedCommands);
   if (tk.length) {
     let t2 = '';
     let l2 = 0;
@@ -2051,7 +2139,7 @@ function imagePreviewPlan(size, mode, maxMB) {
 
 module.exports = {
   splitRow, alignLines, lineKind, noJoinAfter, canJoin, unwrapLines, stripEsc,
-  codePart, tikzInlineRanges, blankRanges, wrapLines, wrapLine, typography, splitSentences, sentenceLines,
+  codePart, tikzInlineRanges, blankRanges, codeRanges, ignoreLineRanges, ignoredLineSet, ignoreRanges, setProtectedCommands, parseProtectedCommands, wrapLines, wrapLine, typography, splitSentences, sentenceLines,
   ALIGN_ENVS, parseRows, colAt, tableOp, envTokensPure, pairEnvsPure, bodyStartLine, tableBlockLines,
   convertEnv, CONVERTIBLE, scanLabelsAndRefs, labelAtPos, renamePositions, syntaxChecks,
   frameSections, FRAME_RULE, FRAME_EQ_RULE,
