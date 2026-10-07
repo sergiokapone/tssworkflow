@@ -99,6 +99,7 @@ const openedJobs = new Set();
 let building = null;
 let pendingDoc = null; // a chapter saved while a build was running: it is built when that one ends
 let buildItem = null;
+let spinItem = null; // constant '$(sync~spin)': a codicon restarts its rotation whenever the text of ITS item changes, so it must not share an item with the ticking seconds
 let buildTimer = null;
 let resultTimer = null;
 
@@ -115,9 +116,23 @@ function renderBuild() {
   const pass = building.counter ? building.counter.pass : 0;
   const last = building.lastPasses || 0;
   const passTxt = pass ? ' · ' + pass + (last ? '/' + last : '') : '';
-  buildItem.text = '$(sync~spin) ' + building.label + passTxt + ' · ' + secs + ' с';
-  buildItem.tooltip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.' +
-    (pass ? '\nПрохід LaTeX ' + pass + (last ? ' із ' + last + ' (стільки було минулого разу; повне число наперед невідоме)' : ' (число проходів ще невідоме: це перша збірка)') : '');
+  const fixed = !!building.fixedPasses;
+  const tip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.' +
+    (pass ? (fixed
+      ? '\nПрохід LaTeX ' + pass + ' із ' + last + ' (tssworkflow.passes)'
+      : '\nПрохід LaTeX ' + pass + (last ? ' із ' + last + ' (стільки було минулого разу; повне число наперед невідоме)' : ' (число проходів ще невідоме: це перша збірка)')) : '');
+  // the spinner item is written once per build; only the text item is updated every second
+  if (spinItem) {
+    if (!building.spinShown) {
+      spinItem.text = '$(sync~spin)';
+      spinItem.command = 'tssworkflow.stopBuild';
+      spinItem.show();
+      building.spinShown = true;
+    }
+    spinItem.tooltip = tip;
+  }
+  buildItem.text = building.label + passTxt + ' · ' + secs + ' с';
+  buildItem.tooltip = tip;
   buildItem.command = 'tssworkflow.stopBuild';
   buildItem.backgroundColor = undefined;
   buildItem.show();
@@ -125,6 +140,7 @@ function renderBuild() {
 
 function showResult(b, outcome) {
   if (!buildItem) return;
+  if (spinItem) spinItem.hide();
   clearTimeout(resultTimer);
   const secs = Math.max(1, Math.round((Date.now() - b.started) / 1000));
   let ms = 4000;
@@ -377,7 +393,7 @@ async function openInLatexWorkshop(pdf) {
 
 // runs latexmk and, when it finishes, parses the log and (optionally) opens the PDF
 let buildSeq = 0;
-async function runBuild({ folder, args, job, label, openPdf, done, exe }) {
+async function runBuild({ folder, args, job, label, openPdf, done, exe, repeat }) {
   if (building) { busyWarning(); if (done) done(); return; }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const cwd = folder.uri.fsPath;
@@ -386,8 +402,16 @@ async function runBuild({ folder, args, job, label, openPdf, done, exe }) {
   const id = ++buildSeq;
   // from here on and until the process ends no other build can start (set before the first await)
   building = { id, job, label, started: Date.now(), execution: null, abort: null };
+  // tssworkflow.passes = N: the same command is run exactly N times in a row (a pass number that is known, not guessed from the log)
+  const total = Math.max(1, Math.min(9, Math.floor(Number(repeat) || 1)));
+  let run = 0;
+  if (total > 1) {
+    building.fixedPasses = true;
+    building.lastPasses = total;
+    building.counter = { pass: 0 };
+  }
   // latexmk reruns LaTeX: show the number of the run, with the number of runs of the previous build as the total
-  if (!exe && cfg.get('showPasses', true)) {
+  if (!exe && total === 1 && cfg.get('showPasses', true)) {
     const b = building;
     b.counter = P.makePassCounter(b.started);
     b.lastPasses = (extCtx && extCtx.workspaceState.get('passes:' + job)) || 0;
@@ -414,9 +438,10 @@ async function runBuild({ folder, args, job, label, openPdf, done, exe }) {
   // subscribe BEFORE starting, so that a process that dies at once (latexmk not found) is not missed
   const sub = vscode.tasks.onDidEndTaskProcess((ev) => {
     if (!ev.execution || !ev.execution.task || ev.execution.task.definition.id !== id) return;
-    sub.dispose();
     // a build stopped by the user may end with any exit code
     const stopped = !!(building && building.id === id && building.stopping) || ev.exitCode === undefined;
+    if (!stopped && ev.exitCode === 0 && run < total) { startTask(); return; } // the next of N runs
+    sub.dispose();
     try { Promise.resolve(features.onBuildFinished(cwd, job)).catch(() => {}); } catch (err) { /* log parsing is best effort */ }
     finish(stopped ? { stopped: true } : ev.exitCode === 0 ? { ok: true } : { ok: false, code: ev.exitCode });
     if (stopped) return;
@@ -445,30 +470,38 @@ async function runBuild({ folder, args, job, label, openPdf, done, exe }) {
       vscode.window.showWarningMessage('Компіляція ' + job + ' завершилась з помилками (код ' + ev.exitCode + '). Дивись вкладку Problems.');
     }
   });
-  try {
-    const cmd = exe || cfg.get('latexmk', 'latexmk');
-    const exec = new vscode.ProcessExecution(cmd, args, { cwd, env });
-    const task = new vscode.Task(
-      { type: 'tssworkflow', job, id },
-      folder,
-      label,
-      'tssworkflow',
-      exec,
-      ['pplatex', 'texlogsieve'].includes(cfg.get('logParser', 'builtin')) ? [] : '$tssworkflow-latex'
-    );
-    task.presentationOptions = {
-      reveal: vscode.TaskRevealKind.Silent,
-      clear: true,
-      showReuseMessage: false
-    };
-    if (building && building.id === id) building.abort = () => { sub.dispose(); finish({ stopped: true }); };
-    const execution = await vscode.tasks.executeTask(task);
-    if (building && building.id === id) building.execution = execution;
-  } catch (err) {
-    sub.dispose();
-    vscode.window.showErrorMessage('Не вдалося запустити ' + (exe || cfg.get('latexmk', 'latexmk')) + ': ' + (err && err.message ? err.message : err));
-    finish({ ok: false, code: 'запуск' });
-  }
+  const startTask = async () => {
+    try {
+      run++;
+      if (building && building.id === id && building.counter && building.fixedPasses) {
+        building.counter.pass = run;
+        renderBuild();
+      }
+      const cmd = exe || cfg.get('latexmk', 'latexmk');
+      const exec = new vscode.ProcessExecution(cmd, args, { cwd, env });
+      const task = new vscode.Task(
+        { type: 'tssworkflow', job, id },
+        folder,
+        label,
+        'tssworkflow',
+        exec,
+        ['pplatex', 'texlogsieve'].includes(cfg.get('logParser', 'builtin')) ? [] : '$tssworkflow-latex'
+      );
+      task.presentationOptions = {
+        reveal: vscode.TaskRevealKind.Silent,
+        clear: true,
+        showReuseMessage: false
+      };
+      if (building && building.id === id) building.abort = () => { sub.dispose(); finish({ stopped: true }); };
+      const execution = await vscode.tasks.executeTask(task);
+      if (building && building.id === id) building.execution = execution;
+    } catch (err) {
+      sub.dispose();
+      vscode.window.showErrorMessage('Не вдалося запустити ' + (exe || cfg.get('latexmk', 'latexmk')) + ': ' + (err && err.message ? err.message : err));
+      finish({ ok: false, code: 'запуск' });
+    }
+  };
+  await startTask();
 }
 
 // whole document: latexmk on the main file (tssworkflow.mainFile, default main.tex)
@@ -537,16 +570,21 @@ async function compile(openPdf, done) {
   if (!t) { if (done) done(); return; }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const single = cfg.get('singlePass', true);
+  // singlePass = false and passes = N > 0: exactly N runs of plain lualatex (latexmk cannot be told "run exactly N times");
+  // passes = 0: latexmk decides how many runs are needed
+  const passes = single ? 1 : Math.max(0, Math.min(9, Math.floor(Number(cfg.get('passes', 0)) || 0)));
+  const fixed = !single && passes > 0;
   await runBuild({
     folder: t.folder,
-    exe: single ? cfg.get('lualatex', 'lualatex') : undefined,
-    args: single
+    exe: single || fixed ? cfg.get('lualatex', 'lualatex') : undefined,
+    args: single || fixed
       ? singlePassArgs(t, cfg.get('driver', 'alone.tex'))
       : latexArgs(t, cfg.get('driver', 'alone.tex'), cfg.get('forceRebuild', true)),
     job: t.job,
     label: 'Compile ' + t.job,
     openPdf,
-    done
+    done,
+    repeat: fixed ? passes : 1
   });
 }
 
@@ -976,7 +1014,8 @@ function activate(context) {
     vscode.commands.registerCommand('tssworkflow.stopBuild', stopBuild)
   );
   buildItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 101);
-  context.subscriptions.push(buildItem);
+  spinItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 102); // left of buildItem
+  context.subscriptions.push(buildItem, spinItem);
 
   LOG = vscode.window.createOutputChannel('TSS Workflow');
   context.subscriptions.push(LOG);
