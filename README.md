@@ -16,6 +16,8 @@ A VS Code extension for large LaTeX projects (books, lecture notes) with many ch
 
 **Refactoring.** Rename and reorder chapters with updates to lists, paths, and references; project-wide replace that skips comments and `verbatim`; notation consistency checks (`\varepsilon`/`\epsilon`, etc.); project snapshots with restore.
 
+**New in 0.7.** A configurable table *macro → folder* (`tssworkflow.fileMacros`) for `\\input`/`\\include`/`\\subfile`/`\\localinput`; a root-relative check for `\\input` in chapters; references updated when a file is renamed; Quick Fix `tlmgr install` for missing packages; the "Labels" panel (unused labels, insert `\\ref`); unused `\\usepackage`; table from CSV/XLSX/clipboard in `tblr`; `.bib` format, duplicates and key normalisation; list of equations; word count; PDF copy with a date; **Doctor** with hints.
+
 **Other.** Document and fragment templates, extracting `tikzpicture` into separate files, project statistics, a TODO list, chapter changes against a git revision (`latexdiff`), a "Problems" panel from the build log, environment check.
 
 ## Requirements

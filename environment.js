@@ -26,30 +26,39 @@ async function checkEnvironment() {
   const logParser = String(cfg().get('logParser', 'builtin'));
   const pdfViewer = String(cfg().get('pdfViewer', 'vscode'));
   const tools = [
-    { name: 'latexmk', cmd: cfg().get('latexmk', 'latexmk'), what: 'збірка всього документа й розділів (`singlePass = false`)', need: true, ver: true },
-    { name: 'lualatex', cmd: cfg().get('lualatex', 'lualatex'), what: 'збірка розділу одним проходом, `Show page output hooks`', need: true, ver: true },
-    { name: 'texlogsieve', cmd: cfg().get('texlogsieveCommand', 'texlogsieve'), what: 'звіт про проблеми збірки (`logParser = texlogsieve`)', need: logParser === 'texlogsieve', ver: true },
-    { name: 'pplatex', cmd: cfg().get('pplatexCommand', 'ppluatex'), what: 'розбір логу (`logParser = pplatex`)', need: logParser === 'pplatex', ver: false },
-    { name: 'biber', cmd: 'biber', what: 'бібліографія biblatex (повна збірка)', need: false, ver: true },
-    { name: 'latexdiff', cmd: cfg().get('latexdiffCommand', 'latexdiff'), what: 'команда `Changes of this chapter since a git revision`', need: false, ver: true },
-    { name: 'git', cmd: 'git', what: 'latexdiff проти ревізії git', need: false, ver: true },
-    { name: 'PDF-вьюер', cmd: cfg().get('externalViewerCommand', 'SumatraPDF'), what: 'кнопка `link-external` і SyncTeX (`pdfViewer = external`)', need: pdfViewer === 'external', ver: false }
+    { name: 'latexmk', hint: 'Встанови TeX Live (або MiKTeX) і додай теку `bin` у PATH; `tlmgr install latexmk`',  cmd: cfg().get('latexmk', 'latexmk'), what: 'збірка всього документа й розділів (`singlePass = false`)', need: true, ver: true },
+    { name: 'lualatex', hint: 'Входить у TeX Live; додай теку `bin` у PATH або вкажи шлях у `tssworkflow.lualatex`',  cmd: cfg().get('lualatex', 'lualatex'), what: 'збірка розділу одним проходом, `Show page output hooks`', need: true, ver: true },
+    { name: 'texlogsieve', hint: '`tlmgr install texlogsieve` (TeX Live 2022+), або `tssworkflow.logParser = builtin`',  cmd: cfg().get('texlogsieveCommand', 'texlogsieve'), what: 'звіт про проблеми збірки (`logParser = texlogsieve`)', need: logParser === 'texlogsieve', ver: true },
+    { name: 'pplatex', hint: 'Потрібен лише для `logParser = pplatex`: `tlmgr install pplatex`',  cmd: cfg().get('pplatexCommand', 'ppluatex'), what: 'розбір логу (`logParser = pplatex`)', need: logParser === 'pplatex', ver: false },
+    { name: 'biber', hint: '`tlmgr install biber`; потрібен для biblatex',  cmd: 'biber', what: 'бібліографія biblatex (повна збірка)', need: false, ver: true },
+    { name: 'latexdiff', hint: '`tlmgr install latexdiff`',  cmd: cfg().get('latexdiffCommand', 'latexdiff'), what: 'команда `Changes of this chapter since a git revision`', need: false, ver: true },
+    { name: 'git', hint: 'https://git-scm.com/downloads (Windows: `winget install Git.Git`)',  cmd: 'git', what: 'latexdiff проти ревізії git', need: false, ver: true },
+    { name: 'PDF-вьюер', hint: 'Windows: `winget install SumatraPDF.SumatraPDF`, потім додай у PATH чи задай `tssworkflow.externalViewerCommand`',  cmd: cfg().get('externalViewerCommand', 'SumatraPDF'), what: 'кнопка `link-external` і SyncTeX (`pdfViewer = external`)', need: pdfViewer === 'external', ver: false }
   ];
   const rows = await Promise.all(tools.map(async (t) => {
     const found = P.findInPath(String(t.cmd || ''));
-    if (!found) return { name: t.name + ' (`' + t.cmd + '`)', what: t.what, state: t.need ? 'missing' : 'optional', detail: 'не знайдено в PATH' };
+    if (!found) return { name: t.name + ' (`' + t.cmd + '`)', what: t.what, state: t.need ? 'missing' : 'optional', detail: 'не знайдено в PATH', hint: t.hint };
     const v = t.ver ? await versionOf(found) : '';
     return { name: t.name, what: t.what, state: 'ok', detail: '`' + found + '`' + (v ? '<br>' + v.replace(/\|/g, '/') : '') };
   }));
 
   const ext = (id, name, what, need) => {
     const e = vscode.extensions.getExtension(id);
-    rows.push({ name, what, state: e ? 'ok' : (need ? 'missing' : 'optional'), detail: e ? 'версія ' + ((e.packageJSON && e.packageJSON.version) || '?') : 'не встановлено' });
+    rows.push({ name, what, state: e ? 'ok' : (need ? 'missing' : 'optional'), detail: e ? 'версія ' + ((e.packageJSON && e.packageJSON.version) || '?') : 'не встановлено', hint: e ? '' : 'Розширення `' + id + '`: Extensions → Install' });
   };
   ext('James-Yu.latex-workshop', 'LaTeX Workshop', 'вкладка з PDF, SyncTeX, превʼю формул', pdfViewer === 'vscode' || pdfViewer === 'latexworkshop');
   ext('valentjn.vscode-ltex', 'LTeX', 'орфографія й граматика (`Add LTeX spelling hits to the dictionary`)', false);
 
   const folder = (vscode.workspace.workspaceFolders || [])[0];
+  // 0.7.0: files the last build could not find
+  try {
+    const mf = require('./extra5').missingFromLog();
+    if (mf.log) {
+      const X5 = require('./extra5Pure');
+      const cmds = X5.tlmgrCommands(mf.missing, String(cfg().get('tlmgrCommand', 'tlmgr install')));
+      rows.push({ name: 'Пакети з останнього логу', what: 'рядки `File ... not found` у `' + path.basename(mf.log) + '`', state: mf.missing.length ? 'missing' : 'ok', detail: mf.missing.length ? mf.missing.map((m) => m.file).join(', ') : 'усе знайдено', hint: mf.missing.length ? (cmds.install ? '`' + cmds.install + '`; ' : '') + 'або `TSS Workflow: Missing packages from last log`' : '' });
+    }
+  } catch (e) { /* optional */ }
   if (folder) {
     const root = folder.uri.fsPath;
     const main = String(cfg().get('mainFile', 'main.tex'));

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.0
+- **Таблиця «макрос → папка»** `tssworkflow.fileMacros` (типово `\\localinput: tikz`, `\\includegraphics: Pictures`, `\\input`, `\\include`, `\\subfile`: `.`). Ctrl+клік, підказка імен (`{`, `/`, Ctrl+Space), `Ctrl+Alt+I`, перевірка «файла немає» та наведення працюють для всіх макросів таблиці; свій макрос додається рядком `"\\\\myfig": "figs"`, порожнє значення вимикає макрос.
+- **`\\input` від кореня**: `tssworkflow.inputRoot` (`workspace` / `file` / `off`) і `rootRelativeMacros`. Розділ збирається з кореня (`alone.tex`, `main.tex`), тож `\\input{tikz/a}` у `Ch1/Ch1.tex` ламається. Таке попередження «шлях від кореня» має Quick Fix «замінити на `Ch1/tikz/a`» (і «виправити всі в файлі»).
+- **`Extract tikzpicture to tikz/`** пише `\\input{<розділ>/tikz/ім'я}`, якщо `\\localinput` ніде не визначено в `.cls`/`.sty`/`.tex` (`tssworkflow.tikzIncludeMacro`: `auto` / `localinput` / `input`).
+- **Doctor**: команда `Check environment` отримала назву «TSS Workflow: Doctor», колонку «Що робити» (як поставити `latexmk`, `texlogsieve`, `latexdiff`, `git`, SumatraPDF, LaTeX Workshop) і рядок «Пакети з останнього логу».
+- **Відсутні пакети**: на `File 'x.sty' not found` Quick Fix «Скопіювати: tlmgr install …» (і команда пошуку `tlmgr search --global --file`); команда `Missing packages from last log` збирає все з `main.log` в один `tlmgr install …` (копіювати чи вставити в термінал без запуску). Префікс команди: `tssworkflow.tlmgrCommand` (`sudo tlmgr install`).
+- **Перейменування з оновленням посилань**: після перейменування чи переміщення файла (рисунок, `.tikz`, `.tex`) або папки в Explorer змінюються всі `\\includegraphics`, `\\localinput`, `\\input`… (`tssworkflow.updateRefsOnRename`: `ask` / `always` / `never`).
+- **Панель «Мітки»** в Activity Bar: усі `\\label` проєкту по файлах, мітки без жодного `\\ref` (`\\eqref`, `\\cref`, `\\autoref`, `\\hyperref[…]` …) із позначкою, фільтр «лише без \\ref», клік відкриває місце, кнопка вставляє `\\ref{}` (`\\eqref{}` для `eq:`) у курсор; окрема команда `Insert \\ref… (pick a label)`.
+- **Нові команди**: `Unused \\usepackage` (за таблицею відомих пакетів, невідомі не чіпає); `Table from CSV / XLSX / clipboard (tblr)` (власний стиль з `themecolorlight`, `tssworkflow.tblr.headerColor`, `oddRowColor`, `csvFloat`); `Format .bib`, `Duplicates in .bib` (за DOI і назвою), `Normalize .bib keys` (прізвище+рік, і `\\cite` у проєкті); `List of all numbered equations` (номери з `.aux`); `Save PDF copy with a date` (`pdf-versions/<розділ>_РРРР-ММ-ДД_ГГХХ.pdf`).
+- **Лічильник слів** файла в рядку стану (виділення в дужках), `tssworkflow.wordCount`.
+- Обмеження: при переміщенні самого `.tex` в іншу папку відносні шляхи всередині нього не переписуються; `.xlsx` читається перший аркуш (дати як серійні числа).
+
 ## 0.6.4
 - **Вбудованих шаблонів 35 замість 5** (20 фрагментів, 15 документів, 2 з них папки). Змінено лише теку `templates/`; команд і налаштувань нових немає.
 - **17 нових фрагментів** (`Insert template fragment...`): таблиці `tblr` (твоя з `themecolorlight` і без власних кольорів) та `booktabs`; `align`, `cases`, система рівнянь Максвелла в СГС; `subfigure`, `minipage`; списки; TikZ (заготовка, силові лінії точкового заряду); pgfplots (графік, стилі `cartesian` і `scientific`); `circuitikz`; слайд `beamer` з рамкою для `Renumber Beamer Slides`.

@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -101,7 +101,20 @@
     "onView:tssworkflow.problemsView",
     "onCommand:tssworkflow.formatTblr",
     "onCommand:tssworkflow.formatTikz",
-    "onCommand:tssworkflow.renumberBeamer"
+    "onCommand:tssworkflow.renumberBeamer",
+    "onCommand:tssworkflow.missingPackages",
+    "onCommand:tssworkflow.refreshLabels",
+    "onCommand:tssworkflow.labelsToggleFilter",
+    "onCommand:tssworkflow.insertRefFromLabel",
+    "onCommand:tssworkflow.pickRef",
+    "onCommand:tssworkflow.unusedPackages",
+    "onCommand:tssworkflow.tableFromFile",
+    "onCommand:tssworkflow.formatBib",
+    "onCommand:tssworkflow.bibDuplicates",
+    "onCommand:tssworkflow.bibNormalizeKeys",
+    "onCommand:tssworkflow.listEquations",
+    "onCommand:tssworkflow.savePdfCopy",
+    "onView:tssworkflow.labelsView"
   ],
   "contributes": {
     "commands": [
@@ -350,7 +363,7 @@
       },
       {
         "command": "tssworkflow.checkEnvironment",
-        "title": "TSS Workflow: Check environment (latexmk, lualatex, texlogsieve, extensions, files)"
+        "title": "TSS Workflow: Doctor (check environment, PATH, extensions)"
       },
       {
         "command": "tssworkflow.renameChapter",
@@ -409,6 +422,57 @@
         "command": "tssworkflow.renumberBeamer",
         "title": "TSS Workflow: Renumber Beamer Slides (% === Слайд N ===)",
         "icon": "$(list-ordered)"
+      },
+      {
+        "command": "tssworkflow.missingPackages",
+        "title": "TSS Workflow: Missing packages from last log (tlmgr)"
+      },
+      {
+        "command": "tssworkflow.refreshLabels",
+        "title": "TSS Workflow: Refresh labels panel",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "tssworkflow.labelsToggleFilter",
+        "title": "TSS Workflow: Labels without \\ref only / all",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "tssworkflow.insertRefFromLabel",
+        "title": "TSS Workflow: Insert \\ref of the label",
+        "icon": "$(insert)"
+      },
+      {
+        "command": "tssworkflow.pickRef",
+        "title": "TSS Workflow: Insert \\ref... (pick a label)"
+      },
+      {
+        "command": "tssworkflow.unusedPackages",
+        "title": "TSS Workflow: Unused \\usepackage"
+      },
+      {
+        "command": "tssworkflow.tableFromFile",
+        "title": "TSS Workflow: Table from CSV / XLSX / clipboard (tblr)"
+      },
+      {
+        "command": "tssworkflow.formatBib",
+        "title": "TSS Workflow: Format .bib (sort, align)"
+      },
+      {
+        "command": "tssworkflow.bibDuplicates",
+        "title": "TSS Workflow: Duplicates in .bib (DOI, title)"
+      },
+      {
+        "command": "tssworkflow.bibNormalizeKeys",
+        "title": "TSS Workflow: Normalize .bib keys (surname+year) and \\cite"
+      },
+      {
+        "command": "tssworkflow.listEquations",
+        "title": "TSS Workflow: List of all numbered equations"
+      },
+      {
+        "command": "tssworkflow.savePdfCopy",
+        "title": "TSS Workflow: Save PDF copy with a date"
       }
     ],
     "menus": {
@@ -686,6 +750,16 @@
           "command": "tssworkflow.refreshProblems",
           "when": "view == tssworkflow.problemsView",
           "group": "navigation"
+        },
+        {
+          "command": "tssworkflow.refreshLabels",
+          "when": "view == tssworkflow.labelsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "tssworkflow.labelsToggleFilter",
+          "when": "view == tssworkflow.labelsView",
+          "group": "navigation@2"
         }
       ],
       "file/newFile": [
@@ -741,6 +815,11 @@
           "command": "tssworkflow.moveChapterDown",
           "when": "view == tssworkflow.chaptersView && viewItem == chapter",
           "group": "1_modification@3"
+        },
+        {
+          "command": "tssworkflow.insertRefFromLabel",
+          "when": "view == tssworkflow.labelsView && viewItem =~ /^tssLabel/",
+          "group": "inline@1"
         }
       ],
       "commandPalette": [
@@ -766,6 +845,18 @@
         },
         {
           "command": "tssworkflow.refreshProblems",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.refreshLabels",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.insertRefFromLabel",
+          "when": "false"
+        },
+        {
+          "command": "tssworkflow.labelsToggleFilter",
           "when": "false"
         }
       ]
@@ -1558,6 +1649,128 @@
           "type": "boolean",
           "default": true,
           "description": "Renumber Beamer Slides: do not number the frame with \\titlepage / \\maketitle; the first following frame is slide 1."
+        },
+        "tssworkflow.fileMacros": {
+          "type": "object",
+          "default": {
+            "\\localinput": "tikz",
+            "\\includegraphics": "Pictures",
+            "\\input": ".",
+            "\\include": ".",
+            "\\subfile": "."
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markdownDescription": "Table **macro → folder** for Ctrl+click, name completion and the \"file not found\" check. The folder is relative to the current file (for `\\\\input` and `\\\\include` the project root is tried first, see `tssworkflow.inputRoot`). `\".\"` is the same folder. An empty string or `null` switches a macro off. Add your own: `{\"\\\\\\\\myfig\": \"figs\"}`. Extensions: `.tikz`, `.tex` (pictures for `\\\\includegraphics`)."
+        },
+        "tssworkflow.inputRoot": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "file",
+            "off"
+          ],
+          "default": "workspace",
+          "markdownDescription": "How `\\\\input` and `\\\\include` paths are read. `workspace`: from the project root, because the document and `alone.tex` are built there (a path relative to the chapter folder is reported with a Quick Fix); `file`: relative to the current file; `off`: no check of the root."
+        },
+        "tssworkflow.rootRelativeMacros": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "\\input",
+            "\\include"
+          ],
+          "markdownDescription": "Macros whose paths are relative to the build folder (the project root), see `tssworkflow.inputRoot`."
+        },
+        "tssworkflow.tikzIncludeMacro": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "localinput",
+            "input"
+          ],
+          "default": "auto",
+          "markdownDescription": "What `Extract tikzpicture to tikz/` writes in place of the picture. `auto`: `\\\\localinput{name}` if the project defines `\\\\localinput` in a `.cls`/`.sty`/`.tex`, otherwise `\\\\input{<chapter>/tikz/name}`."
+        },
+        "tssworkflow.updateRefsOnRename": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
+          "default": "ask",
+          "markdownDescription": "After a file or folder (picture, `.tikz`, `.tex`) is renamed or moved in the Explorer: update the `\\\\includegraphics`, `\\\\localinput`, `\\\\input` ... that point to it. `ask`: show the number of references first."
+        },
+        "tssworkflow.tlmgrCommand": {
+          "type": "string",
+          "default": "tlmgr install",
+          "markdownDescription": "Command prefix of the Quick Fix for a missing package, e.g. `sudo tlmgr install` or `tlmgr --usermode install`."
+        },
+        "tssworkflow.wordCount": {
+          "type": "boolean",
+          "default": true,
+          "description": "Status bar: number of words of the current file (the selection in brackets)."
+        },
+        "tssworkflow.labels.eqPrefixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "eq",
+            "eqn",
+            "equation",
+            "formula"
+          ],
+          "markdownDescription": "Label prefixes (`eq:...`) for which the Labels panel inserts `\\\\eqref{}`; for others `\\\\ref{}`."
+        },
+        "tssworkflow.bib.sortBy": {
+          "type": "string",
+          "enum": [
+            "none",
+            "key",
+            "year",
+            "author"
+          ],
+          "default": "none",
+          "description": "Format .bib: sort the entries (none keeps the order)."
+        },
+        "tssworkflow.bib.sortFields": {
+          "type": "boolean",
+          "default": false,
+          "description": "Format .bib: put the fields in the usual order (author, title, journal, volume, pages, year, doi ...)."
+        },
+        "tssworkflow.tblr.headerColor": {
+          "type": "string",
+          "default": "themecolorlight",
+          "description": "Table from CSV / XLSX: background colour of the header row."
+        },
+        "tssworkflow.tblr.oddRowColor": {
+          "type": "string",
+          "default": "gray!10",
+          "description": "Table from CSV / XLSX: colour of odd rows."
+        },
+        "tssworkflow.tblr.csvFloat": {
+          "type": "boolean",
+          "default": true,
+          "description": "Table from CSV / XLSX: wrap in table with \\caption and \\label (false: only tblr)."
+        },
+        "tssworkflow.pdfCopyDir": {
+          "type": "string",
+          "default": "pdf-versions",
+          "description": "Save PDF copy with a date: folder (relative to the project root)."
+        },
+        "tssworkflow.pdfCopyTime": {
+          "type": "boolean",
+          "default": true,
+          "description": "Save PDF copy: add the time (HHMM) after the date."
         }
       }
     },
@@ -1759,6 +1972,12 @@
           "name": "Проблеми",
           "contextualTitle": "TSS Workflow",
           "when": "tssworkflow.hasTex"
+        },
+        {
+          "id": "tssworkflow.labelsView",
+          "name": "Мітки",
+          "when": "tssworkflow.hasTex",
+          "contextualTitle": "TSS Workflow"
         }
       ]
     },

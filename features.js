@@ -743,6 +743,7 @@ async function ltexDictionary() {
 }
 
 /* --------------------------- quick error checks ---------------------- */
+const X5sub = (m, d) => { try { return require('./extra5').legacySub(m, d); } catch (e) { return d; } };
 const diagSyntax = vscode.languages.createDiagnosticCollection('tssworkflow');
 
 function existsFor(doc) {
@@ -750,10 +751,10 @@ function existsFor(doc) {
   if (path.basename(dir).toLowerCase() === 'tikz') return undefined; // paths inside tikz files are not resolved here
   return (kind, name) => {
     if (kind === 'tikz') {
-      const b = path.join(dir, 'tikz', name);
+      const b = path.join(dir, X5sub('\\localinput', 'tikz'), name);
       return fs.existsSync(b) || (!path.extname(name) && (fs.existsSync(b + '.tikz') || fs.existsSync(b + '.tex')));
     }
-    const b = path.join(dir, 'Pictures', name);
+    const b = path.join(dir, X5sub('\\includegraphics', 'Pictures'), name);
     if (fs.existsSync(b)) return true;
     return !path.extname(name) && PIC_EXTS.some((e) => fs.existsSync(b + e));
   };
@@ -884,7 +885,7 @@ const hoverProvider = {
     const dir = path.dirname(doc.uri.fsPath);
     const inc = argAt(code, /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)\}/g, pos.character);
     if (inc && inc.name) {
-      const b = path.join(dir, 'Pictures', inc.name);
+      const b = path.join(dir, X5sub('\\includegraphics', 'Pictures'), inc.name);
       const file = [b].concat(PIC_EXTS.map((e) => b + e)).find((c) => { try { return fs.statSync(c).isFile(); } catch (e) { return false; } });
       const range = new vscode.Range(pos.line, inc.start, pos.line, inc.start + inc.len);
       if (!file) return new vscode.Hover('Файл не знайдено: Pictures/' + inc.name, range);
@@ -892,7 +893,7 @@ const hoverProvider = {
     }
     const lin = argAt(code, /\\localinput\{([^}]*)\}/g, pos.character);
     if (lin && lin.name) {
-      const b = path.join(dir, 'tikz', lin.name);
+      const b = path.join(dir, X5sub('\\localinput', 'tikz'), lin.name);
       const file = [b, b + '.tikz', b + '.tex'].find((c) => { try { return fs.statSync(c).isFile(); } catch (e) { return false; } });
       const range = new vscode.Range(pos.line, lin.start, pos.line, lin.start + lin.len);
       if (!file) return new vscode.Hover('Файл не знайдено: tikz/' + lin.name, range);

@@ -134,7 +134,7 @@ function pictureAt(lines, pictures, pos) {
 }
 
 // text of the .tikz file and the replacement for the range [begin, end)
-function plan(lines, pic, name, eol) {
+function plan(lines, pic, name, eol, inc) {
   eol = eol || '\n';
   const b = pic.begin;
   const e = pic.end;
@@ -154,12 +154,17 @@ function plan(lines, pic, name, eol) {
     return s.slice(Math.min(own, indent.length));
   });
   while (dedented.length && !dedented[dedented.length - 1].trim()) dedented.pop();
-  return { content: dedented.join(eol) + eol, replacement: '\\localinput{' + name + '}' };
+  return { content: dedented.join(eol) + eol, replacement: inc ? '\\input{' + inc.prefix + name + '}' : '\\localinput{' + name + '}' };
 }
 
 const validName = (n) => /^[^\\/:*?"<>|\s]+$/.test(n) && !/^\.+$/.test(n);
 
 /* ---------------------------- VS Code part ----------------------------- */
+// 0.7.0: null = \localinput; { prefix } = \input{prefix + name} for projects whose class does not define \localinput
+function includeStyle(doc) {
+  try { return require('./extra5').includeStyle(doc); } catch (e) { return null; }
+}
+
 function register(context, helpers) {
   const vscode = require('vscode');
   const fs = require('fs');
@@ -222,7 +227,7 @@ function register(context, helpers) {
       if (!typed) return;
       name = typed.trim().replace(/\.tikz$/i, '') + '.tikz';
     }
-    const p = plan(lines, pic, name, eolOf(doc));
+    const p = plan(lines, pic, name, eolOf(doc), await includeStyle(doc));
     const target = path.join(dir, name);
     try {
       fs.mkdirSync(dir, { recursive: true });
@@ -242,6 +247,7 @@ function register(context, helpers) {
     const doc = ed.document;
     const lines = docLines(doc);
     let pics = pictures(lines);
+    const incStyle = await includeStyle(doc);
     const sel = ed.selection;
     if (sel && !sel.isEmpty) pics = pics.filter((p) => p.begin.line >= sel.start.line && p.end.line <= sel.end.line);
     if (!pics.length) { info('Немає ' + what() + (sel && !sel.isEmpty ? ' у виділенні.' : ' у файлі.')); return; }
@@ -266,7 +272,7 @@ function register(context, helpers) {
     const edits = [];
     const written = [];
     for (const t of todo) {
-      const p = plan(lines, t.pic, t.name, eol);
+      const p = plan(lines, t.pic, t.name, eol, incStyle);
       try {
         fs.writeFileSync(path.join(dir, t.name), p.content, { encoding: 'utf8', flag: 'wx' });
         written.push(t.name);

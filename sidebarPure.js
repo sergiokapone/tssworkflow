@@ -47,6 +47,7 @@ const GROUPS = [
     ['formatTikz', 'Розкласти \\tikz{…} по рядках (один оператор на рядок)', 'list-tree'],
     ['renumberBeamer', 'Пронумерувати слайди beamer', 'list-ordered'],
     ['tableOps', 'Дії з таблицею', 'table'],
+    ['tableFromFile', 'Таблиця з CSV / XLSX / буфера в tblr', 'table'],
     ['extractTikz', 'Винести tikzpicture під курсором у tikz/', 'export'],
     ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export']
   ] },
@@ -54,6 +55,8 @@ const GROUPS = [
     ['goToHeading', 'Перейти до заголовка (весь проєкт)', 'list-tree'],
     ['pickFile', 'Вибрати ім\u02bcя файла для \\localinput / \\includegraphics', 'file-code'],
     ['pictures', 'Панель рисунків', 'file-media'],
+    ['pickRef', 'Вставити \\ref (вибір мітки)', 'symbol-key'],
+    ['listEquations', 'Список усіх формул проєкту', 'symbol-numeric'],
     ['pickMacro', 'Перейти до макроса з .cls/.sty', 'symbol-method'],
     ['macroInfo', 'Де визначено макрос (діагностика)', 'question']
   ] },
@@ -62,10 +65,16 @@ const GROUPS = [
     ['checkCitations', 'Ключі \\cite у .bib', 'references'],
     ['unusedFiles', 'Файли без посилань (Pictures/, tikz/)', 'files'],
     ['unusedEquations', 'Нумеровані формули без посилань', 'symbol-numeric'],
+    ['unusedPackages', 'Невикористані \\usepackage', 'package'],
+    ['missingPackages', 'Відсутні пакети з логу (tlmgr)', 'cloud-download'],
     ['ltexDictionary', 'LTeX: додати слова у словник', 'book']
   ] },
   { id: 'biblio', en: 'Bibliography & versions', label: 'Бібліографія й версії', icon: 'git-compare', items: [
     ['bibFromDoi', 'BibTeX за DOI', 'library'],
+    ['formatBib', 'Форматувати .bib (сортування, вирівнювання)', 'list-flat'],
+    ['bibDuplicates', 'Дублі в .bib (DOI, назва)', 'files'],
+    ['bibNormalizeKeys', 'Ключі .bib: прізвище+рік (і \\cite)', 'symbol-key'],
+    ['savePdfCopy', 'Зберегти копію PDF з датою', 'save-as'],
     ['latexdiff', 'Зміни розділу від ревізії git (latexdiff)', 'git-compare']
   ] },
   { id: 'refactor', en: 'Refactoring & snapshots', label: 'Рефакторинг і знімки', icon: 'replace-all', items: [
@@ -82,7 +91,7 @@ const GROUPS = [
   ] },
   { id: 'project', en: 'Project & settings', label: 'Проєкт і налаштування', icon: 'gear', items: [
     ['initProjectSettings', 'Створити .vscode/settings.json', 'file-add'],
-    ['checkEnvironment', 'Перевірити середовище (latexmk, lualatex, …)', 'pulse'],
+    ['checkEnvironment', 'Doctor: перевірити середовище (latexmk, lualatex, …)', 'pulse'],
     ['reloadMacros', 'Перечитати макроси з .cls/.sty', 'refresh'],
     ['generateMathJax', 'Файл макросів для MathJax', 'symbol-misc'],
     ['@settings', 'Налаштування розширення', 'settings-gear', { raw: 'workbench.action.openSettings', args: ['tssworkflow'], en: 'Extension settings' }]
@@ -91,7 +100,7 @@ const GROUPS = [
 
 // commands that stay out of the tree on purpose: they belong to the toolbar of the TODO view or to the
 // buttons of the "Розділи" panel (they take the clicked chapter as an argument)
-const EXCLUDED = ['todoRefresh', 'openChapter', 'buildChapter', 'chapterHooks', 'refreshChapters', 'moveChapterUp', 'moveChapterDown', 'refreshProblems'];
+const EXCLUDED = ['todoRefresh', 'openChapter', 'buildChapter', 'chapterHooks', 'refreshChapters', 'moveChapterUp', 'moveChapterDown', 'refreshProblems', 'refreshLabels', 'labelsToggleFilter', 'insertRefFromLabel'];
 
 // 'ctrl+alt+t' -> 'Ctrl+Alt+T', 'f5' -> 'F5', 'shift+f5' -> 'Shift+F5'
 function formatKey(k) {

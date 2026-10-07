@@ -11,13 +11,19 @@ const features = require('./features');
  *    \includegraphics[opts]{name}     -> <dir of current file>/Pictures/name
  * ------------------------------------------------------------------ */
 const RULES = [
-  { re: /\\localinput\{([^}]+)\}/g, sub: 'tikz', exts: ['.tikz', '.tex'] },
+  { re: /\\localinput\{([^}]+)\}/g, sub: 'tikz', macro: '\\localinput', exts: ['.tikz', '.tex'] },
   {
     re: /\\includegraphics(?:\[[^\]]*\])?\{([^}]+)\}/g,
     sub: 'Pictures',
+    macro: '\\includegraphics',
     exts: ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff']
   }
 ];
+
+// 0.7.0: folder of a legacy macro from the table tssworkflow.fileMacros (extra5.js)
+function subOf(macro, fallback) {
+  try { return require('./extra5').legacySub(macro, fallback); } catch (e) { return fallback; }
+}
 
 function resolveFile(dir, sub, name, exts) {
   const base = path.join(dir, sub, name);
@@ -737,8 +743,8 @@ const refDefinition = {
  * ------------------------------------------------------------------ */
 const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
 const COMPLETE = [
-  { re: /\\localinput\{([^}]*)$/, sub: 'tikz', exts: ['.tikz', '.tex'], stripExt: false },
-  { re: /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)$/, sub: 'Pictures', exts: PIC_EXTS, stripExt: true }
+  { re: /\\localinput\{([^}]*)$/, macro: '\\localinput', sub: 'tikz', exts: ['.tikz', '.tex'], stripExt: false },
+  { re: /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)$/, macro: '\\includegraphics', sub: 'Pictures', exts: PIC_EXTS, stripExt: true }
 ];
 
 function listFiles(root, exts, depth, rel) {
@@ -769,7 +775,7 @@ const fileCompletion = {
       const m = c.re.exec(before);
       if (!m) continue;
       const range = new vscode.Range(pos.line, pos.character - m[1].length, pos.line, pos.character);
-      const dir = path.join(path.dirname(doc.uri.fsPath), c.sub);
+      const dir = path.join(path.dirname(doc.uri.fsPath), subOf(c.macro, c.sub));
       const seen = new Set();
       const items = [];
       for (const rel of listFiles(dir, c.exts, 3)) {
@@ -821,7 +827,7 @@ async function pickFile() {
     vscode.window.showInformationMessage('Постав курсор усередину {...} у \\localinput або \\includegraphics.');
     return;
   }
-  const dir = path.join(path.dirname(ed.document.uri.fsPath), ctx.c.sub);
+  const dir = path.join(path.dirname(ed.document.uri.fsPath), subOf(ctx.c.macro, ctx.c.sub));
   const seen = new Set();
   const items = [];
   for (const rel of listFiles(dir, ctx.c.exts, 3)) {
@@ -993,7 +999,7 @@ function activate(context) {
             const name = m[1].trim();
             const start = m.index + m[0].lastIndexOf('{') + 1;
             const range = new vscode.Range(i, start, i, start + m[1].length);
-            const link = new vscode.DocumentLink(range, vscode.Uri.file(resolveFile(dir, rule.sub, name, rule.exts)));
+            const link = new vscode.DocumentLink(range, vscode.Uri.file(resolveFile(dir, subOf(rule.macro, rule.sub), name, rule.exts)));
             link.tooltip = 'Open ' + name;
             links.push(link);
           }
@@ -1091,6 +1097,7 @@ function activate(context) {
   require('./environment').register(context);
   require('./extra3').register(context, { frameSettings: features.frameSettings });
   require('./extra4').register(context, { applyWithPreview: features.applyWithPreview });
+  require('./extra5').register(context, { applyWithPreview: features.applyWithPreview });
   require('./start').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   setTimeout(() => offerProjectSettings(context).catch(() => {}), 3000);

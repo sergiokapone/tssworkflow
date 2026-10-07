@@ -2026,11 +2026,12 @@ function findInPath(cmd, o) {
 function formatEnvReport(rows, o) {
   const opt = o || {};
   const mark = { ok: '✅', missing: '❌', optional: '○' };
-  const lines = ['# TSS Workflow: перевірка середовища', ''];
+  const lines = ['# TSS Workflow: Doctor (перевірка середовища)', ''];
   if (opt.folder) lines.push('Папка: `' + opt.folder + '`', '');
-  lines.push('| Що | Стан | Де / версія | Навіщо |', '|---|---|---|---|');
+  const hints = rows.some((r) => r.hint && r.state !== 'ok');
+  lines.push(hints ? '| Що | Стан | Де / версія | Навіщо | Що робити |' : '| Що | Стан | Де / версія | Навіщо |', hints ? '|---|---|---|---|---|' : '|---|---|---|---|');
   for (const r of rows) {
-    lines.push('| ' + r.name + ' | ' + mark[r.state] + ' | ' + (r.detail || '') + ' | ' + (r.what || '') + ' |');
+    lines.push('| ' + r.name + ' | ' + mark[r.state] + ' | ' + (r.detail || '') + ' | ' + (r.what || '') + ' |' + (hints ? ' ' + (r.state === 'ok' ? '' : (r.hint || '')) + ' |' : ''));
   }
   const bad = rows.filter((r) => r.state === 'missing');
   lines.push('');
