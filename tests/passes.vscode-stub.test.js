@@ -27,7 +27,8 @@ const base = {
   },
   window: {
     activeTextEditor: { document: doc, viewColumn: 1, selection: null },
-    createStatusBarItem: (al, pr) => { const it = { priority: pr, texts: [], shown: false, _t: '', show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+    createStatusBarItem: (al, pr) => { const it = { priority: pr, texts: [], writes: 0, shown: false, _t: '', show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
+      for (const k of ['tooltip', 'command']) Object.defineProperty(it, k, { get() { return this['_' + k]; }, set(v) { this['_' + k] = v; this.writes++; } });
       Object.defineProperty(it, 'text', { get() { return this._t; }, set(v) { this._t = v; this.texts.push(v); } }); items.push(it); return it; },
     createOutputChannel: () => ({ appendLine() {}, show() {}, dispose() {} }), createTerminal: () => mkProxy('terminal'),
     showWarningMessage: async () => undefined, showErrorMessage: async () => undefined, showInformationMessage: async () => undefined,
@@ -93,6 +94,22 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
   started.length = 0; cfgv.singlePass = true; cfgv.passes = 5;
   await cmds['tssworkflow.compile'](); await tick(); await endRun(0);
   assert.strictEqual(started.length, 1); assert.strictEqual(started[0].execution.process, 'lualatex');
+  // the spinner item is never written after it is shown, however long the build runs; with buildSeconds = false the text item is static too
+  started.length = 0; cfgv.singlePass = true; cfgv.buildSeconds = true;
+  spin.writes = 0; spin.texts.length = 0; buildItem.texts.length = 0;
+  await cmds['tssworkflow.compile'](); await tick();
+  const w0 = spin.writes;
+  await new Promise((r) => setTimeout(r, 2300));
+  assert.strictEqual(spin.writes, w0, 'no property writes to the spinner item while the build runs');
+  assert.deepStrictEqual(spin.texts, ['$(sync~spin)']);
+  assert.ok(buildItem.texts.length >= 3, 'seconds tick in the text item: ' + buildItem.texts.join('|'));
+  await endRun(0);
+  cfgv.buildSeconds = false; buildItem.texts.length = 0;
+  await cmds['tssworkflow.compile'](); await tick();
+  await new Promise((r) => setTimeout(r, 2300));
+  assert.ok(buildItem.texts.length <= 2, 'text item is static with buildSeconds = false: ' + buildItem.texts.join('|'));
+  assert.ok(!/ с$/.test(buildItem.texts[0] || ''), buildItem.texts[0]);
+  await endRun(0);
   console.log('passes + spinner: all ok');
   fs.rmSync(tmp, { recursive: true, force: true });
   process.exit(0);

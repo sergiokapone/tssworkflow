@@ -121,21 +121,25 @@ function renderBuild() {
     (pass ? (fixed
       ? '\nПрохід LaTeX ' + pass + ' із ' + last + ' (tssworkflow.passes)'
       : '\nПрохід LaTeX ' + pass + (last ? ' із ' + last + ' (стільки було минулого разу; повне число наперед невідоме)' : ' (число проходів ще невідоме: це перша збірка)')) : '');
-  // the spinner item is written once per build; only the text item is updated every second
-  if (spinItem) {
-    if (!building.spinShown) {
-      spinItem.text = '$(sync~spin)';
-      spinItem.command = 'tssworkflow.stopBuild';
-      spinItem.show();
-      building.spinShown = true;
-    }
-    spinItem.tooltip = tip;
+  // the spinner item is written ONCE per build and never touched again: every property write (even a tooltip with the same
+  // value) re-sends the whole entry to the status bar and may rebuild the icon, which restarts its rotation
+  if (spinItem && !building.spinShown) {
+    spinItem.text = '$(sync~spin)';
+    spinItem.tooltip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.';
+    spinItem.command = 'tssworkflow.stopBuild';
+    spinItem.show();
+    building.spinShown = true;
   }
-  buildItem.text = building.label + passTxt + ' · ' + secs + ' с';
-  buildItem.tooltip = tip;
-  buildItem.command = 'tssworkflow.stopBuild';
-  buildItem.backgroundColor = undefined;
-  buildItem.show();
+  const showSecs = vscode.workspace.getConfiguration('tssworkflow').get('buildSeconds', true);
+  const text = building.label + passTxt + (showSecs ? ' · ' + secs + ' с' : '');
+  if (buildItem.text !== text) buildItem.text = text; // no write when nothing changed
+  if (building.tip !== tip) { building.tip = tip; buildItem.tooltip = tip; }
+  if (!building.textShown) {
+    buildItem.command = 'tssworkflow.stopBuild';
+    buildItem.backgroundColor = undefined;
+    buildItem.show();
+    building.textShown = true;
+  }
 }
 
 function showResult(b, outcome) {
@@ -427,7 +431,7 @@ async function runBuild({ folder, args, job, label, openPdf, done, exe, repeat }
   setBuildContext(true);
   renderBuild();
   clearInterval(buildTimer);
-  buildTimer = setInterval(renderBuild, 1000);
+  buildTimer = setInterval(renderBuild, 1000); // writes only if the text changed (see renderBuild)
   let finished = false;
   const finish = (outcome) => {
     if (finished) return;

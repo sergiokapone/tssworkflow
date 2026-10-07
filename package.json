@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -797,6 +797,11 @@
           "type": "boolean",
           "default": true,
           "description": "Chapter / figure builds (button, F5, Auto) run plain lualatex once instead of latexmk, so there are no reruns. The whole-document build (Shift+F5) still uses latexmk. References are taken from the existing <jobname>.aux and lag one build behind; biber/makeindex are not run."
+        },
+        "tssworkflow.buildSeconds": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the seconds counter next to the running build in the status bar. false: the text only changes when the pass number changes (nothing is redrawn every second, as in LaTeX Workshop); use it if the spinner still looks jerky"
         },
         "tssworkflow.passes": {
           "type": "integer",
