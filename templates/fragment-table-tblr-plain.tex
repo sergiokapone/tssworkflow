@@ -1,0 +1,17 @@
+% !TSS name: Таблиця (tblr без власних кольорів)
+% !TSS description: table з tblr на три стовпці: синій заголовок і смугасті рядки без кольорів проєкту; потрібен tabularray (питає мітку)
+% !TSS kind: fragment
+\begin{table}[h!]
+	\centering
+	\caption{${cursor}\label{tab:${ask:label:table}}}
+	\begin{tblr}{
+		colspec={X[l,m]X[c,m]X[c,m]},
+		row{odd} = {gray!10},
+		row{1} = {c, m, fg=white, bg=blue!70!black, font=\bfseries},
+		hlines,
+		vlines
+	}
+		A & B & C \\
+		D & E & F \\
+	\end{tblr}
+\end{table}

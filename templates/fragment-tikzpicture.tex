@@ -1,0 +1,9 @@
+% !TSS name: TikZ: заготовка (осі й вектор)
+% !TSS description: tikzpicture з осями x, y, вектором і підписом; потрібні tikz і бібліотека arrows.meta
+% !TSS kind: fragment
+\begin{tikzpicture}[>=Stealth, line cap=round]
+	\draw[->] (-0.3,0) -- (3.5,0) node[right] {$x$};
+	\draw[->] (0,-0.3) -- (0,3) node[above] {$y$};
+	\draw[very thick, ->, blue] (0,0) -- (2.5,1.8) node[midway, above left] {$\vec{F}$};
+	${cursor}
+\end{tikzpicture}

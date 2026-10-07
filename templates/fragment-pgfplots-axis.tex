@@ -1,0 +1,17 @@
+% !TSS name: pgfplots: графік функції (axis)
+% !TSS description: tikzpicture з axis, одним графіком, сіткою, підписами осей і легендою (потрібен pgfplots)
+% !TSS kind: fragment
+\begin{tikzpicture}
+	\begin{axis}[
+		width=0.8\linewidth,
+		grid=both,
+		xlabel={$x$},
+		ylabel={$y$},
+		legend pos=north west,
+		domain=-3:3,
+		samples=100,
+	]
+		\addplot[blue, thick] {x^2${cursor}};
+		\addlegendentry{$x^2$}
+	\end{axis}
+\end{tikzpicture}

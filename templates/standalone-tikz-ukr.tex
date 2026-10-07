@@ -1,0 +1,17 @@
+% !TSS name: Standalone: TikZ з українськими підписами (LuaLaTeX)
+% !TSS description: standalone-рисунок з кирилицею: fontsetup + babel (ukrainian), tikz-бібліотеки arrows.meta, calc, positioning; збирати LuaLaTeX
+% !TeX program = lualatex
+% !TeX encoding = utf8
+\documentclass[tikz, border=${ask:border:5pt}]{standalone}
+\usepackage{fontsetup}
+\usepackage[ukrainian]{babel}
+\usetikzlibrary{arrows.meta, calc, positioning}
+
+\begin{document}
+\begin{tikzpicture}[>=Stealth, line cap=round]
+	\draw[->] (-0.3,0) -- (4,0) node[right] {$x$, м};
+	\draw[->] (0,-0.3) -- (0,3) node[above] {$F$, Н};
+	\draw[very thick, ->, blue] (0,0) -- (3,2) node[midway, above left] {сила};
+	${cursor}
+\end{tikzpicture}
+\end{document}

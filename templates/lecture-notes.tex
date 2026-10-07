@@ -1,0 +1,54 @@
+% !TSS name: Конспект лекції (теореми, формули)
+% !TSS description: article з amsthm: середовища теорема, лема, означення, приклад, зауваження (українською) і доведення; нумерація формул за розділами; LuaLaTeX (питає назву лекції, автора)
+% !TeX program = lualatex
+% !TeX encoding = utf8
+% !TeX spellcheck = uk_UA
+\documentclass[a4paper, 12pt]{article}
+\usepackage{fontsetup}
+\usepackage[english, ukrainian]{babel}
+\usepackage[a4paper, margin=2.2cm]{geometry}
+\usepackage{amsmath, amsthm}
+\usepackage{tikz}
+\usepackage{hyperref}
+
+\numberwithin{equation}{section}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Теорема}[section]
+\newtheorem{lemma}[theorem]{Лема}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Означення}
+\newtheorem{example}[theorem]{Приклад}
+\theoremstyle{remark}
+\newtheorem*{remark}{Зауваження}
+\renewcommand{\proofname}{Доведення}
+
+\title{${title}}
+\author{${ask:author}}
+\date{${date}}
+
+\begin{document}
+\maketitle
+
+\section{Основні поняття}
+
+\begin{definition}[${cursor}]\label{def:main}
+	\ldots
+\end{definition}
+
+\begin{theorem}\label{thm:main}
+	\ldots
+\end{theorem}
+\begin{proof}
+	\ldots
+\end{proof}
+
+\begin{example}
+	\ldots
+\end{example}
+
+\begin{remark}
+	\ldots
+\end{remark}
+
+\end{document}

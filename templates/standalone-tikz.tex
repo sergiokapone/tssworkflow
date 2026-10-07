@@ -1,0 +1,14 @@
+% !TSS name: Standalone: TikZ-рисунок (мінімальний)
+% !TSS description: \documentclass[tikz]{standalone} з бібліотеками arrows.meta, calc, positioning і осями з вектором; збирається pdfLaTeX/LuaLaTeX у PDF-рисунок точно по розміру малюнка
+% !TeX program = pdflatex
+\documentclass[tikz, border=${ask:border:5pt}]{standalone}
+\usetikzlibrary{arrows.meta, calc, positioning}
+
+\begin{document}
+\begin{tikzpicture}[>=Stealth, line cap=round]
+	\draw[->] (-0.3,0) -- (4,0) node[right] {$x$};
+	\draw[->] (0,-0.3) -- (0,3) node[above] {$y$};
+	\draw[very thick, ->, blue] (0,0) -- (3,2) node[midway, above left] {$\vec{r}$};
+	${cursor}
+\end{tikzpicture}
+\end{document}

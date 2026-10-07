@@ -1,0 +1,34 @@
+% !TSS name: Контрольна робота: варіанти на окремих сторінках
+% !TSS description: шапка (дисципліна, група, дата), кілька варіантів по три задачі з балами; кожен варіант на новій сторінці для друку; LuaLaTeX (питає дисципліну й групу)
+% !TeX program = lualatex
+% !TeX encoding = utf8
+% !TeX spellcheck = uk_UA
+\documentclass[a4paper, 12pt]{article}
+\usepackage{fontsetup}
+\usepackage[english, ukrainian]{babel}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{amsmath}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% \variant{номер}{задача 1}{задача 2}{задача 3}
+\newcommand{\variant}[4]{%
+	\clearpage
+	{\large\bfseries ${ask:course:Дисципліна}. Контрольна робота. Варіант #1}\hfill група ${ask:group}, ${date}
+	\par\medskip\hrule\bigskip
+	\begin{enumerate}
+		\item (3 бали) #2
+		\item (3 бали) #3
+		\item (4 бали) #4
+	\end{enumerate}
+	\vfill
+	Прізвище, ім'я: \hrulefill
+}
+
+\begin{document}
+
+\variant{1}{${cursor}}{}{}
+\variant{2}{}{}{}
+\variant{3}{}{}{}
+
+\end{document}

@@ -1,0 +1,9 @@
+% !TSS name: circuitikz: коло з джерелом і резистором
+% !TSS description: замкнене коло: батарея ε, резистор R, стрілка струму I (потрібен circuitikz)
+% !TSS kind: fragment
+\begin{circuitikz}[american]
+	\draw (0,0) to[battery1, l=$\mathcal{E}$] (0,3)
+          to[R, l=$R$, i=$I$] (4,3)
+          -- (4,0) -- (0,0);
+	${cursor}
+\end{circuitikz}

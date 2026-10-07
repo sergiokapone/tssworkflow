@@ -1,0 +1,54 @@
+% !TSS name: Презентація: beamer, LuaLaTeX, кирилиця (укр.)
+% !TSS description: beamer 16:9, fontsetup, babel (ukrainian), титульний слайд, план, два слайди з рамками `% ==== Слайд N ====` для Renumber Beamer Slides (питає заголовок, автора, установу)
+% !TeX program = lualatex
+% !TeX encoding = utf8
+% !TeX spellcheck = uk_UA
+\documentclass[aspectratio=169, 12pt]{beamer}
+\usepackage{fontsetup}
+\usepackage[english, ukrainian]{babel}
+\usepackage{tikz}
+\usepackage{amsmath}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\title{${title}}
+\author{${ask:author}}
+\institute{${ask:institute}}
+\date{${date}}
+
+\begin{document}
+
+\begin{frame}
+	\titlepage
+\end{frame}
+% ===========================================================================
+
+% ================================ Слайд ## =================================
+\begin{frame}{План}
+	\tableofcontents
+\end{frame}
+% ===========================================================================
+
+\section{Вступ}
+
+% ================================ Слайд ## =================================
+\begin{frame}{Мета}
+	\begin{itemize}
+		\item ${cursor}
+		\item
+	\end{itemize}
+\end{frame}
+% ===========================================================================
+
+% ================================ Слайд ## =================================
+\begin{frame}{Формула}
+	\[
+		\nabla\cdot\vec{E} = 4\pi\rho
+	\]
+\end{frame}
+% ===========================================================================
+
+\end{document}

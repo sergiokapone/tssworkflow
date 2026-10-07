@@ -1,0 +1,14 @@
+% standalone-рисунок для статті: збери цей файл окремо (latexmk -lualatex fig1.tex), вийде fig1.pdf
+% !TeX program = lualatex
+\documentclass[tikz, border=5pt]{standalone}
+\usepackage{fontsetup}
+\usepackage[ukrainian]{babel}
+\usetikzlibrary{arrows.meta}
+
+\begin{document}
+\begin{tikzpicture}[>=Stealth]
+	\draw[->] (-0.3,0) -- (4,0) node[right] {$x$};
+	\draw[->] (0,-0.3) -- (0,3) node[above] {$y$};
+	\draw[very thick, blue] (0,0) .. controls (1.5,3) and (2.5,3) .. (4,1) node[right] {крива};
+\end{tikzpicture}
+\end{document}

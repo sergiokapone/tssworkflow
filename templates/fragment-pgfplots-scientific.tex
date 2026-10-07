@@ -1,0 +1,20 @@
+% !TSS name: pgfplots: стиль scientific (одиниці вимірювання)
+% !TSS description: \pgfplotsset-стиль для наукового графіка: осі по краях, сітка, одиниці на осях (бібліотека units; питає одиниці x та y)
+% !TSS kind: fragment
+% потрібно: \usepgfplotslibrary{units}; застосування: \begin{axis}[scientific]
+\pgfplotsset{scientific/.style={%
+	grid = both,
+	grid style={line width=.1pt, draw=gray!10},
+	major grid style={line width=.2pt, draw=gray!50},
+	minor tick num = 5,
+	minor grid style = {line width=.1pt, draw=gray!10},
+	xlabel={$x$},
+	ylabel={$y$},
+	change x base,
+	x unit = ${ask:xunit:m},
+	y unit = ${ask:yunit:N},
+	unit marking pre = {\!\!,},
+	unit marking post = {},
+	width=\linewidth,
+	height=0.7\linewidth,
+}}${cursor}

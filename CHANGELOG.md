@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.4
+- **Вбудованих шаблонів 35 замість 5** (20 фрагментів, 15 документів, 2 з них папки). Змінено лише теку `templates/`; команд і налаштувань нових немає.
+- **17 нових фрагментів** (`Insert template fragment...`): таблиці `tblr` (твоя з `themecolorlight` і без власних кольорів) та `booktabs`; `align`, `cases`, система рівнянь Максвелла в СГС; `subfigure`, `minipage`; списки; TikZ (заготовка, силові лінії точкового заряду); pgfplots (графік, стилі `cartesian` і `scientific`); `circuitikz`; слайд `beamer` з рамкою для `Renumber Beamer Slides`.
+- **13 нових документів** (`New from template...`): сім standalone (TikZ, TikZ з кирилицею, pgfplots, circuitikz, таблиця, формула, кілька рисунків у одному файлі), презентація beamer, звіт з лабораторної, конспект лекції, контрольна з варіантами, «Графіки: pgfplots, gnuplot, python» (твій `template_plots.tex`), папка «Стаття з standalone-рисунком» (`.tex` + `fig1.tex`).
+- **Виправлено `template_pgfplots.tex`**: не було `;` після `\addplot`, файл не компілювався. У шаблоні «Standalone: pgfplots (графік)» `;` додано, задано `domain=0:360` і `axis equal`.
+- Нагадування: `F5`/▷ на файлі в корені збирає `tssworkflow.mainFile`, а не відкритий standalone-файл; standalone збирається рецептом LaTeX Workshop чи `latexmk -lualatex файл.tex`. Докладно в `LaTeX-VSCode-setup.md`, розділ 2.60.
+
 ## 0.6.3
 - **Спінер збірки: друга спроба.** У 0.6.2 підказка елемента зі значком перезаписувалась щосекунди, і значок міг перемальовуватись. Тепер значок записується один раз за збірку, текстовий елемент пише лише зміни.
 - **`tssworkflow.buildSeconds`** (типово `true`): `false` прибирає лічильник секунд, і нічого не оновлюється щосекунди.

@@ -1,0 +1,10 @@
+% !TSS name: TikZ: силові лінії точкового заряду
+% !TSS description: заряд у центрі й вісім радіальних силових ліній (питає напрям стрілок: -> від заряду, <- до заряду; та знак заряду); потрібен tikz
+% !TSS kind: fragment
+\begin{tikzpicture}[>=Stealth]
+	\foreach \a in {0,45,...,315}
+		\draw[${ask:dir:->}, thick, blue] (\a:0.45) -- (\a:1.8);
+	\shade[ball color=red!70] (0,0) circle (0.3);
+	\node[white, font=\bfseries] at (0,0) {\ensuremath{${ask:sign:+}}};
+	${cursor}
+\end{tikzpicture}

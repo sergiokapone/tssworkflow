@@ -1,0 +1,26 @@
+% !TSS name: pgfplots: стиль cartesian (осі через початок)
+% !TSS description: \pgfplotsset-стиль для школярських осей через початок координат зі стрілками й сіткою; застосування: \begin{axis}[cartesian] (у преамбулу)
+% !TSS kind: fragment
+\pgfplotsset{cartesian/.style={%
+	% === сітка ===
+	grid = both,
+	grid style={line width=.1pt, draw=gray!10},
+	major grid style={line width=.2pt, draw=gray!50},
+	minor tick num = 5,
+	minor grid style = {line width=.1pt, draw=gray!10},
+	% === осі через початок координат зі стрілками ===
+	axis lines = middle,
+	axis line style={-stealth},
+	xlabel={$x$},
+	ylabel={$y$},
+	xlabel style={below right},
+	ylabel style={above left},
+	% === межі й мітки ===
+	xmin = -6, xmax = 6,
+	ymin = -6, ymax = 6,
+	xtick = {-5,-4,...,5},
+	ytick = {-5,-4,...,5},
+	enlargelimits={abs=0.1},
+	width=\linewidth,
+	height=\linewidth,
+}}${cursor}

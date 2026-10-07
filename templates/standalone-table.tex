@@ -1,0 +1,21 @@
+% !TSS name: Standalone: таблиця як картинка (tblr)
+% !TSS description: standalone-документ з однією таблицею tblr без полів сторінки: PDF можна вставити як рисунок у слайд чи статтю; LuaLaTeX, кирилиця
+% !TeX program = lualatex
+% !TeX encoding = utf8
+\documentclass[border=${ask:border:5pt}]{standalone}
+\usepackage{fontsetup}
+\usepackage[ukrainian]{babel}
+\usepackage{tabularray}
+
+\begin{document}
+\begin{tblr}{
+	colspec={Q[l]Q[c]Q[c]},
+	row{1} = {font=\bfseries},
+	hline{1,Z} = {0.8pt},
+	hline{2} = {0.4pt},
+}
+	Величина & Значення & Похибка \\
+	${cursor}A & 1,00 & 0,05 \\
+	B          & 2,00 & 0,10 \\
+\end{tblr}
+\end{document}

@@ -1,0 +1,12 @@
+% !TSS name: Рисунок і текст поруч (minipage)
+% !TSS description: два minipage в один рядок: ліворуч рисунок (питає ім'я файла), праворуч пояснення
+% !TSS kind: fragment
+\noindent
+\begin{minipage}[c]{0.45\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{${ask:file:name}}
+\end{minipage}
+\hfill
+\begin{minipage}[c]{0.5\linewidth}
+	${cursor}
+\end{minipage}

@@ -1,0 +1,16 @@
+% !TSS name: Таблиця (table + tblr, колір теми)
+% !TSS description: table з tblr на три стовпці, підписом і міткою; заголовок кольору themecolorlight (питає мітку)
+% !TSS kind: fragment
+\begin{table}[h!]
+	\caption{${cursor}\label{tab:${ask:label:table}}}
+	\begin{tblr}{
+		colspec={X[l,m]X[c,m]X[l,m]},
+		row{odd} = {gray!10},
+		row{1} = {c, m, fg=white, bg=themecolorlight, font=\bfseries},
+		hlines,
+		vlines
+	}
+		A & B & C \\
+		D & E & F \\
+	\end{tblr}
+\end{table}

@@ -1,0 +1,29 @@
+% !TSS name: Стаття з standalone-рисунком (папка: .tex + fig1.tex)
+% !TSS description: шаблон із двох файлів: стаття (LuaLaTeX, кирилиця) підключає fig1.pdf, а fig1.tex це standalone TikZ-рисунок; спершу збери fig1.tex окремо (latexmk -lualatex fig1.tex), потім статтю (питає автора)
+% !TeX program = lualatex
+% !TeX encoding = utf8
+% !TeX spellcheck = uk_UA
+\documentclass[a4paper, 12pt]{article}
+\usepackage{fontsetup}
+\usepackage[english, ukrainian]{babel}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+
+\title{}
+\author{${ask:author}}
+
+\begin{document}
+\maketitle
+
+Рисунок~\ref{fig:one} зроблено окремим документом \texttt{fig1.tex} (клас \texttt{standalone}),
+який збирається у \texttt{fig1.pdf}.
+
+\begin{figure}[h!]
+	\centering
+	\includegraphics[width=0.6\linewidth]{fig1.pdf}
+	\caption{${cursor}}\label{fig:one}
+\end{figure}
+
+\end{document}

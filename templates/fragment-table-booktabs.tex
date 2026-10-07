@@ -1,0 +1,15 @@
+% !TSS name: Таблиця (booktabs, без вертикальних ліній)
+% !TSS description: table у стилі booktabs: toprule/midrule/bottomrule, підпис над таблицею (питає мітку)
+% !TSS kind: fragment
+\begin{table}[h!]
+	\centering
+	\caption{${cursor}\label{tab:${ask:label:table}}}
+	\begin{tabular}{lcc}
+		\toprule
+		Величина & Значення & Похибка \\
+		\midrule
+                 &          &         \\
+                 &          &         \\
+		\bottomrule
+	\end{tabular}
+\end{table}

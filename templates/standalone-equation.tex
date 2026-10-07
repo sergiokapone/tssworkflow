@@ -1,0 +1,13 @@
+% !TSS name: Standalone: формула як картинка
+% !TSS description: standalone з varwidth: одна формула без поля сторінки (PDF для вставки в слайд, плакат чи сайт); amsmath, LuaLaTeX
+% !TeX program = lualatex
+% !TeX encoding = utf8
+\documentclass[varwidth, border=${ask:border:8pt}]{standalone}
+\usepackage{fontsetup}
+\usepackage{amsmath}
+
+\begin{document}
+\begin{equation*}
+	${cursor}\nabla\cdot\vec{E} = 4\pi\rho
+\end{equation*}
+\end{document}
