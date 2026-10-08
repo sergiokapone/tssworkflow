@@ -98,7 +98,6 @@ function findEnvs(text, names) {
 // index of the bracket that closes the one at text[i] ('{' or '['), or -1
 function matchBracket(text, i, limit) {
   const open = text[i];
-  const close = open === '{' ? '}' : ']';
   let brace = 0;
   let sq = 0;
   const end = limit === undefined ? text.length : limit;

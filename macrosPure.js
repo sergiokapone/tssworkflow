@@ -500,4 +500,16 @@ function toMathJaxMacros(entries, headerNote) {
   return { text: head.join('\n') + '\n' + lines.join('\n') + '\n', skipped, count: lines.length };
 }
 
-module.exports = { toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };
+// the same macros as a KaTeX `macros` object: { '\\name': 'body with #1' } (used by the table editor)
+function toKatexMacros(entries) {
+  const out = {};
+  for (const line of toMathJaxMacros(entries).text.split('\n')) {
+    let m = /^\\newcommand\{\\([A-Za-z]+)\}(?:\[\d+\])?(\[[^\]]*\])?\{(.*)\}$/.exec(line);
+    if (m) { if (!m[2]) out['\\' + m[1]] = m[3]; continue; } // a default for the first argument is not expressible in KaTeX
+    m = /^\\DeclareMathOperator(\*?)\{\\([A-Za-z]+)\}\{(.*)\}$/.exec(line);
+    if (m) out['\\' + m[2]] = '\\operatorname' + m[1] + '{' + m[3] + '}';
+  }
+  return out;
+}
+
+module.exports = { toKatexMacros, toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };

@@ -168,11 +168,9 @@ function snippetFor(e, prefix, mode) {
   const s = new vscode.SnippetString();
   s.appendText(prefix);
   if (mode !== 'none' && e.kind === 'cmd' && !e.op) {
-    let n = 0;
     e.tokens.forEach((t, idx) => {
       if (t.t === 's' || t.t === 't' || t.t === 'e' || t.t === 'E' || t.t === 'v') return;
       if (t.optional && mode !== 'all') return;
-      n++;
       s.appendText(t.open || '').appendPlaceholder('#' + (idx + 1)).appendText(t.close || '');
     });
   }

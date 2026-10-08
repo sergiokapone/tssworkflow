@@ -864,7 +864,6 @@ const SECTION_RE = /^(\s*)\\(chapter|section|subsection|subsubsection|paragraph|
 const FRAME_EQ_ENVS = ['equation', 'align', 'gather', 'multline', 'eqnarray', 'flalign', 'alignat', 'displaymath'];
 const EQ_BEGIN_RE = new RegExp('^(\\s*)\\\\begin\\{(' + FRAME_EQ_ENVS.join('|') + ')(\\*?)\\}');
 const VERB_BEGIN_RE = /^\s*\\begin\{(verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblisting)\}/;
-const isBlockStart = (l) => SECTION_RE.test(l) || EQ_BEGIN_RE.test(l);
 const isRuleLine = (l) => /^\s*%+\s*[-=*#_~.]{8,}\s*$/.test(l);
 
 // closing position of the {...} argument opening at (line, col); null if unbalanced

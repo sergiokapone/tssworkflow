@@ -24,14 +24,12 @@ const isBib = (doc) => !!doc && (doc.languageId === 'bibtex' || doc.uri.fsPath.t
 const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}';
 const SEL = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
 
-let extCtx = null;
 let api = {};
 
 /* ------------------------------ helpers ------------------------------ */
 const table = () => X.fileMacroTable(cfg().get('fileMacros'));
 const rootOf = (uri) => { const f = vscode.workspace.getWorkspaceFolder(uri) || (vscode.workspace.workspaceFolders || [])[0]; return f ? f.uri.fsPath : null; };
 const existsFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } };
-const existsAny = (p) => { try { fs.statSync(p); return true; } catch (e) { return false; } };
 const docLines = (doc) => { const a = []; for (let i = 0; i < doc.lineCount; i++) a.push(doc.lineAt(i).text); return a; };
 
 function textOfPath(abs) {
@@ -857,7 +855,6 @@ async function savePdfCopyCmd() {
 
 /* ================================== register ================================== */
 function register(context, helpers) {
-  extCtx = context;
   api = helpers || {};
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const labels = new LabelsProvider();

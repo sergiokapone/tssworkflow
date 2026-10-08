@@ -8,6 +8,8 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const X = require('./extra6Pure');
+const M = require('./macros');
+const MP = require('./macrosPure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
@@ -58,13 +60,18 @@ async function current() {
 
 function lineOf(doc, env) { return doc.positionAt(env.start).line + 1; }
 
+// the macros of the project's classes / packages for KaTeX in the grid
+async function katexMacros(doc) {
+  try { return MP.toKatexMacros([...(await M._allMacros(doc)).cmds.values()]); } catch (e) { return {}; }
+}
+
 async function push(extra) {
   if (!panel) return;
   const cur = await current();
   if (!cur) return;
   if (cur.skip) { panel.webview.postMessage({ type: 'skip', reason: cur.skip }); return; }
   panel.title = 'Таблиця: ' + path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env);
-  panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, await projectColors()), where: path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env) }, extra || {}));
+  panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, await projectColors()), macros: await katexMacros(cur.doc), where: path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env) }, extra || {}));
 }
 
 async function onOp(op) {
@@ -152,7 +159,7 @@ const CSS = [
 
 const JS = String.raw`
 const vscode = acquireVsCodeApi();
-let view = null, last = '';
+let view = null, last = '', macros = {};
 let sel = null;     // { a: {r, c}, f: {r, c} }: selected cells (no cell is being edited)
 let mouse = null;   // { r, c, td, dragging }
 const $ = (id) => document.getElementById(id);
@@ -175,7 +182,7 @@ function btn(label, title, fn, cls, disabled) {
 
 /* ----------------------------- how a cell looks ----------------------------- */
 function mathHtml(src) {
-  try { if (window.katex) return window.katex.renderToString(src, { throwOnError: false, output: 'html', strict: 'ignore' }); } catch (e) { /* fall through */ }
+  try { if (window.katex) return window.katex.renderToString(src, { throwOnError: false, output: 'html', strict: 'ignore', macros: Object.assign({}, macros) }); } catch (e) { /* fall through */ }
   return '<code>' + esc(src) + '</code>';
 }
 function chip(icon, text) { return '<span class="chip">' + icon + ' ' + text + '</span>'; }
@@ -202,11 +209,18 @@ function fmt(raw) {
 }
 // spreadtab: "@ text" is a text cell, anything else with letters (sum(c2:[0,-1])) is a formula
 const isFormulaRaw = (raw) => !!(view && view.spread) && raw !== '' && !/^@/.test(raw) && !/^\\/.test(raw) && /[A-Za-z]/.test(raw);
+// tabularray mode=math|imath|dmath: the whole cell is a formula even without $ ... $
+const hasMathDelims = (s) => /(^|[^\\])\$|\\\(/.test(s);
 function renderCell(td, raw) {
   let s = String(raw).replace(/^\\cellcolor(?:\[[^\]]*\])?\{[^}]*\}\s*/, '');
   if (isFormulaRaw(s)) { td.classList.add('formula'); td.innerHTML = chip('ƒ', '') + ' <code>' + esc(s) + '</code>'; return; }
   td.classList.remove('formula');
   if (view && view.spread) s = s.replace(/^@\s*/, '');
+  const mode = td.dataset.mode;
+  if ((mode === 'math' || mode === 'dmath') && s.trim() && !hasMathDelims(s)) {
+    td.innerHTML = mathHtml((mode === 'dmath' ? '\\displaystyle ' : '') + s);
+    return;
+  }
   td.innerHTML = fmt(s);
 }
 
@@ -300,6 +314,7 @@ function render(v, focus) {
       td.tabIndex = -1;
       td.spellcheck = false;
       td.dataset.r = r; td.dataset.c = c; td.dataset.orig = cell.raw;
+      if (st.mode) td.dataset.mode = st.mode;
       if (cell.span > 1) td.colSpan = cell.span;
       if (cell.rowspan > 1) td.rowSpan = cell.rowspan;
       if (st.bg) td.style.background = st.bg;
@@ -494,6 +509,7 @@ document.addEventListener('paste', function (e) {
 window.addEventListener('message', function (ev) {
   const m = ev.data;
   if (m.type === 'model') {
+    macros = m.macros || {};
     $('what').textContent = m.view.env + ' · ' + (m.where || '');
     const s = sig(m.view);
     const active = isCell(document.activeElement);

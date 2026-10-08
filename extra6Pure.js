@@ -186,16 +186,6 @@ function splitTop(s, mode) {
 
 const hasBareComment = (s) => { for (let i = 0; i < s.length; i++) { if (s[i] === '\\') { i++; continue; } if (s[i] === '%') return true; } return false; };
 
-function cellInfo(t) {
-  let span = 1;
-  const mc = /^\\multicolumn\s*\{\s*(\d+)\s*\}/.exec(t);
-  if (mc) span = Math.max(1, parseInt(mc[1], 10));
-  const sc = /^\\SetCell\s*\[([^\]]*)\]/.exec(t);
-  const setSpan = !!(sc && /(^|,)\s*[cr]\s*=\s*[2-9]/.test(sc[1])) || !!(sc && /(^|,)\s*[2-9]\d*\s*(,|$)/.test(sc[1]));
-  return { span, setSpan };
-}
-
-
 /* ------------------------------ merged cells ------------------------------ */
 // a cell: { t raw, span (columns it consumes in the row), cs / rs (colspan / rowspan to draw), kind, head, tail, inner, align }
 function classify(t) {
@@ -437,7 +427,6 @@ function restyleTblr(docText, env, out, opts) {
 }
 
 /* ---------------------------------- editing ---------------------------------- */
-const newCell = () => ({ t: '', span: 1 });
 const hlineOnly = (pre) => /^\s*\\hline\s*$/.test(pre);
 
 // whether `t` can stand inside one cell: no bare & \\ % and balanced braces
@@ -875,6 +864,7 @@ function parseProps(v) {
     if ((m = /^bg\s*=\s*(.+)$/s.exec(t))) p.bg = m[1].trim();
     else if ((m = /^fg\s*=\s*(.+)$/s.exec(t))) p.fg = m[1].trim();
     else if ((m = /^font\s*=\s*(.+)$/s.exec(t))) { if (/\\bfseries|\\bf\b|\\textbf/.test(m[1])) p.bold = true; }
+    else if ((m = /^mode\s*=\s*(i?math|dmath|text)\s*$/.exec(t))) p.mode = m[1] === 'text' ? 'text' : m[1] === 'dmath' ? 'dmath' : 'math';
     else if ((m = /^halign\s*=\s*([lcr])\s*$/.exec(t))) p.align = m[1];
     else if (/^[lcr]$/.test(t)) p.align = t;
   }
@@ -887,8 +877,12 @@ function selMatch(sel, i, n) {
     if (part === 'odd') { if (i % 2 === 1) return true; }
     else if (part === 'even') { if (i % 2 === 0) return true; }
     else if (part === '-' || part === '') { return true; }
+    else if (part === 'Z') { if (i === n) return true; }
     else if (/^-?\d+$/.test(part)) { const k = parseInt(part, 10); if (k > 0 ? k === i : n + 1 + k === i) return true; }
-    else { const r = /^(\d*)\s*-\s*(\d*)$/.exec(part); if (r) { const a = r[1] ? +r[1] : 1; const b = r[2] ? +r[2] : n; if (i >= a && i <= b) return true; } }
+    else {
+      const r = /^(\d*|Z)\s*-\s*(\d*|Z)$/.exec(part); // Z = the last index
+      if (r) { const end = (x, d) => (x === 'Z' ? n : x ? +x : d); if (i >= end(r[1], 1) && i <= end(r[2], n)) return true; }
+    }
   }
   return false;
 }
@@ -918,6 +912,24 @@ function styleOf(rules, r, c, nr, nc) {
   return out;
 }
 
+// mode=math|imath|dmath|text in the options of a column type, e.g. Q[l,m,mode=dmath] -> 'dmath'
+function modeOfUnit(unit) {
+  const m = /^[A-Za-z]\[([^\]]*)\]/.exec(unit || '');
+  return m ? (parseProps(m[1]).mode || '') : '';
+}
+
+// mode=... in the braces of \SetCell[r=2]{mode=dmath}
+function modeOfSetCell(head) {
+  const m = /^(?:@\s*)?\\SetCell\s*/.exec(head);
+  if (!m) return '';
+  let i = m[0].length;
+  if (head[i] === '[') { const e = E4.matchBracket(head, i); if (e < 0) return ''; i = e + 1; }
+  while (/\s/.test(head[i] || '')) i++;
+  if (head[i] !== '{') return '';
+  const e = E4.matchBracket(head, i);
+  return e > 0 ? (parseProps(head.slice(i + 1, e)).mode || '') : '';
+}
+
 /* ------------------------------------ view ------------------------------------ */
 function toView(m, defs) {
   const w = width(m);
@@ -930,6 +942,7 @@ function toView(m, defs) {
     }
   }
   const resolve = (e) => (e ? colorExpr(e, defs, 0) : null);
+  const modes = m.isTblr && m.spec ? m.spec.tokens.map((t) => modeOfUnit(t.unit)) : null;
   const rows = m.rows.map((row, r) => {
     const st = starts(row);
     const rowColor = /\\rowcolor(?:\[[^\]]*\])?\{([^}]*)\}/.exec(row.pre);
@@ -941,6 +954,7 @@ function toView(m, defs) {
         const cc = /^\\cellcolor(?:\[[^\]]*\])?\{([^}]*)\}\s*/.exec(text);
         if (cc) { bgExpr = cc[1]; text = text.slice(cc[0].length); }
         const sr = styleOf(m.styles || [], r + 1, col + 1, nr, w);
+        const mode = (c.kind === 'sc' && modeOfSetCell(c.head)) || sr.mode || (modes && modes[col]) || '';
         if (sr.bg) bgExpr = sr.bg;
         const bg = resolve(bgExpr);
         let fg = resolve(sr.fg);
@@ -949,7 +963,7 @@ function toView(m, defs) {
         const hidden = covered.has(r + ':' + col) && !c.inner;
         return {
           t: text, raw: c.inner, span: c.cs, rowspan: c.rs, kind: c.kind, hidden, formula: isFormula(m, c.t),
-          style: { bg: bg ? css(bg) : '', fg: fg ? css(fg) : '', bold: !!sr.bold, align: sr.align || c.align || '', unknownColor: unknown ? bgExpr : '' },
+          style: { bg: bg ? css(bg) : '', fg: fg ? css(fg) : '', bold: !!sr.bold, align: sr.align || c.align || '', mode, unknownColor: unknown ? bgExpr : '' },
           cellcolor: cc ? cc[0] : ''
         };
       }),

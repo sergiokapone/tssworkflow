@@ -445,7 +445,6 @@ function parseFields(s) {
   return fields;
 }
 
-const bareValue = (v) => /^(\d+|[A-Za-z][A-Za-z0-9_\-]*(\s*#\s*[^#]+)*)$/.test(v) && !/^\{/.test(v) && !/^"/.test(v);
 // "text" with no "#" and no inner quotes becomes {text}
 function normValue(v) {
   const m = /^"([^"#{}]*)"$/.exec(v);
