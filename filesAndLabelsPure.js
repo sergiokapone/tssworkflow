@@ -37,7 +37,7 @@ const DEFAULT_FILE_MACROS = {
   '\\include': '.',
   '\\subfile': '.'
 };
-// macros the older code (extension.js, features.js, pure.js) already handles; extra5 does the others
+// macros the older code (extension.js, features.js, corePure.js) already handles; filesAndLabels does the others
 const LEGACY_MACROS = new Set(['\\localinput', '\\includegraphics']);
 const DEFAULT_ROOT_MACROS = ['\\input', '\\include'];
 

@@ -1,7 +1,7 @@
 'use strict';
 // Move tikzpicture / circuitikz environments out of a .tex file into tikz/<name>.tikz and put \localinput{<name>.tikz}
 // in their place. The name comes from the \label of the enclosing figure (without the "tikz:" / "pic:" prefix).
-const P = require('./pure');
+const P = require('./corePure');
 
 const FIGURE_RE = /^[A-Za-z]*figure\*?$/i;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -162,7 +162,7 @@ const validName = (n) => /^[^\\/:*?"<>|\s]+$/.test(n) && !/^\.+$/.test(n);
 /* ---------------------------- VS Code part ----------------------------- */
 // 0.7.0: null = \localinput; { prefix } = \input{prefix + name} for projects whose class does not define \localinput
 function includeStyle(doc) {
-  try { return require('./extra5').includeStyle(doc); } catch (e) { return null; }
+  try { return require('./filesAndLabels').includeStyle(doc); } catch (e) { return null; }
 }
 
 function register(context, helpers) {

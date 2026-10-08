@@ -7,7 +7,7 @@
  *   toView          what the webview draws
  * A table with a "%" inside a row, \verb, a nested table or an unreadable preamble is refused with a reason. */
 
-const E4 = require('./extra4Pure');
+const E4 = require('./formattersPure');
 
 const SUPPORTED = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable', 'spreadtab'];
 const BASE_OK = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable'];

@@ -7,8 +7,8 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const P = require('./pure');
-const X = require('./extraPure');
+const P = require('./corePure');
+const X = require('./projectInfoPure');
 
 const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
 const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
@@ -743,7 +743,7 @@ async function ltexDictionary() {
 }
 
 /* --------------------------- quick error checks ---------------------- */
-const X5sub = (m, d) => { try { return require('./extra5').legacySub(m, d); } catch (e) { return d; } };
+const X5sub = (m, d) => { try { return require('./filesAndLabels').legacySub(m, d); } catch (e) { return d; } };
 const diagSyntax = vscode.languages.createDiagnosticCollection('tssworkflow');
 
 function existsFor(doc) {
@@ -879,7 +879,7 @@ const hoverProvider = {
       }
       const range = new vscode.Range(pos.line, ref.col, pos.line, ref.col + ref.len);
       if (!found) return new vscode.Hover('Мітку «' + ref.name + '» не знайдено в проєкті', range);
-      return new vscode.Hover(labelPreviewMd(file, found, require('./extra').auxInfo(doc.uri, ref.name)), range);
+      return new vscode.Hover(labelPreviewMd(file, found, require('./projectInfo').auxInfo(doc.uri, ref.name)), range);
     }
     const code = P.codePart(line);
     const dir = path.dirname(doc.uri.fsPath);
@@ -1400,7 +1400,7 @@ function register(context, api) {
   syncUserCode();
   require('./macros').register(context, { log: (m) => outLog.appendLine(m), exclude: EXCLUDE });
   require('./tikzExtract').register(context);
-  require('./extra').register(context, {
+  require('./projectInfo').register(context, {
     texFiles, textOf, buildIndex, EXCLUDE, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });
   subs.push(

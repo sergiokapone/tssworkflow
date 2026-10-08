@@ -3,11 +3,11 @@
  * A tab next to the editor shows tblr / longtblr / talltblr / tabular / tabularx / array / longtable as a grid:
  * type in cells, add / delete / move rows and columns, change column alignment, paste a range from Excel.
  * Every change replaces only the text of that one environment (one undo step), and the grid follows manual edits of the file.
- * The model is in extra6Pure.js. */
+ * The model is in tableEditorPure.js. */
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const X = require('./extra6Pure');
+const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 

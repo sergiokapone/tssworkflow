@@ -1,9 +1,9 @@
 'use strict';
-// Tests of the pure (vscode-free) modules of tssworkflow.   node run.js [path/to/extension]
+// node tests/projectInfo.test.js [path/to/extension]  - the vscode-free helpers: projectInfoPure.js, corePure.js, macrosPure.js
 const path = require('path');
-const dir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'extension'));
-const P = require(path.join(dir, 'pure.js'));
-const X = require(path.join(dir, 'extraPure.js'));
+const dir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const P = require(path.join(dir, 'corePure.js'));
+const X = require(path.join(dir, 'projectInfoPure.js'));
 const M = require(path.join(dir, 'macrosPure.js'));
 
 let pass = 0;

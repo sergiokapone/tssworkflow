@@ -27,12 +27,13 @@ t('group ids and labels are unique, no empty groups', () => {
   assert.strictEqual(new Set(S.GROUPS.map((g) => g.label)).size, S.GROUPS.length);
   for (const g of S.GROUPS) assert.ok(g.items.length > 0 && g.label && g.icon, g.id);
 });
-t('package.json: container, view, activation event, icon file', () => {
+const implicitActivation = (pk) => { const m = /^\^?(\d+)\.(\d+)/.exec(pk.engines.vscode); return !!m && (+m[1] > 1 || +m[2] >= 74); }; // onView / onCommand are generated from contributes since VS Code 1.74
+t('package.json: container, view, implicit activation, icon file', () => {
   const c = pk.contributes;
   assert.strictEqual(c.viewsContainers.activitybar[0].id, 'tssworkflow');
   assert.ok(fs.existsSync(path.join(ext, c.viewsContainers.activitybar[0].icon)));
   assert.strictEqual(c.views.tssworkflow[0].id, 'tssworkflow.commandsView');
-  assert.ok(pk.activationEvents.includes('onView:tssworkflow.commandsView'));
+  assert.ok(implicitActivation(pk), 'the view activates the extension by itself: engines.vscode >= 1.74');
 });
 t('sidebar.js builds the tree: groups, commands, shortcuts, settings link', () => {
   const deep = () => new Proxy(function () {}, { get: (t, k) => (k === 'then' ? undefined : k === Symbol.toPrimitive ? () => '' : deep()), apply: () => deep(), construct: () => deep() });

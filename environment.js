@@ -5,7 +5,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
-const P = require('./pure');
+const P = require('./corePure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
@@ -52,9 +52,9 @@ async function checkEnvironment() {
   const folder = (vscode.workspace.workspaceFolders || [])[0];
   // 0.7.0: files the last build could not find
   try {
-    const mf = require('./extra5').missingFromLog();
+    const mf = require('./filesAndLabels').missingFromLog();
     if (mf.log) {
-      const X5 = require('./extra5Pure');
+      const X5 = require('./filesAndLabelsPure');
       const cmds = X5.tlmgrCommands(mf.missing, String(cfg().get('tlmgrCommand', 'tlmgr install')));
       rows.push({ name: 'Пакети з останнього логу', what: 'рядки `File ... not found` у `' + path.basename(mf.log) + '`', state: mf.missing.length ? 'missing' : 'ok', detail: mf.missing.length ? mf.missing.map((m) => m.file).join(', ') : 'усе знайдено', hint: mf.missing.length ? (cmds.install ? '`' + cmds.install + '`; ' : '') + 'або `TSS Workflow: Missing packages from last log`' : '' });
     }

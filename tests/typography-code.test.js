@@ -4,8 +4,8 @@
 // tssworkflow.protectedCommands, and the "fix all" plan (0.6.0)
 const path = require('path'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
-const P = require(path.join(ext, 'pure.js'));
-const X = require(path.join(ext, 'extraPure.js'));
+const P = require(path.join(ext, 'corePure.js'));
+const X = require(path.join(ext, 'projectInfoPure.js'));
 let n = 0;
 const t = (name, fn) => { P.setProtectedCommands([]); fn(); P.setProtectedCommands([]); n++; console.log('ok  ' + name); };
 const rng = (s, extra) => P.tikzInlineRanges(s, extra).map(([a, b]) => s.slice(a, b));

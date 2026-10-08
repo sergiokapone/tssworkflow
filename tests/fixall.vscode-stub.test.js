@@ -1,5 +1,5 @@
 'use strict';
-// node tests/fixall.vscode-stub.test.js [path/to/extension]  - extra.js (0.6.0): "fix all" code actions, source.fixAll.tssworkflow, the command
+// node tests/fixall.vscode-stub.test.js [path/to/extension]  - projectInfo.js (0.6.0): "fix all" code actions, source.fixAll.tssworkflow, the command
 const Module = require('module'), path = require('path'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
 let n = 0;
@@ -63,7 +63,7 @@ const stub0 = {
 const stub = new Proxy(stub0, { get: (o, k) => (k in o ? o[k] : deep()) });
 const orig = Module._load;
 Module._load = function (r, ...a) { return r === 'vscode' ? stub : orig.call(this, r, ...a); };
-const E = require(path.join(ext, 'extra.js'));
+const E = require(path.join(ext, 'projectInfo.js'));
 E.register({ subscriptions: [] }, { showLog() {} });
 Module._load = orig;
 

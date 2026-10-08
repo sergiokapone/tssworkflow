@@ -3,7 +3,7 @@
 // Format tblr keeps the lines of a cell with multi-line TikZ code (0.5.3); the other cells are formatted as before
 const path = require('path'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
-const N = require(path.join(ext, 'extra4Pure.js'));
+const N = require(path.join(ext, 'formattersPure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };
 const O = { maxWidth: 100, unit: '    ', tabSize: 4 };

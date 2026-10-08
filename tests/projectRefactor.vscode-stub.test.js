@@ -1,5 +1,5 @@
 'use strict';
-// node tests/extra3.vscode-stub.test.js [path/to/extension]  - extra3.js end to end on a real temp folder with a vscode stub
+// node tests/projectRefactor.vscode-stub.test.js [path/to/extension]  - projectRefactor.js end to end on a real temp folder with a vscode stub
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss3-'));
@@ -88,7 +88,7 @@ const stub = {
   _cmds: {}, _diags: []
 };
 Module._load = function (rq, ...a) { return rq === 'vscode' ? stub : orig.call(this, rq, ...a); };
-const M = require(path.join(ext, 'extra3.js'));
+const M = require(path.join(ext, 'projectRefactor.js'));
 M.register({ subscriptions: [], globalStorageUri: { fsPath: store } }, { frameSettings: () => null });
 const C = stub._cmds;
 const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
@@ -207,6 +207,6 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.ok(/немає/.test(p.view.message));
   });
 
-  console.log('\nextra3 stub end-to-end: all ok');
+  console.log('\nprojectRefactor stub end-to-end: all ok');
   fs.rmSync(tmp, { recursive: true, force: true });
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

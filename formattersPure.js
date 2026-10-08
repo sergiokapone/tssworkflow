@@ -6,7 +6,7 @@
  * Nothing here touches the text it cannot parse: a table with a "%" inside a row, a \verb, a blank line inside a cell
  * or unbalanced braces is skipped with a reason. */
 
-const P = require('./pure');
+const P = require('./corePure');
 
 /* ------------------------------ scanning helpers ----------------------------- */
 const VERB_ENVS = 'verbatim\\*?|Verbatim\\*?|lstlisting|minted|alltt|comment';

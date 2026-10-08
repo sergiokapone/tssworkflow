@@ -3,8 +3,9 @@
 // 0.4.3: welcome view without .tex, context key hasTex, generated settings.json, main file choice, PATH search, environment report
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
-const P = require(path.join(ext, 'pure.js'));
+const P = require(path.join(ext, 'corePure.js'));
 const pk = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
+const implicitActivation = (p) => { const m = /^\^?(\d+)\.(\d+)/.exec(p.engines.vscode); return !!m && (+m[1] > 1 || +m[2] >= 74); }; // onView / onCommand are generated from contributes since VS Code 1.74
 let n = 0;
 const queue = [];
 const t = (name, fn) => queue.push({ name, fn });
@@ -21,7 +22,7 @@ t('manifest: panels need hasTex, the start view needs its absence, TODO view too
   assert.strictEqual(by(c.views.tssworkflow, 'tssworkflow.chaptersView').when, 'tssworkflow.hasTex');
   assert.strictEqual(by(c.views.tssworkflow, 'tssworkflow.startView').when, '!tssworkflow.hasTex');
   assert.ok(/tssworkflow\.hasTex/.test(by(c.views.explorer, 'tssworkflow.todoView').when));
-  assert.ok(pk.activationEvents.includes('onView:tssworkflow.startView'));
+  assert.ok(implicitActivation(pk), 'the start view activates the extension by itself: engines.vscode >= 1.74');
 });
 t('manifest: welcome buttons call real commands', () => {
   const ids = new Set(pk.contributes.commands.map((x) => x.command));
@@ -33,7 +34,6 @@ t('manifest: welcome buttons call real commands', () => {
 });
 t('manifest: new command and setting are declared', () => {
   assert.ok(pk.contributes.commands.some((c) => c.command === 'tssworkflow.checkEnvironment'));
-  assert.ok(pk.activationEvents.includes('onCommand:tssworkflow.checkEnvironment'));
   assert.strictEqual(pk.contributes.configuration.properties['tssworkflow.checkEnvironmentOnStart'].default, true);
   assert.ok(!('tssworkflow.buildSpinner' in pk.contributes.configuration.properties));
 });

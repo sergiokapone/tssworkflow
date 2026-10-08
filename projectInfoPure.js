@@ -1,7 +1,7 @@
 'use strict';
 /* Pure helpers (no vscode API) for: .aux parsing, project statistics, TODO scan,
- * extra typography checks, numbered equations nobody refers to. Tested by tests/run.js. */
-const P = require('./pure');
+ * extra typography checks, numbered equations nobody refers to. Tested by tests/projectInfo.test.js. */
+const P = require('./corePure');
 
 /* ------------------------------ .aux ------------------------------- */
 // reads the balanced {...} group that starts at s[i] (after whitespace); null if there is none

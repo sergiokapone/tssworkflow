@@ -3,7 +3,7 @@
  * ("New from template", "Make template", "Manage templates"). A template is one .tex or .tikz file;
  * its name is the file name, an optional description and kind (document | fragment) are kept in leading
  * `% !TSS description: ...` / `% !TSS kind: ...` lines. A folder with a main file is a template of several files. */
-const X = require('./extra2Pure');
+const X = require('./authoringPure');
 
 const TEMPLATE_EXT = ['.tex', '.tikz'];
 const META_RE = /^\s*%\s*!TSS\s+([A-Za-z]+)\s*:\s*(.*?)\s*$/;

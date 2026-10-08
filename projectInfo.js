@@ -1,12 +1,12 @@
 'use strict';
 /* Extra features: number and page of a label from the .aux file (hover), project statistics,
  * numbered equations nobody refers to, TODO view, quick fixes for the typography checks,
- * "where is this macro defined?" diagnostics. Pure logic lives in extraPure.js. */
+ * "where is this macro defined?" diagnostics. Pure logic lives in projectInfoPure.js. */
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const P = require('./pure');
-const X = require('./extraPure');
+const P = require('./corePure');
+const X = require('./projectInfoPure');
 const M = require('./macros');
 
 let api = null;

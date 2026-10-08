@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
-const X = require('./extra2Pure');
+const X = require('./authoringPure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const info = (m) => vscode.window.showInformationMessage(m);

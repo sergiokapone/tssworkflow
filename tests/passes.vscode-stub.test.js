@@ -26,7 +26,7 @@ const base = {
     createFileSystemWatcher: () => ({ onDidChange() {}, onDidCreate() {}, onDidDelete() {}, dispose() {} })
   },
   window: {
-    activeTextEditor: { document: doc, viewColumn: 1, selection: null },
+    activeTextEditor: { document: doc, viewColumn: 1, selection: { isEmpty: true } },
     createStatusBarItem: (al, pr) => { const it = { priority: pr, texts: [], writes: 0, shown: false, _t: '', show() { this.shown = true; }, hide() { this.shown = false; }, dispose() {} };
       for (const k of ['tooltip', 'command']) Object.defineProperty(it, k, { get() { return this['_' + k]; }, set(v) { this['_' + k] = v; this.writes++; } });
       Object.defineProperty(it, 'text', { get() { return this._t; }, set(v) { this._t = v; this.texts.push(v); } }); items.push(it); return it; },

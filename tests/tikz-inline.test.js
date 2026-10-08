@@ -1,9 +1,9 @@
 'use strict';
 // node tests/tikz-inline.test.js [path/to/extension]
-// 0.6.1: Format inline \tikz (extra4Pure.formatInlineTikz) and inline \tikz pictures in "Extract tikzpicture to tikz/" (tikzExtract.js)
+// 0.6.1: Format inline \tikz (formattersPure.formatInlineTikz) and inline \tikz pictures in "Extract tikzpicture to tikz/" (tikzExtract.js)
 const path = require('path'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
-const N = require(path.join(ext, 'extra4Pure.js'));
+const N = require(path.join(ext, 'formattersPure.js'));
 const T = require(path.join(ext, 'tikzExtract.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

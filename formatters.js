@@ -4,9 +4,9 @@
  *   Format inline \\tikz     (0.6.1) one-line \\tikz[...]{...} -> one statement per line
  *   Renumber Beamer Slides "% ==== Слайд N ====" banners around frames, renumbered on every run
  * Both can also run on save (tssworkflow.tblr.formatOnSave, tssworkflow.beamer.autoRenumber).
- * The logic without VS Code is in extra4Pure.js. */
+ * The logic without VS Code is in formattersPure.js. */
 const vscode = require('vscode');
-const X = require('./extra4Pure');
+const X = require('./formattersPure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const info = (m, ...b) => vscode.window.showInformationMessage(m, ...b);

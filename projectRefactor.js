@@ -8,13 +8,13 @@
  *   Build parts                              only the chosen \part's of the main file
  *   \cite completion and hover               author, year, title from the .bib files
  *   Panel "Проблеми"                         errors, warnings and overfull boxes of the project as a tree
- * The logic without VS Code is in extra3Pure.js. */
+ * The logic without VS Code is in projectRefactorPure.js. */
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const X = require('./extra3Pure');
+const X = require('./projectRefactorPure');
 const C = require('./chaptersPure');
-const P = require('./pure');
+const P = require('./corePure');
 
 const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
 const SRC_GLOB = '**/*.{tex,tikz,cls,sty,bib}';

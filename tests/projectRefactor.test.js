@@ -1,8 +1,8 @@
 'use strict';
-// node tests/extra3.test.js [path/to/extension]  - the pure part of 0.5.0 (chapters, replace, notation, .bib, problems, snapshots)
+// node tests/projectRefactor.test.js [path/to/extension]  - the pure part of 0.5.0 (chapters, replace, notation, .bib, problems, snapshots)
 const path = require('path'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
-const X = require(path.join(ext, 'extra3Pure.js'));
+const X = require(path.join(ext, 'projectRefactorPure.js'));
 const C = require(path.join(ext, 'chaptersPure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

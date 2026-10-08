@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const P = require('./pure');
+const P = require('./corePure');
 const features = require('./features');
 
 /* ------------------------------------------------------------------ *
@@ -20,9 +20,9 @@ const RULES = [
   }
 ];
 
-// 0.7.0: folder of a legacy macro from the table tssworkflow.fileMacros (extra5.js)
+// 0.7.0: folder of a legacy macro from the table tssworkflow.fileMacros (filesAndLabels.js)
 function subOf(macro, fallback) {
-  try { return require('./extra5').legacySub(macro, fallback); } catch (e) { return fallback; }
+  try { return require('./filesAndLabels').legacySub(macro, fallback); } catch (e) { return fallback; }
 }
 
 function resolveFile(dir, sub, name, exts) {
@@ -1015,7 +1015,7 @@ function activate(context) {
     vscode.commands.registerCommand('tssworkflow.compile', () => compile(false)),
     vscode.commands.registerCommand('tssworkflow.compileMainPdf', () => compileMain(true)),
     vscode.commands.registerCommand('tssworkflow.compileMain', () => compileMain(false)),
-    // 0.5.0: a copy of the main file with only some \part's (see extra3.js); not in the palette
+    // 0.5.0: a copy of the main file with only some \part's (see projectRefactor.js); not in the palette
     vscode.commands.registerCommand('tssworkflow._compileFile', (a) => compileMain(!a || a.openPdf !== false, undefined, a && a.file)),
     vscode.commands.registerCommand('tssworkflow.clean', () => clean(true)),
     vscode.commands.registerCommand('tssworkflow.cleanAux', () => clean(false)),
@@ -1090,15 +1090,15 @@ function activate(context) {
   refresh();
 
   features.register(context, { onSave: compileOnSave });
-  require('./extra2').register(context);
+  require('./authoring').register(context);
   require('./templates').register(context);
   require('./sidebar').register(context);
   require('./chapters').register(context);
   require('./environment').register(context);
-  require('./extra3').register(context, { frameSettings: features.frameSettings });
-  require('./extra4').register(context, { applyWithPreview: features.applyWithPreview });
-  require('./extra5').register(context, { applyWithPreview: features.applyWithPreview });
-  require('./extra6').register(context);
+  require('./projectRefactor').register(context, { frameSettings: features.frameSettings });
+  require('./formatters').register(context, { applyWithPreview: features.applyWithPreview });
+  require('./filesAndLabels').register(context, { applyWithPreview: features.applyWithPreview });
+  require('./tableEditor').register(context);
   require('./start').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   setTimeout(() => offerProjectSettings(context).catch(() => {}), 3000);

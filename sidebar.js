@@ -5,7 +5,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const S = require('./sidebarPure');
-const P = require('./pure');
+const P = require('./corePure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 

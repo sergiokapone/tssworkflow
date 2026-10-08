@@ -10,7 +10,6 @@ const docCandidates = [process.argv[3], path.join(here, docName), path.join(here
 const doc = docCandidates.find((p) => fs.existsSync(p)) || null;
 const files = fs.readdirSync(here).filter((f) => /\.test\.js$/.test(f)).sort();
 const jobs = files.map((f) => ({ name: f, args: [path.join(here, f), ext] }));
-if (fs.existsSync(path.join(here, 'run.js'))) jobs.push({ name: 'run.js', args: [path.join(here, 'run.js'), ext] });
 if (doc) jobs.push({ name: 'check-docs.js', args: [path.join(here, 'check-docs.js'), doc, ext] });
 else console.log('SKIP  check-docs.js                 (довідку ' + docName + ' не знайдено: передай шлях третім аргументом)');
 let failed = 0;

@@ -8,12 +8,12 @@
  *   labels panel        tree of \label's per file, unused ones marked, button "insert \ref"
  *   word count          status bar item
  *   unused packages, table from CSV / XLSX / clipboard, .bib tools, list of equations, dated PDF copy
- * The logic without VS Code is in extra5Pure.js. */
+ * The logic without VS Code is in filesAndLabelsPure.js. */
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const X = require('./extra5Pure');
-const X4 = require('./extra4Pure');
+const X = require('./filesAndLabelsPure');
+const X4 = require('./formattersPure');
 
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const info = (m, ...b) => vscode.window.showInformationMessage(m, ...b);
@@ -801,7 +801,7 @@ async function listEquationsCmd() {
   if (!root) { info('Відкрий папку проєкту.'); return; }
   const files = (await projectFiles(['.tex', '.tikz'], root.uri.fsPath)).sort(byChapter(chapterOrder()));
   let auxFn = null;
-  try { auxFn = require('./extra').auxInfo; } catch (e) { /* optional */ }
+  try { auxFn = require('./projectInfo').auxInfo; } catch (e) { /* optional */ }
   const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
   const items = [];
   let total = 0;

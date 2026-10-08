@@ -1,5 +1,5 @@
 'use strict';
-// node tests/tikz-cmds.vscode-stub.test.js [path/to/extension]  - 0.6.1: command "Format inline \tikz" (extra4.js) and
+// node tests/tikz-cmds.vscode-stub.test.js [path/to/extension]  - 0.6.1: command "Format inline \tikz" (formatters.js) and
 // "Extract tikzpicture to tikz/" with inline \tikz pictures (tikzExtract.js), on a stub of `vscode` and real files in a temp folder
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
@@ -69,7 +69,7 @@ const api = {
   }
 };
 const context = { subscriptions: [] };
-require(path.join(ext, 'extra4.js')).register(context, api);
+require(path.join(ext, 'formatters.js')).register(context, api);
 require(path.join(ext, 'tikzExtract.js')).register(context);
 Module._load = orig;
 
