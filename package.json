@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -114,7 +114,8 @@
     "onCommand:tssworkflow.bibNormalizeKeys",
     "onCommand:tssworkflow.listEquations",
     "onCommand:tssworkflow.savePdfCopy",
-    "onView:tssworkflow.labelsView"
+    "onView:tssworkflow.labelsView",
+    "onCommand:tssworkflow.editTable"
   ],
   "contributes": {
     "commands": [
@@ -473,6 +474,10 @@
       {
         "command": "tssworkflow.savePdfCopy",
         "title": "TSS Workflow: Save PDF copy with a date"
+      },
+      {
+        "command": "tssworkflow.editTable",
+        "title": "TSS Workflow: Edit table visually (tblr, tabular...)"
       }
     ],
     "menus": {
@@ -583,6 +588,11 @@
           "command": "tssworkflow.normalizeOptions",
           "when": "resourceLangId == latex || resourceLangId == tex",
           "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.editTable",
+          "when": "resourceLangId == latex",
+          "group": "tssworkflow@1"
         }
       ],
       "tssworkflow.submenu.text": [
@@ -1771,6 +1781,11 @@
           "type": "boolean",
           "default": true,
           "description": "Save PDF copy: add the time (HHMM) after the date."
+        },
+        "tssworkflow.tableEditor.codeLens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show \"Edit table\" above tblr / longtblr / tabular ... environments."
         }
       }
     },

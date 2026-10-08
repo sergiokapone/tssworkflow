@@ -1098,6 +1098,7 @@ function activate(context) {
   require('./extra3').register(context, { frameSettings: features.frameSettings });
   require('./extra4').register(context, { applyWithPreview: features.applyWithPreview });
   require('./extra5').register(context, { applyWithPreview: features.applyWithPreview });
+  require('./extra6').register(context);
   require('./start').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   setTimeout(() => offerProjectSettings(context).catch(() => {}), 3000);

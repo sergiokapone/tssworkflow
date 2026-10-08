@@ -47,6 +47,7 @@ const GROUPS = [
     ['formatTikz', 'Розкласти \\tikz{…} по рядках (один оператор на рядок)', 'list-tree'],
     ['renumberBeamer', 'Пронумерувати слайди beamer', 'list-ordered'],
     ['tableOps', 'Дії з таблицею', 'table'],
+    ['editTable', 'Редагувати таблицю візуально', 'table'],
     ['tableFromFile', 'Таблиця з CSV / XLSX / буфера в tblr', 'table'],
     ['extractTikz', 'Винести tikzpicture під курсором у tikz/', 'export'],
     ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export']
