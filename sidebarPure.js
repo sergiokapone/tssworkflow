@@ -57,6 +57,8 @@ const GROUPS = [
     ['pickFile', 'Вибрати ім\u02bcя файла для \\localinput / \\includegraphics', 'file-code'],
     ['pictures', 'Панель рисунків', 'file-media'],
     ['pickRef', 'Вставити \\ref (вибір мітки)', 'symbol-key'],
+    ['renameLabel', 'Перейменувати мітку (з усіма \\ref)', 'edit'],
+    ['projectWordCount', 'Слова проєкту (за розділами й файлами)', 'pencil'],
     ['listEquations', 'Список усіх формул проєкту', 'symbol-numeric'],
     ['pickMacro', 'Перейти до макроса з .cls/.sty', 'symbol-method'],
     ['macroInfo', 'Де визначено макрос (діагностика)', 'question']

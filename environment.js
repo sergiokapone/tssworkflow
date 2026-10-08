@@ -74,10 +74,38 @@ async function checkEnvironment() {
   await vscode.window.showTextDocument(doc, { preview: true });
   const bad = rows.filter((r) => r.state === 'missing').length;
   vscode.window.setStatusBarMessage(bad ? 'Бракує потрібного: ' + bad : 'Середовище в порядку', 4000);
+  // 0.11: the install commands of the missing things in one click
+  const cmds = [];
+  for (const r of rows) {
+    if (r.state === 'ok' || !r.hint) continue;
+    const re = /`((?:sudo )?(?:tlmgr|winget|brew|apt(?:-get)?|mpm)[^`]*)`/g;
+    let m;
+    while ((m = re.exec(r.hint)) !== null) if (!cmds.includes(m[1])) cmds.push(m[1]);
+  }
+  if (cmds.length) {
+    const pick = await vscode.window.showInformationMessage('Doctor: команд для встановлення відсутнього: ' + cmds.length, 'Скопіювати команди', 'Показати в терміналі');
+    if (pick === 'Скопіювати команди') await vscode.env.clipboard.writeText(cmds.join('\n'));
+    else if (pick === 'Показати в терміналі') { const t = vscode.window.createTerminal('TSS: install'); t.show(); t.sendText(cmds.join('\n'), false); }
+  }
+}
+
+// a short silent check when a project is opened: only latexmk and lualatex, once, and it can be muted
+async function startupCheck(context) {
+  if (!cfg().get('doctorOnStartup', true) || context.globalState.get('tss.doctorMuted')) return;
+  const folder = (vscode.workspace.workspaceFolders || [])[0];
+  if (!folder) return;
+  const main = String(cfg().get('mainFile', 'main.tex'));
+  try { if (!fs.existsSync(path.join(folder.uri.fsPath, main))) return; } catch (e) { return; }
+  const miss = [['latexmk', cfg().get('latexmk', 'latexmk')], ['lualatex', cfg().get('lualatex', 'lualatex')]].filter(([n, c]) => !P.findInPath(String(c || n)));
+  if (!miss.length) return;
+  const pick = await vscode.window.showWarningMessage('TSS Workflow: у PATH немає ' + miss.map((m) => m[0]).join(', ') + ': збірка не запуститься.', 'Doctor', 'Не нагадувати');
+  if (pick === 'Doctor') vscode.commands.executeCommand('tssworkflow.checkEnvironment');
+  else if (pick === 'Не нагадувати') context.globalState.update('tss.doctorMuted', true);
 }
 
 function register(context) {
   context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.checkEnvironment', checkEnvironment));
+  setTimeout(() => startupCheck(context).catch(() => {}), 8000);
 }
 
 exports.register = register;

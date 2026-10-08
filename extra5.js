@@ -68,6 +68,22 @@ function legacySub(macro, fallback) {
   return e ? e.sub : fallback;
 }
 
+// chapter names in the order of the main file (for sorting labels and formulas)
+function chapterOrder() {
+  const folder = (vscode.workspace.workspaceFolders || [])[0];
+  if (!folder) return [];
+  try {
+    const C = require('./chaptersPure');
+    const main = fs.readFileSync(path.join(folder.uri.fsPath, String(cfg().get('mainFile', 'main.tex')) || 'main.tex'), 'utf8');
+    const lists = cfg().get('chapterListMacros', ['\\multiinclude']);
+    return C.chapterNames(main, String(cfg().get('chapterIncludeMacro', '\\includechapter')) || '\\includechapter', Array.isArray(lists) ? lists : []);
+  } catch (e) { return []; }
+}
+const chapterRank = (order, p) => { const seg = p.split('/')[0]; if (!p.includes('/')) return 1e7; const i = order.indexOf(seg); return i < 0 ? 1e6 : i; };
+const byChapter = (order) => (a, b) => (chapterRank(order, a.path) - chapterRank(order, b.path)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+const fullRange = (doc) => new vscode.Range(0, 0, doc.lineCount - 1, doc.lineAt(doc.lineCount - 1).text.length);
+let labelsProv = null;
+
 /* ============== 1. clickable names, completion, checks for the table ============== */
 const genericEntries = () => table().filter((e) => !X.LEGACY_MACROS.has(e.macro));
 
@@ -243,6 +259,36 @@ async function onRenamed(e) {
   }
 }
 
+// a .tex file moved to another folder: the paths inside it that were relative to the old folder follow
+async function onMovedTex(e) {
+  const mode = String(cfg().get('updateRefsOnRename', 'ask'));
+  if (mode === 'never') return;
+  const tbl = table();
+  for (const f of e.files) {
+    const oldAbs = f.oldUri.fsPath;
+    const newAbs = f.newUri.fsPath;
+    if (!/\.(tex|tikz)$/i.test(newAbs) || path.dirname(oldAbs) === path.dirname(newAbs) || !rootOf(f.newUri)) continue;
+    let st;
+    try { st = fs.statSync(newAbs); } catch (err) { continue; }
+    if (!st.isFile()) continue;
+    const lines = fs.readFileSync(newAbs, 'utf8').split(/\r?\n/);
+    const base = ctxFor({ uri: f.newUri });
+    const edits = X.renameSelfRefs(lines, tbl, Object.assign({}, base, { dir: path.dirname(oldAbs) }), path.dirname(newAbs));
+    if (!edits.length) continue;
+    if (mode === 'ask') {
+      const pick = await info('«' + path.basename(newAbs) + '» переміщено в іншу папку. Оновити ' + edits.length + ' шляхів усередині нього (рисунки, tikz)?', 'Оновити', 'Ні');
+      if (pick !== 'Оновити') continue;
+    }
+    const we = new vscode.WorkspaceEdit();
+    for (const ed of edits) we.replace(f.newUri, new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText);
+    if (await vscode.workspace.applyEdit(we)) {
+      const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === newAbs);
+      if (d && d.isDirty) { try { await d.save(); } catch (err) { /* stays modified */ } }
+      vscode.window.setStatusBarMessage('Оновлено шляхів у ' + path.basename(newAbs) + ': ' + edits.length, 5000);
+    }
+  }
+}
+
 /* ======================= 3. missing packages (tlmgr) ======================= */
 const MISSING_RE = /File\s+[`'‘]([^'’`\s]+?\.[A-Za-z0-9]+)['’]\s+not\s+found/;
 
@@ -329,9 +375,14 @@ class LabelsProvider {
   schedule(ms) { clearTimeout(this.timer); this.timer = setTimeout(() => this.refresh().catch(() => {}), ms === undefined ? 700 : ms); }
   async refresh() {
     const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty']);
-    this.index = X.buildLabelIndex(files.map((f) => ({ path: f.path, abs: f.abs, lines: f.text.split(/\r?\n/) })));
+    const linesOf = new Map(files.map((f) => [f.path, f.text.split(/\r?\n/)]));
+    this.index = X.buildLabelIndex(files.map((f) => ({ path: f.path, abs: f.abs, lines: linesOf.get(f.path) })));
     const abs = new Map(files.map((f) => [f.path, f.abs]));
-    for (const g of this.index.groups) g.abs = abs.get(g.path);
+    for (const g of this.index.groups) {
+      g.abs = abs.get(g.path);
+      for (const l of g.labels) l.ctx = X.labelContext(linesOf.get(g.path), l.line);
+    }
+    this.index.groups.sort(byChapter(chapterOrder()));
     if (this.view) this.view.description = this.index.total + ' міток' + (this.index.unused ? ' · без \\ref: ' + this.index.unused : '');
     this._ev.fire();
   }
@@ -359,8 +410,8 @@ class LabelsProvider {
   }
   labelItem(g, l) {
     const t = new vscode.TreeItem(l.name, vscode.TreeItemCollapsibleState.None);
-    t.description = (l.uses ? '×' + l.uses : 'немає \\ref') + ' · рядок ' + (l.line + 1);
-    t.tooltip = l.name + '\n' + g.path + ':' + (l.line + 1) + '\n' + (l.uses ? 'Посилань \\ref: ' + l.uses : 'Жодного \\ref на цю мітку');
+    t.description = (l.ctx ? l.ctx + ' · ' : '') + (l.uses ? '×' + l.uses : 'немає \\ref');
+    t.tooltip = l.name + (l.ctx ? '\n' + l.ctx : '') + '\n' + g.path + ':' + (l.line + 1) + '\n' + (l.uses ? 'Посилань \\ref: ' + l.uses : 'Жодного \\ref на цю мітку');
     t.iconPath = new vscode.ThemeIcon(l.uses ? 'symbol-key' : 'warning');
     t.contextValue = l.uses ? 'tssLabel' : 'tssLabelUnused';
     t.tssLabel = l.name;
@@ -375,6 +426,52 @@ function activeTexEditor() {
   return vscode.window.visibleTextEditors.find((e) => isTexLike(e.document));
 }
 
+const LABEL_OK = /^[^\s{},%\\]+$/;
+async function renameLabelCmd(arg) {
+  if (labelsProv && !labelsProv.index.total) await labelsProv.refresh();
+  const all = [];
+  if (labelsProv) for (const g of labelsProv.index.groups) for (const l of g.labels) all.push({ name: l.name, g, l });
+  let old = arg && arg.tssLabel;
+  if (!old) {
+    const ed = vscode.window.activeTextEditor;
+    if (ed && isTexLike(ed.document)) {
+      const text = ed.document.lineAt(ed.selection.active.line).text;
+      const col = ed.selection.active.character;
+      const re = /\{([^}]*)\}/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        if (col < m.index + 1 || col > m.index + 1 + m[1].length) continue;
+        let off = m.index + 1;
+        for (const part of m[1].split(',')) { if (col >= off && col <= off + part.length && all.some((a) => a.name === part.trim())) old = part.trim(); off += part.length + 1; }
+      }
+    }
+  }
+  if (!old) {
+    if (!all.length) { info('У проєкті немає \\label.'); return; }
+    const pick = await vscode.window.showQuickPick(all.map((a) => ({ label: a.name, description: a.g.path + ':' + (a.l.line + 1) + (a.l.ctx ? ' · ' + a.l.ctx : ''), name: a.name })), { placeHolder: 'Яку мітку перейменувати?', matchOnDescription: true });
+    if (!pick) return;
+    old = pick.name;
+  }
+  const next = await vscode.window.showInputBox({
+    prompt: 'Нова назва мітки «' + old + '» (усі \\ref, \\eqref, \\cref… теж зміняться)', value: old, ignoreFocusOut: true,
+    validateInput: (v) => (!LABEL_OK.test(v) ? 'Без пробілів, дужок, ком і %' : v !== old && all.some((a) => a.name === v) ? 'Така мітка вже є' : null)
+  });
+  if (!next || next === old) return;
+  const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty']);
+  const we = new vscode.WorkspaceEdit();
+  let n = 0;
+  const touched = new Set();
+  for (const f of files) {
+    const edits = X.renameLabelEdits(f.text.split(/\r?\n/), old, next);
+    for (const ed of edits) { we.replace(vscode.Uri.file(f.abs), new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText); n++; touched.add(f.abs); }
+  }
+  if (!n) { info('Входжень «' + old + '» не знайдено.'); return; }
+  if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося перейменувати.'); return; }
+  for (const abs of touched) { const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === abs); if (d && d.isDirty) { try { await d.save(); } catch (e) { /* stays modified */ } } }
+  vscode.window.setStatusBarMessage('Мітку перейменовано: ' + n + ' входжень у ' + touched.size + ' файлах', 6000);
+  if (labelsProv) labelsProv.schedule(300);
+}
+
 async function insertRef(name) {
   const ed = activeTexEditor();
   if (!ed) { info('Відкрий .tex-файл, у який вставити \\ref.'); return; }
@@ -385,11 +482,44 @@ async function insertRef(name) {
 }
 
 /* ================================= 6. word count ================================= */
+// words of the file and of everything it includes (\input, \include, \subfile, \includechapter)
+function deepWords(doc) {
+  const root = rootOf(doc.uri);
+  const tbl = table().filter((e) => !e.graphics && e.macro !== '\\localinput');
+  const chapterMacro = String(cfg().get('chapterIncludeMacro', '\\includechapter')) || '\\includechapter';
+  const chRe = new RegExp(chapterMacro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z@])\\s*\\{\\s*([^{}\\s]+)\\s*\\}', 'g');
+  const seen = new Set();
+  let total = 0;
+  const walk = (abs, text, depth) => {
+    if (seen.has(abs) || depth > 6 || seen.size > 80) return;
+    seen.add(abs);
+    total += X.countWords(text);
+    const ctx = ctxFor({ uri: vscode.Uri.file(abs) });
+    for (const line of text.split(/\r?\n/)) {
+      for (const r of X.findFileRefs(line, tbl)) {
+        const hit = X.resolveRef(r.entry, r.name, ctx);
+        if (hit.found && /\.tex$/i.test(hit.abs)) { const t = textOfPath(hit.abs); if (t !== null) walk(hit.abs, t, depth + 1); }
+      }
+      if (root) {
+        const code = X.codePart(line);
+        chRe.lastIndex = 0;
+        let m;
+        while ((m = chRe.exec(code)) !== null) { const p = path.join(root, m[1], m[1] + '.tex'); const t = textOfPath(p); if (t !== null) walk(p, t, depth + 1); }
+      }
+    }
+  };
+  walk(doc.uri.fsPath, doc.getText(), 0);
+  return { total, files: seen.size };
+}
+
 function setupWordCount(context) {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 97);
-  item.command = 'tssworkflow.projectStats';
+  item.command = 'tssworkflow.projectWordCount';
   context.subscriptions.push(item);
   let timer = null;
+  let deepTimer = null;
+  let deep = { key: '', total: 0, files: 0 };
+  const keyOf = (doc) => doc.uri.toString() + '@' + doc.version;
   const update = () => {
     const ed = vscode.window.activeTextEditor;
     if (!ed || !isTexLike(ed.document) || !cfg().get('wordCount', true)) { item.hide(); return; }
@@ -398,8 +528,15 @@ function setupWordCount(context) {
     const all = X.countWords(doc.getText());
     const sel = ed.selection.isEmpty ? 0 : X.countWords(doc.getText(ed.selection));
     item.text = '$(pencil) ' + (sel ? sel + ' із ' : '') + all + ' сл.';
-    item.tooltip = 'Слів у ' + path.basename(doc.uri.fsPath) + ': ' + all + ' (без команд, формул, коментарів, рисунків)' + (sel ? '\nУ виділенні: ' + sel : '') + '\nКлік: статистика проєкту. Вимкнути: tssworkflow.wordCount';
+    const more = deep.key === keyOf(doc) && deep.files > 1 ? '\nЗ підключеними файлами (' + deep.files + '): ' + deep.total : '';
+    item.tooltip = 'Слів у ' + path.basename(doc.uri.fsPath) + ': ' + all + ' (без команд, формул, коментарів, рисунків)' + (sel ? '\nУ виділенні: ' + sel : '') + more + '\nКлік: слова в усіх файлах проєкту. Вимкнути: tssworkflow.wordCount';
     item.show();
+    clearTimeout(deepTimer);
+    deepTimer = setTimeout(() => {
+      const cur = vscode.window.activeTextEditor;
+      if (!cur || cur.document !== doc || deep.key === keyOf(doc)) return;
+      try { const d = deepWords(doc); deep = { key: keyOf(doc), total: d.total, files: d.files }; update(); } catch (e) { /* the status stays without the extra line */ }
+    }, 1500);
   };
   const later = () => { clearTimeout(timer); timer = setTimeout(update, 300); };
   context.subscriptions.push(
@@ -411,7 +548,54 @@ function setupWordCount(context) {
   update();
 }
 
+async function projectWordCountCmd() {
+  const root = (vscode.workspace.workspaceFolders || [])[0];
+  if (!root) { info('Відкрий папку проєкту.'); return; }
+  const files = await projectFiles(['.tex'], root.uri.fsPath);
+  const rows = files.map((f) => ({ path: f.path, abs: f.abs, words: X.countWords(f.text) })).filter((r) => r.words > 0);
+  if (!rows.length) { info('У проєкті немає слів у .tex-файлах.'); return; }
+  const total = rows.reduce((a, r) => a + r.words, 0);
+  // per chapter (first folder)
+  const byCh = new Map();
+  for (const r of rows) { const k = r.path.includes('/') ? r.path.split('/')[0] : '(корінь)'; byCh.set(k, (byCh.get(k) || 0) + r.words); }
+  const order = chapterOrder();
+  const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
+  const items = [{ label: '$(pencil) Усього: ' + total + ' слів у ' + rows.length + ' файлах', description: 'без команд, формул, коментарів, рисунків' }];
+  if (sep) items.push({ label: 'За розділами', kind: sep });
+  [...byCh].sort((a, b) => (chapterRank(order, a[0] + '/x') - chapterRank(order, b[0] + '/x')) || (a[0] < b[0] ? -1 : 1)).forEach(([k, n]) => items.push({ label: '$(folder) ' + k, description: n + ' сл. · ' + Math.round(100 * n / total) + '%' }));
+  if (sep) items.push({ label: 'За файлами', kind: sep });
+  rows.sort((a, b) => b.words - a.words).forEach((r) => items.push({ label: r.path, description: r.words + ' сл.', abs: r.abs }));
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Слова в проєкті; вибери файл, щоб відкрити', matchOnDescription: true });
+  if (pick && pick.abs) vscode.window.showTextDocument(vscode.Uri.file(pick.abs));
+}
+
 /* ============================ 7. unused \usepackage ============================ */
+async function removePackages(list, files) {
+  const we = new vscode.WorkspaceEdit();
+  const byFile = new Map();
+  for (const u of list) { if (!byFile.has(u.path)) byFile.set(u.path, []); byFile.get(u.path).push(u); }
+  let n = 0;
+  const touched = [];
+  for (const [p, us] of byFile) {
+    const f = files.find((x) => x.path === p);
+    if (!f) continue;
+    const uri = vscode.Uri.file(f.abs);
+    const lines = f.lines;
+    // from the bottom up so that the line numbers stay valid
+    const edits = us.map((u) => ({ u, e: X.removePackageEdit(lines[u.line], u.pkg) })).filter((x) => x.e).sort((a, b) => b.u.line - a.u.line || b.e.col - a.e.col);
+    for (const { u, e } of edits) {
+      if (e.kind === 'line') we.delete(uri, u.line + 1 < lines.length ? new vscode.Range(u.line, 0, u.line + 1, 0) : new vscode.Range(u.line, 0, u.line, lines[u.line].length));
+      else we.replace(uri, new vscode.Range(u.line, e.col, u.line, e.col + e.len), e.newText);
+      n++;
+    }
+    if (edits.length) touched.push(f.abs);
+  }
+  if (!n) return 0;
+  if (!(await vscode.workspace.applyEdit(we))) return 0;
+  for (const abs of touched) { const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === abs); if (d && d.isDirty) { try { await d.save(); } catch (e) { /* stays modified */ } } }
+  return n;
+}
+
 async function unusedPackagesCmd() {
   const root = (vscode.workspace.workspaceFolders || [])[0];
   if (!root) { info('Відкрий папку проєкту.'); return; }
@@ -421,8 +605,24 @@ async function unusedPackagesCmd() {
   const items = res.unused.map((u) => ({ label: u.pkg, description: u.path + ':' + (u.line + 1), detail: 'У проєкті не знайдено жодної команди чи оточення цього пакета. Перевір вручну перед видаленням.', u }));
   const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Можливо зайві пакети: ' + res.unused.length + ' (перевірено ' + res.checked + ')' });
   if (!pick) return;
-  const f = files.find((x) => x.path === pick.u.path);
-  await vscode.window.showTextDocument(vscode.Uri.file(f.abs), { selection: new vscode.Range(pick.u.line, pick.u.col, pick.u.line, pick.u.col + pick.u.pkg.length) });
+  const act = await vscode.window.showQuickPick([
+    { label: '$(go-to-file) Перейти до рядка', id: 'go' },
+    { label: '$(trash) Видалити «' + pick.u.pkg + '» з \\usepackage', id: 'one' },
+    { label: '$(trash) Видалити всі ' + res.unused.length + ' знайдених', id: 'all' }
+  ], { placeHolder: pick.u.pkg + ' · ' + pick.u.path + ':' + (pick.u.line + 1) });
+  if (!act) return;
+  if (act.id === 'go') {
+    const f = files.find((x) => x.path === pick.u.path);
+    await vscode.window.showTextDocument(vscode.Uri.file(f.abs), { selection: new vscode.Range(pick.u.line, pick.u.col, pick.u.line, pick.u.col + pick.u.pkg.length) });
+    return;
+  }
+  const list = act.id === 'one' ? [pick.u] : res.unused;
+  if (act.id === 'all') {
+    const ok = await vscode.window.showWarningMessage('Видалити ' + list.length + ' пакетів з \\usepackage? Це евристика: перевір збірку після цього (Ctrl+Z у кожному файлі скасовує).', { modal: true }, 'Видалити');
+    if (ok !== 'Видалити') return;
+  }
+  const n = await removePackages(list, files);
+  info(n ? 'Видалено пакетів: ' + n + '. Збери документ і переконайся, що нічого не зламалось.' : 'Нічого не змінено.');
 }
 
 /* ========================= 8. table from CSV / XLSX / clipboard ========================= */
@@ -450,6 +650,18 @@ async function tableFromFileCmd() {
     }
   } catch (e) { vscode.window.showErrorMessage('Не вдалося прочитати таблицю: ' + (e && e.message ? e.message : e)); return; }
   if (!rows.length || !rows[0].length) { warn('У таблиці немає даних.'); return; }
+  const opts = await vscode.window.showQuickPick([
+    { label: 'Перший рядок: заголовок', id: 'header', picked: true },
+    { label: 'Числа як \\num{…} (siunitx)', id: 'num' },
+    { label: 'Десяткова кома: 1{,}5', id: 'comma' }
+  ], { canPickMany: true, placeHolder: 'Параметри таблиці (Esc: скасувати)' });
+  if (!opts) return;
+  const has = (id) => opts.some((o) => o.id === id);
+  const alignPick = await vscode.window.showQuickPick([
+    { label: 'Авто: перший стовпець ліворуч, решта по центру', id: 'auto' },
+    { label: 'Усе ліворуч', id: 'l' }, { label: 'Усе по центру', id: 'c' }, { label: 'Усе праворуч', id: 'r' }
+  ], { placeHolder: 'Вирівнювання стовпців' });
+  if (!alignPick) return;
   const c = cfg();
   const floatEnv = c.get('tblr.csvFloat', true) !== false;
   let caption = '';
@@ -464,7 +676,7 @@ async function tableFromFileCmd() {
   }
   const o = ed.options || {};
   const unit = o.insertSpaces === false ? '\t' : ' '.repeat(typeof o.tabSize === 'number' ? o.tabSize : 2);
-  const out = X.buildTblr(rows, { caption, label, floatEnv, unit, headerColor: String(c.get('tblr.headerColor', 'themecolorlight')), oddColor: String(c.get('tblr.oddRowColor', 'gray!10')) });
+  const out = X.buildTblr(rows, { caption, label, floatEnv, unit, header: has('header'), align: alignPick.id, num: has('num') ? 'num' : has('comma') ? 'comma' : 'none', headerColor: String(c.get('tblr.headerColor', 'themecolorlight')), oddColor: String(c.get('tblr.oddRowColor', 'gray!10')) });
   const lead = /^\s*/.exec(ed.document.lineAt(ed.selection.active.line).text)[0];
   const eol = ed.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
   const text = out.replace(/\n$/, '').split('\n').map((l, i) => (i ? lead + l : l)).join(eol);
@@ -507,14 +719,46 @@ async function bibDuplicatesCmd() {
   for (const g of groups) {
     for (const e of g.entries) {
       const line = text.slice(0, e.start).split('\n').length - 1;
-      items.push({ label: e.key, description: (g.by === 'doi' ? 'однаковий DOI' : 'однакова назва') + ' · рядок ' + (line + 1), detail: X.fieldValue(e, 'title').slice(0, 100), line, group: g.entries.map((x) => x.key).join(' = ') });
+      items.push({ label: e.key, description: (g.by === 'doi' ? 'однаковий DOI' : 'однакова назва') + ' · рядок ' + (line + 1), detail: X.fieldValue(e, 'title').slice(0, 100), line, keys: g.entries.map((x) => x.key) });
     }
   }
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Можливі дублі: ' + groups.length + ' груп(и). Вибери запис, щоб перейти до нього', matchOnDescription: true, matchOnDetail: true });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Можливі дублі: ' + groups.length + ' груп(и). Вибери запис', matchOnDescription: true, matchOnDetail: true });
   if (!pick) return;
-  const pos = new vscode.Position(pick.line, 0);
-  ed.selection = new vscode.Selection(pos, pos);
-  ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+  const act = await vscode.window.showQuickPick([
+    { label: '$(go-to-file) Перейти до запису', id: 'go' },
+    { label: '$(git-merge) Об\'єднати групу (' + pick.keys.join(', ') + '), залишивши «' + pick.label + '»', id: 'merge' }
+  ], { placeHolder: pick.label });
+  if (!act) return;
+  if (act.id === 'go') {
+    const pos = new vscode.Position(pick.line, 0);
+    ed.selection = new vscode.Selection(pos, pos);
+    ed.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+    return;
+  }
+  const bibDoc = ed.document;
+  const group = X.parseBib(text).filter((e) => pick.keys.includes(e.key));
+  const res = X.mergeBibGroup(text, group, pick.label);
+  const root = rootOf(bibDoc.uri);
+  const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty'], root || undefined);
+  const plan = [];
+  let cites = 0;
+  for (const f of files) {
+    const r = X.renameCiteKeys(f.text.replace(/\r\n/g, '\n'), res.keyMap);
+    if (r.count) { plan.push({ f, r }); cites += r.count; }
+  }
+  const ok = await vscode.window.showInformationMessage('Залишити «' + pick.label + '», видалити ' + [...res.keyMap.keys()].join(', ') + (res.added ? '; додано полів: ' + res.added : '') + '; \\cite оновиться в ' + plan.length + ' файлах (' + cites + ' входжень).', { modal: true }, 'Об\'єднати');
+  if (ok !== 'Об\'єднати') return;
+  const we = new vscode.WorkspaceEdit();
+  const touched = [];
+  for (const p of plan) {
+    const d = await vscode.workspace.openTextDocument(vscode.Uri.file(p.f.abs));
+    we.replace(d.uri, fullRange(d), p.r.text.replace(/\n/g, d.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
+    touched.push(d);
+  }
+  we.replace(bibDoc.uri, fullRange(bibDoc), res.text.replace(/\n/g, bibDoc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
+  if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося застосувати зміни.'); return; }
+  for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
+  info('Об\'єднано. \\cite оновлено: ' + cites + '. Скасувати: Ctrl+Z у кожному файлі.');
 }
 
 async function bibKeysCmd() {
@@ -524,51 +768,64 @@ async function bibKeysCmd() {
   const entries = X.parseBib(bibDoc.getText().replace(/\r\n/g, '\n'));
   const map = X.bibKeyMap(entries);
   if (!map.size) { info('Ключі вже мають вигляд «прізвище+рік» (' + entries.filter((e) => !e.special).length + ' записів).'); return; }
-  const sample = [...map].slice(0, 8).map(([a, b]) => a + ' → ' + b).join('\n');
-  const pick = await vscode.window.showInformationMessage('Перейменувати ключів: ' + map.size + ' (прізвище першого автора + рік, ASCII). Усі \\cite{…} у проєкті буде оновлено.\n\n' + sample + (map.size > 8 ? '\n…' : ''), { modal: true }, 'Перейменувати');
-  if (pick !== 'Перейменувати') return;
   const root = rootOf(bibDoc.uri);
   const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty'], root || undefined);
+  const texts = files.map((f) => ({ f, t: f.text.replace(/\r\n/g, '\n') }));
+  const items = [...map].map(([a, b]) => {
+    let n = 0;
+    for (const x of texts) n += X.renameCiteKeys(x.t, new Map([[a, b]])).count;
+    return { label: a + ' → ' + b, description: n + ' \\cite', picked: true, key: a };
+  });
+  const picks = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: 'Які ключі перейменувати? Знято: не чіпати. Усі \\cite{…} у проєкті оновляться', matchOnDescription: true });
+  if (!picks || !picks.length) return;
+  const sub = new Map(picks.map((p) => [p.key, map.get(p.key)]));
   const we = new vscode.WorkspaceEdit();
   let cites = 0;
   const touched = [];
-  for (const f of files) {
-    const r = X.renameCiteKeys(f.text.replace(/\r\n/g, '\n'), map);
+  for (const x of texts) {
+    const r = X.renameCiteKeys(x.t, sub);
     if (!r.count) continue;
     cites += r.count;
-    const d = await vscode.workspace.openTextDocument(vscode.Uri.file(f.abs));
-    const eol = d.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-    we.replace(d.uri, new vscode.Range(0, 0, d.lineCount - 1, d.lineAt(d.lineCount - 1).text.length), r.text.replace(/\n/g, eol));
+    const d = await vscode.workspace.openTextDocument(vscode.Uri.file(x.f.abs));
+    we.replace(d.uri, fullRange(d), r.text.replace(/\n/g, d.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
     touched.push(d);
   }
-  const fmt = X.formatBib(bibDoc.getText(), Object.assign({}, bibOptions(ed), { keyMap: map, sortBy: 'none' }));
-  we.replace(bibDoc.uri, new vscode.Range(0, 0, bibDoc.lineCount - 1, bibDoc.lineAt(bibDoc.lineCount - 1).text.length), fmt.text);
+  const fmt = X.formatBib(bibDoc.getText(), Object.assign({}, bibOptions(ed), { keyMap: sub, sortBy: 'none' }));
+  we.replace(bibDoc.uri, fullRange(bibDoc), fmt.text);
   if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося застосувати зміни.'); return; }
   for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
-  info('Ключів перейменовано: ' + map.size + ', посилань \\cite оновлено: ' + cites + ' (у ' + touched.length + ' файлах). Скасувати: Ctrl+Z у кожному файлі.');
+  info('Ключів перейменовано: ' + sub.size + ', посилань \\cite оновлено: ' + cites + ' (у ' + touched.length + ' файлах). Скасувати: Ctrl+Z у кожному файлі.');
 }
 
 /* ============================== 10. list of formulas ============================== */
 async function listEquationsCmd() {
   const root = (vscode.workspace.workspaceFolders || [])[0];
   if (!root) { info('Відкрий папку проєкту.'); return; }
-  const files = await projectFiles(['.tex', '.tikz'], root.uri.fsPath);
-  let aux = null;
-  try { aux = require('./extra').auxInfo; } catch (e) { /* optional */ }
+  const files = (await projectFiles(['.tex', '.tikz'], root.uri.fsPath)).sort(byChapter(chapterOrder()));
+  let auxFn = null;
+  try { auxFn = require('./extra').auxInfo; } catch (e) { /* optional */ }
+  const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
   const items = [];
+  let total = 0;
+  let noLabel = 0;
   for (const f of files) {
-    const lines = f.text.split(/\r?\n/);
-    for (const q of X.scanEquations(lines)) {
-      if (q.starred || q.env === 'displaymath') continue;
-      const uri = vscode.Uri.file(f.abs);
-      const nums = q.labels.map((l) => { const a = aux && aux(uri, l); return a && a.num ? a.num : null; });
-      const numTxt = nums.some(Boolean) ? nums.filter(Boolean).join(', ') : '—';
-      items.push({ label: '(' + numTxt + ')  ' + (q.labels.length ? q.labels.join(', ') : 'без мітки'), description: f.path + ':' + (q.line + 1) + ' · ' + q.env + (q.rows > 1 ? ' ×' + q.rows : ''), detail: q.snippet, f, q });
-    }
+    const eqs = X.scanEquations(f.text.split(/\r?\n/)).filter((q) => !q.starred && q.env !== 'displaymath');
+    if (!eqs.length) continue;
+    const uri = vscode.Uri.file(f.abs);
+    const nums = X.eqNumbers(eqs, (name) => { const a = auxFn && auxFn(uri, name); return a && a.num ? String(a.num) : null; });
+    if (sep) items.push({ label: f.path, kind: sep });
+    eqs.forEach((q, i) => {
+      const n = nums[i];
+      if (n.none) return;
+      total++;
+      if (!q.labels.length) noLabel++;
+      const numTxt = n.start ? (n.approx ? '~' : '') + (n.start === n.end ? n.start : n.start + '–' + n.end) : '—';
+      items.push({ label: '(' + numTxt + ')  ' + (q.labels.length ? q.labels.join(', ') : 'без мітки'), description: (sep ? '' : f.path) + ':' + (q.line + 1) + ' · ' + q.env + (q.rows > 1 ? ' ×' + q.rows : ''), detail: q.snippet, f, q });
+    });
   }
-  if (!items.length) { info('У проєкті немає нумерованих формул.'); return; }
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Формул: ' + items.length + '. Номери беруться з останньої збірки (.aux), «—»: ще не зібрано чи немає мітки', matchOnDescription: true, matchOnDetail: true });
-  if (!pick) return;
+  if (!total) { info('У проєкті немає нумерованих формул.'); return; }
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Формул: ' + total + ', без мітки: ' + noLabel + '. Номер із ~ порахований від найближчої формули з міткою (за останньою збіркою), «—»: ще не зібрано', matchOnDescription: true, matchOnDetail: true });
+  if (!pick || !pick.f) return;
   await vscode.window.showTextDocument(vscode.Uri.file(pick.f.abs), { selection: new vscode.Range(pick.q.line, 0, pick.q.endLine, 0) });
 }
 
@@ -604,6 +861,7 @@ function register(context, helpers) {
   api = helpers || {};
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const labels = new LabelsProvider();
+  labelsProv = labels;
   labels.view = vscode.window.createTreeView('tssworkflow.labelsView', { treeDataProvider: labels, showCollapseAll: true });
   const debounce = (doc) => { if (isTexLike(doc)) labels.schedule(); };
   const debouncedCheck = (() => { let t = null; return (doc) => { clearTimeout(t); t = setTimeout(() => checkFiles(doc), 400); }; })();
@@ -628,6 +886,8 @@ function register(context, helpers) {
       const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Мітка для \\ref', matchOnDescription: true });
       if (pick) await insertRef(pick.name);
     }),
+    cmd('tssworkflow.renameLabel', renameLabelCmd),
+    cmd('tssworkflow.projectWordCount', projectWordCountCmd),
     cmd('tssworkflow.unusedPackages', unusedPackagesCmd),
     cmd('tssworkflow.tableFromFile', tableFromFileCmd),
     cmd('tssworkflow.formatBib', formatBibCmd),
@@ -647,7 +907,7 @@ function register(context, helpers) {
     const w = vscode.workspace.createFileSystemWatcher('**/*.{tex,tikz,cls,sty}');
     context.subscriptions.push(w, w.onDidCreate(() => labels.schedule(1000)), w.onDidDelete(() => labels.schedule(1000)));
   } catch (e) { /* no watcher */ }
-  if (vscode.workspace.onDidRenameFiles) context.subscriptions.push(vscode.workspace.onDidRenameFiles((e) => onRenamed(e).catch(() => {})));
+  if (vscode.workspace.onDidRenameFiles) context.subscriptions.push(vscode.workspace.onDidRenameFiles((e) => onRenamed(e).catch(() => {}).then(() => onMovedTex(e)).catch(() => {})));
   setupWordCount(context);
   vscode.workspace.textDocuments.forEach(checkFiles);
   labels.schedule(1500);
@@ -657,4 +917,4 @@ exports.register = register;
 exports.legacySub = legacySub;
 exports.includeStyle = includeStyle;
 exports.missingFromLog = missingFromLog;
-exports._t = { onRenamed, filesIssues, localinputDefined, LabelsProvider };
+exports._t = { deepWords, onMovedTex, chapterOrder, onRenamed, filesIssues, localinputDefined, LabelsProvider };

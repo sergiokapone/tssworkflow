@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "engines": {
     "vscode": "^1.60.0"
   },
@@ -115,7 +115,9 @@
     "onCommand:tssworkflow.listEquations",
     "onCommand:tssworkflow.savePdfCopy",
     "onView:tssworkflow.labelsView",
-    "onCommand:tssworkflow.editTable"
+    "onCommand:tssworkflow.editTable",
+    "onCommand:tssworkflow.renameLabel",
+    "onCommand:tssworkflow.projectWordCount"
   ],
   "contributes": {
     "commands": [
@@ -478,6 +480,15 @@
       {
         "command": "tssworkflow.editTable",
         "title": "TSS Workflow: Edit table visually (tblr, tabular...)"
+      },
+      {
+        "command": "tssworkflow.renameLabel",
+        "title": "TSS Workflow: Rename label (with all \\ref)",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "tssworkflow.projectWordCount",
+        "title": "TSS Workflow: Word count of the project (by chapter and file)"
       }
     ],
     "menus": {
@@ -830,6 +841,16 @@
           "command": "tssworkflow.insertRefFromLabel",
           "when": "view == tssworkflow.labelsView && viewItem =~ /^tssLabel/",
           "group": "inline@1"
+        },
+        {
+          "command": "tssworkflow.renameLabel",
+          "when": "view == tssworkflow.labelsView && viewItem =~ /^tssLabel/",
+          "group": "inline@2"
+        },
+        {
+          "command": "tssworkflow.renameLabel",
+          "when": "view == tssworkflow.labelsView && viewItem =~ /^tssLabel/",
+          "group": "1_modification"
         }
       ],
       "commandPalette": [
@@ -1791,6 +1812,11 @@
           "type": "boolean",
           "default": true,
           "description": "Table editor: a table whose cells were aligned (& under & ) stays aligned after an edit; a tblr table in the \"Format tblr\" style is formatted again."
+        },
+        "tssworkflow.doctorOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "When a project is opened, warn once if latexmk or lualatex is not in PATH (offers Doctor and \"do not remind\")."
         }
       }
     },

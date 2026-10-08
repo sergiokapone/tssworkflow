@@ -179,6 +179,27 @@ function renameRefs(lines, table, ctx, oldAbs, newAbs, isDir) {
   return edits;
 }
 
+// a .tex file moved to another folder: references that were relative to its old folder (\\localinput, \\includegraphics ...)
+// get the path relative to the new folder. oldCtx has dir = the old folder; newDir = the new one.
+function renameSelfRefs(lines, table, oldCtx, newDir) {
+  const edits = [];
+  lines.forEach((line, i) => {
+    for (const r of findFileRefs(line, table)) {
+      const hit = resolveRef(r.entry, r.name, oldCtx);
+      if (!hit.found || hit.via !== 'file') continue;
+      const base = path.resolve(newDir, r.entry.sub);
+      let rel = posix(path.relative(base, hit.abs));
+      const hadExt = r.entry.exts.includes(path.extname(r.name).toLowerCase());
+      if (!hadExt && hit.abs !== path.resolve(path.resolve(oldCtx.dir, r.entry.sub), r.name)) {
+        const e = path.extname(rel).toLowerCase();
+        if (r.entry.exts.includes(e)) rel = rel.slice(0, rel.length - e.length);
+      }
+      if (rel !== r.name) edits.push({ line: i, col: r.start, len: r.len, newText: rel });
+    }
+  });
+  return edits;
+}
+
 /* ============================ 3. missing files in a log ======================= */
 // TeX Live package that ships a file when the package name differs from the file name
 const TL_MAP = {
@@ -258,6 +279,56 @@ function scanRefs(lines, into) {
   return map;
 }
 
+// a few words that tell what a label stands for: the caption, the section title or the start of the formula
+function labelContext(lines, line) {
+  const strip = (t) => t.replace(/\\label\s*\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim();
+  const grab = (s, re) => { const m = re.exec(s); return m ? strip(m[1]) : ''; };
+  for (let k = line; k >= Math.max(0, line - 14); k--) {
+    const c = codePart(lines[k]);
+    let t;
+    if ((t = grab(c, /\\(?:chapter|section|subsection|subsubsection|paragraph)\*?\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}/))) return t.slice(0, 70);
+    if (k !== line && /\\end\{(figure|table|equation|align|gather|multline|tikzpicture)/.test(c)) break;
+    if ((t = grab(c, /\\caption\*?\s*(?:\[[^\]]*\])?\s*\{([^}]*)/))) return t.slice(0, 70);
+    const b = /\\begin\{(equation|align|gather|multline|flalign|alignat|eqnarray|theorem|lemma|definition|proposition|corollary|example|remark)\*?\}/.exec(c);
+    if (b) {
+      const first = strip(c.slice(b.index + b[0].length)) || strip(codePart(lines[k + 1] || ''));
+      return (/^(equation|align|gather|multline|flalign|alignat|eqnarray)$/.test(b[1]) ? first : b[1] + ' ' + first).slice(0, 70);
+    }
+  }
+  // after the label (a caption often follows it)
+  for (let k = line; k <= Math.min(lines.length - 1, line + 3); k++) {
+    const t = grab(codePart(lines[k]), /\\caption\*?\s*(?:\[[^\]]*\])?\s*\{([^}]*)/);
+    if (t) return t.slice(0, 70);
+  }
+  return '';
+}
+
+// edits that rename a label: \label{old}, every \ref-like use (also in a list \cref{a,old}) and \hyperref[old]
+function renameLabelEdits(lines, oldName, newName) {
+  const edits = [];
+  const reRef = new RegExp('\\\\(?:' + REF_MACROS + '|label)\\*?\\s*(?:\\[[^\\]]*\\])?\\s*\\{([^}]*)\\}', 'g');
+  const reHyper = /\\hyperref\s*\[([^\]]*)\]/g;
+  lines.forEach((line, i) => {
+    const code = codePart(line);
+    let m;
+    reRef.lastIndex = 0;
+    while ((m = reRef.exec(code)) !== null) {
+      const open = m.index + m[0].lastIndexOf('{') + 1;
+      let off = 0;
+      for (const part of m[1].split(',')) {
+        const t = part.trim();
+        if (t === oldName) edits.push({ line: i, col: open + off + (part.length - part.trimStart().length), len: t.length, newText: newName });
+        off += part.length + 1;
+      }
+    }
+    reHyper.lastIndex = 0;
+    while ((m = reHyper.exec(code)) !== null) {
+      if (m[1].trim() === oldName) edits.push({ line: i, col: m.index + m[0].indexOf('[') + 1 + (m[1].length - m[1].trimStart().length), len: oldName.length, newText: newName });
+    }
+  });
+  return edits;
+}
+
 const labelKind = (n) => { const m = /^([A-Za-z]+)[:.\-_]/.exec(n); return m ? m[1].toLowerCase() : ''; };
 
 // files: [{ path, lines }]. -> { groups: [{ path, labels: [{ name, line, col, uses, kind }] }], total, unused }
@@ -291,7 +362,7 @@ function countWords(text) {
   s = s.replace(/\\begin\{(equation|align|gather|multline|flalign|eqnarray|displaymath|math|split|alignat)(\*?)\}[\s\S]*?\\end\{\1\2\}/g, ' ');
   s = s.replace(/\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$|\\\([\s\S]*?\\\)|\$[^$\n]*\$/g, ' ');
   // commands whose argument is not prose
-  s = s.replace(/\\(?:label|ref|eqref|cref|Cref|autoref|pageref|cite[a-z]*|parencite|textcite|autocite|usepackage|RequirePackage|documentclass|input|include|localinput|includegraphics|includechapter|bibliography|bibliographystyle|addbibresource|url|href|graphicspath|newcommand|renewcommand|providecommand|def|setlength|vspace|hspace|color|definecolor|pagestyle|thispagestyle|begin|end)\*?(?:\[[^\]]*\])*(?:\{[^{}]*\})*/g, ' ');
+  s = s.replace(/\\(?:label|ref|eqref|cref|Cref|autoref|pageref|cite[a-z]*|parencite|textcite|autocite|usepackage|RequirePackage|documentclass|input|include|localinput|includegraphics|includechapter|bibliography|bibliographystyle|addbibresource|url|href|graphicspath|newcommand|renewcommand|providecommand|def|setlength|vspace|hspace|color|definecolor|pagestyle|thispagestyle|subfile|multiinclude|begin|end)(?![A-Za-z@])\*?(?:\[[^\]]*\])*(?:\{[^{}]*\})*/g, ' ');
   s = s.replace(/\\[A-Za-z@]+\*?/g, ' ').replace(/\\./g, ' ');
   const words = s.match(/[\p{L}\p{N}][\p{L}\p{N}'’\-]*/gu);
   return words ? words.length : 0;
@@ -491,6 +562,29 @@ function bibKeyMap(entries, o) {
   return map;
 }
 
+// one group of duplicates (entries of parseBib with the same work) -> the .bib text without the others and the key map { other -> kept }.
+// The kept entry gets the fields it lacks from the others.
+function mergeBibGroup(text, group, keepKey) {
+  const keep = group.find((e) => e.key === keepKey) || group[0];
+  const others = group.filter((e) => e !== keep);
+  const have = new Set(keep.fields.map((f) => f.name.toLowerCase()));
+  const merged = { type: keep.type, key: keep.key, fields: keep.fields.slice() };
+  let added = 0;
+  for (const o of others) for (const f of o.fields) if (!have.has(f.name.toLowerCase())) { have.add(f.name.toLowerCase()); merged.fields.push(f); added++; }
+  const edits = others.map((o) => ({ start: o.start, end: o.end, text: '' }));
+  edits.push({ start: keep.start, end: keep.end, text: added ? formatEntry(merged, { sortFields: false }) : keep.raw });
+  edits.sort((a, b) => b.start - a.start);
+  let out = text;
+  for (const e of edits) {
+    let end = e.end;
+    let start = e.start;
+    if (e.text === '') { while (out[end] === '\n' && (out[end + 1] === '\n' || end + 1 >= out.length)) end++; if (out[end] === '\n' && start === 0) end++; else if (out[end] === '\n' && out[start - 1] === '\n') end++; }
+    out = out.slice(0, start) + e.text + out.slice(end);
+  }
+  const keyMap = new Map(others.map((o) => [o.key, keep.key]));
+  return { text: out, keyMap, added };
+}
+
 const CITE_MACROS = 'cite[a-zA-Z]*|parencite[s]?|textcite[s]?|autocite[s]?|footcite[s]?|smartcite[s]?|supercite|citeauthor|citeyear|citetitle|nocite|fullcite|footfullcite|citep|citet|citealp|citealt';
 // renames keys in \cite{a,b}-like macros; returns { text, count }
 function renameCiteKeys(text, keyMap) {
@@ -632,7 +726,7 @@ function texEscape(s) {
 
 // rows -> table with tblr. o: { caption, label, headerColor, header (bool), unit, floatEnv (bool), oddColor }
 function buildTblr(rows, o) {
-  const opt = Object.assign({ header: true, headerColor: 'themecolorlight', oddColor: 'gray!10', unit: '\t', floatEnv: true, align: 'auto' }, o);
+  const opt = Object.assign({ header: true, headerColor: 'themecolorlight', oddColor: 'gray!10', unit: '\t', floatEnv: true, align: 'auto', num: 'none' }, o);
   const u = opt.unit;
   const w = rows.length ? rows[0].length : 0;
   const numeric = (j) => rows.slice(opt.header ? 1 : 0).every((r) => r[j] === '' || /^[-+−]?\d+([.,]\d+)?$/.test(String(r[j]).trim()));
@@ -651,7 +745,16 @@ function buildTblr(rows, o) {
   out.push(ind + u + 'hlines,');
   out.push(ind + u + 'vlines');
   out.push(ind + '}');
-  for (const r of rows) out.push(ind + u + r.map(texEscape).join(' & ') + ' \\\\');
+  const isNum = (v) => /^[-+−]?\d+([.,]\d+)?$/.test(String(v).trim());
+  const cell = (v, ri) => {
+    if ((!opt.header || ri > 0) && isNum(v)) {
+      const t = String(v).trim().replace('−', '-');
+      if (opt.num === 'num') return '\\num{' + t.replace(',', '.') + '}';
+      if (opt.num === 'comma') return t.replace(/[.,]/, '{,}');
+    }
+    return texEscape(v);
+  };
+  rows.forEach((r, ri) => out.push(ind + u + r.map((v) => cell(v, ri)).join(' & ') + ' \\\\'));
   out.push(ind + '\\end{tblr}');
   if (opt.floatEnv) out.push('\\end{table}');
   return out.join('\n') + '\n';
@@ -701,6 +804,40 @@ const PKG_USAGE = {
   titlesec: /\\(titleformat|titlespacing|titleclass|assignpagestyle)\b/,
   tocloft: /\\(cftsetindents|cftpagenumbersoff|cftdot|cftsecfont|cftchapfont|setlength\{\\cft)/,
   csquotes: /\\(enquote|textquote|blockquote|foreignquote|MakeOuterQuote|DeclareQuoteStyle)\b/,
+  amsthm: /\\(newtheorem|theoremstyle|swapnumbers|qedhere|qedsymbol)\b|\\begin\{(proof|theorem|lemma|definition|proposition|corollary|remark|example)\*?\}/,
+  mathrsfs: /\\mathscr\b/,
+  bbm: /\\mathbbm\b/,
+  dsfont: /\\mathds\b/,
+  upgreek: /\\up(alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega)\b/,
+  braket: /\\(bra|ket|braket|Bra|Ket|Braket|set|Set)\b/,
+  empheq: /\\begin\{empheq\}|\\empheqset/,
+  cleveref: /\\(cref|Cref|crefrange|Crefrange|cpageref|crefname|Crefname|creflabelformat|labelcref)\b/,
+  xspace: /\\xspace\b/,
+  ifthen: /\\(ifthenelse|newboolean|setboolean|boolean|whiledo|equal|isodd|lengthtest)\b/,
+  fancyvrb: /\\begin\{(Verbatim|BVerbatim|LVerbatim)\*?\}|\\(VerbatimInput|fvset|DefineVerbatimEnvironment)\b/,
+  rotating: /\\begin\{(sidewaystable|sidewaysfigure|turn|rotate)\*?\}|\\turnbox\b/,
+  pdflscape: /\\begin\{landscape\}/,
+  lscape: /\\begin\{landscape\}/,
+  'tikz-cd': /\\begin\{tikzcd\}/,
+  chemfig: /\\(chemfig|schemestart|chemname)\b/,
+  chemformula: /\\(ch|setchemformula)\b/,
+  xfrac: /\\sfrac\b/,
+  nicefrac: /\\nicefrac\b/,
+  units: /\\(unit|unitfrac)\b/,
+  numprint: /\\(numprint|nprounddigits|npdecimalsign|npthousandsep)\b/,
+  pgfplotstable: /\\(pgfplotstable|pgfplotstabletypeset|pgfplotstableread)\b/,
+  glossaries: /\\(newglossaryentry|newacronym|gls|Gls|glspl|printglossar(y|ies)|makeglossaries|glsaddall)\b/,
+  makeidx: /\\(makeindex|printindex|index)\b/,
+  imakeidx: /\\(makeindex|printindex|index)\b/,
+  enumerate: /\\begin\{enumerate\}\s*\[/,
+  paralist: /\\begin\{(compactitem|compactenum|compactdesc|inparaenum|inparaitem|asparaenum|asparaitem)\}/,
+  mdframed: /\\begin\{mdframed\}|\\(mdfsetup|newmdenv|surroundwithmdframed)\b/,
+  framed: /\\begin\{(framed|shaded|leftbar|snugshade|oframed)\*?\}/,
+  colortbl: /\\(columncolor|rowcolor|cellcolor|arrayrulecolor|doublerulesepcolor|rowcolors)\b/,
+  arydshln: /\\(hdashline|cdashline|firsthdashline|lasthdashline)\b/,
+  diagbox: /\\diagbox\b/,
+  setspace: /\\(onehalfspacing|doublespacing|singlespacing|setstretch|spacing|SetSinglespace)\b|\\begin\{(spacing|singlespace|doublespace|onehalfspace)\}/,
+  lastpage: /\\pageref\{LastPage\}|\\lastpage\b/,
   biblatex: /\\(printbibliography|addbibresource|autocite|parencite|textcite|footcite|DeclareBibliographyCategory|printbibheading)\b/
 };
 
@@ -721,6 +858,28 @@ function findPackages(lines) {
     }
   });
   return out;
+}
+
+// the edit that removes package `pkg` from a line with \usepackage / \RequirePackage:
+// { kind: 'line' } (the line held only this package: delete it), { kind: 'text', col, len, newText } or null
+function removePackageEdit(line, pkg) {
+  const code = codePart(line);
+  const re = /\\(?:usepackage|RequirePackage)\s*(?:\[[^\]]*\])?\s*\{([^}]*)\}/g;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    const parts = m[1].split(',').map((p) => p.trim()).filter(Boolean);
+    if (!parts.includes(pkg)) continue;
+    const rest = parts.filter((p) => p !== pkg);
+    if (!rest.length) {
+      const before = line.slice(0, m.index).trim();
+      const after = line.slice(m.index + m[0].length).trim();
+      if (!before && (!after || after.startsWith('%'))) return { kind: 'line' };
+      return { kind: 'text', col: m.index, len: m[0].length, newText: '' };
+    }
+    const open = m.index + m[0].lastIndexOf('{') + 1;
+    return { kind: 'text', col: open, len: m[1].length, newText: rest.join(',') };
+  }
+  return null;
 }
 
 // files: [{ path, lines }]. -> { unused: [{ pkg, path, line, col }], checked, skipped }
@@ -772,12 +931,56 @@ function scanEquations(lines) {
     let l;
     while ((l = re.exec(text)) !== null) labels.push(l[1].trim());
     const rowParts = text.split(/\\\\(?:\[[^\]]*\])?/);
-    const rows = rowParts.filter((r) => r.replace(/\\(label|nonumber|notag|tag\*?)\s*(\{[^}]*\})?/g, '').trim()).length;
+    const real = rowParts.filter((r) => r.replace(/\\(label|nonumber|notag|tag\*?)\s*(\{[^}]*\})?/g, '').trim());
+    const rows = real.length;
+    // numbered rows: not \nonumber / \notag / \tag; the row index of each label among them
+    let numbered = 0;
+    const labelRows = [];
+    rowParts.forEach((r) => {
+      if (!r.replace(/\\(label|nonumber|notag|tag\*?)\s*(\{[^}]*\})?/g, '').trim()) return;
+      const skip = /\\(nonumber|notag)\b|\\tag\*?\s*\{/.test(r);
+      const idx = skip ? -1 : numbered;
+      const re2 = /\\label\s*\{([^}]*)\}/g;
+      let l2;
+      while ((l2 = re2.exec(r)) !== null) labelRows.push({ name: l2[1].trim(), row: idx });
+      if (!skip) numbered++;
+    });
     const snippet = text.replace(/\\label\s*\{[^}]*\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 90);
-    out.push({ env, starred, line: i, endLine: j, labels, rows: Math.max(1, rows), snippet });
+    out.push({ env, starred, line: i, endLine: j, labels, rows: Math.max(1, rows), numbered: env === 'equation' ? (/\\(nonumber|notag)\b/.test(text) ? 0 : 1) : numbered, labelRows, snippet });
     i = j;
   }
   return out;
+}
+
+// numbers of the formulas of one file in order. aux(name) -> '2.3' | null. Unlabelled formulas count from the nearest labelled one:
+// [{ start, end, approx }] (start / end = '2.3' or null)
+function eqNumbers(eqs, aux) {
+  const split = (n) => { const m = /^(.*?)(\d+)$/.exec(String(n)); return m ? { pre: m[1], n: +m[2] } : null; };
+  const anchor = eqs.map((q) => {
+    for (const l of q.labelRows || []) {
+      if (l.row < 0) continue;
+      const p = split(aux(l.name) || '');
+      if (p) return { pre: p.pre, start: p.n - l.row };
+    }
+    return null;
+  });
+  return eqs.map((q, i) => {
+    if (!q.numbered) return { start: null, end: null, approx: false, none: true };
+    let a = anchor[i];
+    let approx = false;
+    if (!a) {
+      approx = true;
+      let sum = 0;
+      for (let k = i - 1; k >= 0; k--) { sum += eqs[k].numbered; if (anchor[k]) { a = { pre: anchor[k].pre, start: anchor[k].start + sum }; break; } }
+      if (!a) {
+        sum = 0;
+        for (let k = i; k < eqs.length; k++) { if (k > i) sum += eqs[k - 1].numbered; if (k > i && anchor[k]) { a = { pre: anchor[k].pre, start: anchor[k].start - sum }; break; } }
+        if (a && a.start < 1) a = null;
+      }
+    }
+    if (!a) return { start: null, end: null, approx: true };
+    return { start: a.pre + a.start, end: a.pre + (a.start + q.numbered - 1), approx };
+  });
 }
 
 /* =============================== 10. dated PDF name =========================== */
@@ -788,6 +991,7 @@ function datedName(base, d, withTime) {
 }
 
 module.exports = {
+  renameSelfRefs, labelContext, renameLabelEdits, removePackageEdit, eqNumbers, mergeBibGroup,
   DEFAULT_FILE_MACROS, LEGACY_MACROS, DEFAULT_ROOT_MACROS, fileMacroTable, findFileRefs, resolveRef, checkFileRefs, basesFor, candidates,
   renameRefs, missingFilesFromLog, tlmgrCommands, TL_MAP,
   scanLabels, scanRefs, buildLabelIndex, refText, labelKind,
