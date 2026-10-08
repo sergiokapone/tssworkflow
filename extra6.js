@@ -73,7 +73,12 @@ async function onOp(op) {
   const res = X.applyOp(cur.model, op);
   if (res.error) { panel.webview.postMessage({ type: 'error', message: res.error }); push(); return; }
   if (res.same) return;
-  const out = X.serialize(res.model);
+  const align = cfg().get('tableEditor.alignAfterEdit', true) !== false;
+  let out = X.serialize(res.model, { align });
+  // a tblr table written in the "Format tblr" style stays in it
+  if (align && res.model.isTblr && !res.model.spread) {
+    try { out = X.restyleTblr(cur.text, cur.env, out, tblrOptions(cur.doc)); } catch (e) { /* keep the plain result */ }
+  }
   if (out === cur.text.slice(cur.env.start, cur.env.end)) { push(); return; }
   const we = new vscode.WorkspaceEdit();
   we.replace(cur.doc.uri, new vscode.Range(cur.doc.positionAt(cur.env.start), cur.doc.positionAt(cur.env.end)), out);
@@ -82,6 +87,32 @@ async function onOp(op) {
   await push({ focus: op.focus || null });
 }
 
+// same options as the Format tblr command
+function tblrOptions(doc) {
+  const c = cfg();
+  const ed = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === doc.uri.toString());
+  const o = (ed && ed.options) || {};
+  const tabSize = typeof o.tabSize === 'number' ? o.tabSize : 2;
+  return { maxWidth: Math.max(40, Number(c.get('tblr.maxWidth', 100)) || 100), sort: c.get('tblr.sortOptions', true) !== false, unit: o.insertSpaces === false ? '\t' : ' '.repeat(tabSize), tabSize };
+}
+
+// Ctrl+Z / Ctrl+Y in the grid: the change of the file is undone, not the typing in a cell
+async function history(cmd) {
+  const cur = await current();
+  if (!cur || !cur.doc) return;
+  const ed = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === cur.doc.uri.toString());
+  try {
+    await vscode.window.showTextDocument(cur.doc, { viewColumn: ed ? ed.viewColumn : vscode.ViewColumn.One, preserveFocus: false });
+    await vscode.commands.executeCommand(cmd);
+  } finally {
+    if (panel) panel.reveal(panel.viewColumn, false);
+  }
+}
+
+// the changes go one after another: each one starts from the text the previous one left
+let chain = Promise.resolve();
+const enqueue = (fn) => { chain = chain.then(fn, fn); return chain; };
+
 /* -------------------------------- the panel -------------------------------- */
 function html(webview, extUri) {
   const n = nonce();
@@ -89,8 +120,8 @@ function html(webview, extUri) {
   const csp = "default-src 'none'; style-src " + webview.cspSource + " 'unsafe-inline'; script-src 'nonce-" + n + "' " + webview.cspSource + '; font-src ' + webview.cspSource + '; img-src ' + webview.cspSource + ' data:;';
   return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + kx('katex.min.css') + '"><style>' + CSS + '</style></head><body>' +
-    '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="toast"></div>' +
-    '<div id="wrap"><table id="t"></table></div><div id="hint">Enter: вниз · Tab: далі · Esc: скасувати · вставка діапазону з Excel заповнює клітинки · зміни йдуть у файл (Ctrl+Z скасовує)</div>' +
+    '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div>' +
+    '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+Z: скасувати зміну у файлі</div>' +
     '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '">' + JS + '</script></body></html>';
 }
 
@@ -114,26 +145,35 @@ const CSS = [
   '.tools button.x:hover{color:var(--vscode-errorForeground)}',
   'td.addc,td.addr{text-align:center;border-style:dashed;opacity:.65}td.addc:hover,td.addr:hover{opacity:1;background:var(--vscode-toolbar-hoverBackground)}td.addc,td.addr{cursor:pointer;padding:2px 10px}',
   'td.c .chip{display:inline-block;font-size:.85em;padding:0 5px;border-radius:8px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}td.c .katex{font-size:1.05em}td.c.merged{box-shadow:inset 0 0 0 1px var(--vscode-focusBorder)}td.c.unk{border-bottom:2px dotted var(--vscode-editorWarning-foreground)}td.c b{font-weight:700}',
+  'td.c.sel{box-shadow:inset 0 0 0 2px var(--vscode-focusBorder);background-image:linear-gradient(rgba(80,140,255,.25),rgba(80,140,255,.25))}#wrap:focus{outline:none}body.dragging{user-select:none;cursor:cell}',
+  'td.c.formula{font-style:italic;background-image:linear-gradient(rgba(150,150,150,.12),rgba(150,150,150,.12))}td.c code{font-family:var(--vscode-editor-font-family)}#info{opacity:.7;margin:2px 0;font-size:.88em}#info:empty{display:none}',
   '#hint{margin-top:8px;font-size:.8em;opacity:.6}'
 ].join('');
 
 const JS = String.raw`
 const vscode = acquireVsCodeApi();
 let view = null, last = '';
+let sel = null;     // { a: {r, c}, f: {r, c} }: selected cells (no cell is being edited)
+let mouse = null;   // { r, c, td, dragging }
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const colName = (i) => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
-function post(op) { vscode.postMessage({ type: 'op', op }); }
-function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => { t.style.display = 'none'; }, 5000); }
+const STRUCT = new Set(['addRow', 'delRow', 'moveRow', 'addCol', 'delCol', 'moveCol', 'dupRows']);
+function post(op) { if (STRUCT.has(op.type)) { sel = null; paintSel(); } vscode.postMessage({ type: 'op', op: op }); }
+function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 5000); }
+const cellAt = (r, c) => document.querySelector('td.c[data-r="' + r + '"][data-c="' + c + '"]');
+const allCells = () => Array.prototype.slice.call(document.querySelectorAll('td.c'));
+const isCell = (el) => !!(el && el.classList && el.classList.contains('c'));
 
 function btn(label, title, fn, cls, disabled) {
   const b = document.createElement('button');
   b.textContent = label; b.title = title; if (cls) b.className = cls; if (disabled) b.disabled = true;
-  b.addEventListener('mousedown', (e) => e.preventDefault());
-  b.addEventListener('click', (e) => { e.stopPropagation(); if (!disabled) fn(); });
+  b.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  b.addEventListener('click', function (e) { e.stopPropagation(); if (!disabled) fn(); });
   return b;
 }
 
+/* ----------------------------- how a cell looks ----------------------------- */
 function mathHtml(src) {
   try { if (window.katex) return window.katex.renderToString(src, { throwOnError: false, output: 'html', strict: 'ignore' }); } catch (e) { /* fall through */ }
   return '<code>' + esc(src) + '</code>';
@@ -141,10 +181,11 @@ function mathHtml(src) {
 function chip(icon, text) { return '<span class="chip">' + icon + ' ' + text + '</span>'; }
 function textHtml(t) {
   let s = esc(t);
-  s = s.replace(/\\includegraphics(?:\[[^\]]*\])?\{([^}]*)\}/g, (a, n) => chip('🖼', n));
-  s = s.replace(/\\(?:localinput|input|include|subfile)\{([^}]*)\}/g, (a, n) => chip('◇', n));
+  s = s.replace(/\\includegraphics(?:\[[^\]]*\])?\{([^}]*)\}/g, function (a, n) { return chip('🖼', n); });
+  s = s.replace(/\\(?:localinput|input|include|subfile)\{([^}]*)\}/g, function (a, n) { return chip('◇', n); });
   s = s.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/g, chip('◇', 'tikz'));
-  s = s.replace(/\\(?:eqref|ref|autoref|cref|Cref)\{([^}]*)\}/g, (a, n) => chip('→', n));
+  s = s.replace(/\\(?:eqref|ref|autoref|cref|Cref)\{([^}]*)\}/g, function (a, n) { return chip('→', n); });
+  s = s.replace(/\\rownumber\b/g, chip('№', 'авто'));
   s = s.replace(/\\(?:cite[a-z]*|parencite|textcite|autocite)(?:\[[^\]]*\])*\{([^}]*)\}/g, '[$1]');
   s = s.replace(/\\SI\{([^}]*)\}\{([^}]*)\}/g, '$1\u00a0$2').replace(/\\(?:num|unit|si)\{([^}]*)\}/g, '$1');
   s = s.replace(/\\textbf\{([^{}]*)\}/g, '<b>$1</b>').replace(/\\(?:textit|emph)\{([^{}]*)\}/g, '<i>$1</i>').replace(/\\underline\{([^{}]*)\}/g, '<u>$1</u>');
@@ -159,54 +200,96 @@ function fmt(raw) {
   while ((m = re.exec(s))) { out += textHtml(s.slice(last, m.index)) + mathHtml(m[1] || m[2] || m[3]); last = re.lastIndex; }
   return out + textHtml(s.slice(last));
 }
+// spreadtab: "@ text" is a text cell, anything else with letters (sum(c2:[0,-1])) is a formula
+const isFormulaRaw = (raw) => !!(view && view.spread) && raw !== '' && !/^@/.test(raw) && !/^\\/.test(raw) && /[A-Za-z]/.test(raw);
 function renderCell(td, raw) {
-  td.innerHTML = fmt(String(raw).replace(/^\\cellcolor(?:\[[^\]]*\])?\{[^}]*\}\s*/, ''));
+  let s = String(raw).replace(/^\\cellcolor(?:\[[^\]]*\])?\{[^}]*\}\s*/, '');
+  if (isFormulaRaw(s)) { td.classList.add('formula'); td.innerHTML = chip('ƒ', '') + ' <code>' + esc(s) + '</code>'; return; }
+  td.classList.remove('formula');
+  if (view && view.spread) s = s.replace(/^@\s*/, '');
+  td.innerHTML = fmt(s);
 }
-document.addEventListener('focusin', (e) => {
-  const td = e.target;
-  if (!td.classList || !td.classList.contains('c')) return;
-  td.textContent = td.dataset.orig;
-  const sel = window.getSelection(); const rg = document.createRange(); rg.selectNodeContents(td); rg.collapse(false); sel.removeAllRanges(); sel.addRange(rg);
-});
 
+/* -------------------------------- selection -------------------------------- */
+function rect() {
+  if (!sel) return null;
+  return { r1: Math.min(sel.a.r, sel.f.r), r2: Math.max(sel.a.r, sel.f.r), c1: Math.min(sel.a.c, sel.f.c), c2: Math.max(sel.a.c, sel.f.c) };
+}
+function paintSel() {
+  document.querySelectorAll('td.c.sel').forEach(function (td) { td.classList.remove('sel'); });
+  const rc = rect();
+  if (!rc) return;
+  for (let r = rc.r1; r <= rc.r2; r++) for (let c = rc.c1; c <= rc.c2; c++) { const td = cellAt(r, c); if (td) td.classList.add('sel'); }
+}
+function setSel(a, f) {
+  const act = document.activeElement;
+  if (isCell(act)) act.blur();
+  sel = { a: a, f: f };
+  paintSel();
+  $('wrap').focus({ preventScroll: true });
+}
+function clampCell(r, c) {
+  if (!view) return null;
+  r = Math.max(0, Math.min(view.rows.length - 1, r));
+  const n = view.rows[r].cells.length;
+  c = Math.max(0, Math.min(n - 1, c));
+  return { r: r, c: c };
+}
+// the nearest existing cell (merged cells hide some of them)
+function findCell(r, c, dc) {
+  const p = clampCell(r, c);
+  if (!p) return null;
+  for (let k = p.c; k >= 0 && k < view.rows[p.r].cells.length; k += (dc || 1)) { const td = cellAt(p.r, k); if (td) return td; }
+  for (let k = p.c; k >= 0; k--) { const td = cellAt(p.r, k); if (td) return td; }
+  return null;
+}
+function tsv(rc) {
+  const lines = [];
+  for (let r = rc.r1; r <= rc.r2; r++) { const row = []; for (let c = rc.c1; c <= rc.c2; c++) { const td = cellAt(r, c); row.push(td ? td.dataset.orig : ''); } lines.push(row.join('\t')); }
+  return lines.join('\n');
+}
+function parseGrid(txt) { return txt.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n').map(function (l) { return l.split('\t'); }); }
+function caretToEnd(td) { const s = window.getSelection(); const rg = document.createRange(); rg.selectNodeContents(td); rg.collapse(false); s.removeAllRanges(); s.addRange(rg); }
+
+/* --------------------------------- drawing --------------------------------- */
 function render(v, focus) {
   view = v;
   const t = $('t');
-  const prev = focus || (document.activeElement && document.activeElement.dataset && document.activeElement.dataset.r !== undefined ? { r: +document.activeElement.dataset.r, c: +document.activeElement.dataset.c } : null);
+  const act = document.activeElement;
+  const prev = focus || (isCell(act) ? { r: +act.dataset.r, c: +act.dataset.c } : null);
   t.innerHTML = '';
   const cols = v.canCols;
-  // header
   const head = document.createElement('tr');
   head.appendChild(document.createElement('th'));
-  let ci = 0;
   for (let c = 0; c < v.width; c++) {
-    const th = document.createElement('th'); th.className = 'ch';
+    const th = document.createElement('th'); th.className = 'ch'; th.dataset.col = c;
     th.appendChild(document.createTextNode(colName(c)));
     const tl = document.createElement('div'); tl.className = 'tools';
-    tl.appendChild(btn('◀', 'Лівіше', () => post({ type: 'moveCol', c, dir: -1 }), '', !cols || c === 0));
-    tl.appendChild(btn('▶', 'Правіше', () => post({ type: 'moveCol', c, dir: 1 }), '', !cols || c === v.width - 1));
-    tl.appendChild(btn('+◀', 'Додати стовпець ліворуч', () => post({ type: 'addCol', at: c }), '', !cols));
-    tl.appendChild(btn('▶+', 'Додати стовпець праворуч', () => post({ type: 'addCol', at: c + 1 }), '', !cols));
-    if (v.align) for (const a of ['l', 'c', 'r']) tl.appendChild(btn(a, 'Вирівняти: ' + a, () => post({ type: 'setAlign', c, a }), v.align[c] === a ? 'on' : ''));
-    tl.appendChild(btn('✕', 'Видалити стовпець', () => post({ type: 'delCol', c }), 'x', !cols || v.width <= 1));
+    tl.appendChild(btn('◀', 'Лівіше (Alt+←)', function () { post({ type: 'moveCol', c: c, dir: -1 }); }, '', !cols || c === 0));
+    tl.appendChild(btn('▶', 'Правіше (Alt+→)', function () { post({ type: 'moveCol', c: c, dir: 1 }); }, '', !cols || c === v.width - 1));
+    tl.appendChild(btn('+◀', 'Додати стовпець ліворуч', function () { post({ type: 'addCol', at: c }); }, '', !cols));
+    tl.appendChild(btn('▶+', 'Додати стовпець праворуч', function () { post({ type: 'addCol', at: c + 1 }); }, '', !cols));
+    if (v.align) ['l', 'c', 'r'].forEach(function (a) { tl.appendChild(btn(a, 'Вирівняти: ' + a, function () { post({ type: 'setAlign', c: c, a: a }); }, v.align[c] === a ? 'on' : '')); });
+    tl.appendChild(btn('✕', 'Видалити стовпець', function () { post({ type: 'delCol', c: c }); }, 'x', !cols || v.width <= 1));
     th.appendChild(tl); head.appendChild(th);
   }
   t.appendChild(head);
-  v.rows.forEach((row, r) => {
+  v.rows.forEach(function (row, r) {
     const tr = document.createElement('tr');
     if (row.rule) tr.className = 'rule';
     if (r === v.rows.length - 1 && v.tailRule) tr.className += ' tailrule';
-    const rh = document.createElement('th'); rh.className = 'rh'; rh.textContent = String(r + 1);
+    const rh = document.createElement('th'); rh.className = 'rh'; rh.textContent = String(r + 1); rh.dataset.row = r;
     if (row.extra) rh.title = row.extra;
     const tl = document.createElement('div'); tl.className = 'tools';
-    tl.appendChild(btn('▲', 'Вище', () => post({ type: 'moveRow', r, dir: -1 }), '', r === 0));
-    tl.appendChild(btn('▼', 'Нижче', () => post({ type: 'moveRow', r, dir: 1 }), '', r === v.rows.length - 1));
-    tl.appendChild(btn('+▲', 'Додати рядок вище', () => post({ type: 'addRow', at: r, focus: { r, c: 0 } })));
-    tl.appendChild(btn('▼+', 'Додати рядок нижче', () => post({ type: 'addRow', at: r + 1, focus: { r: r + 1, c: 0 } })));
-    tl.appendChild(btn('✕', 'Видалити рядок', () => post({ type: 'delRow', r }), 'x', v.rows.length <= 1));
+    tl.appendChild(btn('▲', 'Вище (Alt+↑)', function () { post({ type: 'moveRow', r: r, dir: -1 }); }, '', r === 0));
+    tl.appendChild(btn('▼', 'Нижче (Alt+↓)', function () { post({ type: 'moveRow', r: r, dir: 1 }); }, '', r === v.rows.length - 1));
+    tl.appendChild(btn('+▲', 'Додати рядок вище (Ctrl+Shift+Enter)', function () { post({ type: 'addRow', at: r, focus: { r: r, c: 0 } }); }));
+    tl.appendChild(btn('▼+', 'Додати рядок нижче (Ctrl+Enter)', function () { post({ type: 'addRow', at: r + 1, below: true, focus: { r: r + 1, c: 0 } }); }));
+    tl.appendChild(btn('⧉', 'Дублювати рядок (Ctrl+D)', function () { post({ type: 'dupRows', r1: r, r2: r, focus: { r: r + 1, c: 0 } }); }));
+    tl.appendChild(btn('✕', 'Видалити рядок (Ctrl+Shift+K)', function () { post({ type: 'delRow', r: r }); }, 'x', v.rows.length <= 1));
     rh.appendChild(tl); tr.appendChild(rh);
     let logical = 0;
-    row.cells.forEach((cell, c) => {
+    row.cells.forEach(function (cell, c) {
       const lg = logical;
       logical += (cell.kind === 'mc' ? cell.span : 1);
       if (cell.hidden) return;
@@ -214,6 +297,7 @@ function render(v, focus) {
       const st = cell.style || {};
       td.className = 'c al-' + (st.align || (v.align && v.align[lg]) || 'l') + ((cell.span > 1 || cell.rowspan > 1) ? ' merged' : '') + (st.unknownColor ? ' unk' : '');
       td.contentEditable = 'plaintext-only';
+      td.tabIndex = -1;
       td.spellcheck = false;
       td.dataset.r = r; td.dataset.c = c; td.dataset.orig = cell.raw;
       if (cell.span > 1) td.colSpan = cell.span;
@@ -225,64 +309,198 @@ function render(v, focus) {
       renderCell(td, cell.raw);
       tr.appendChild(td);
     });
-    // short rows are padded visually (the file is changed only when something is typed there)
     t.appendChild(tr);
   });
   const add = document.createElement('tr');
-  const e0 = document.createElement('th'); add.appendChild(e0);
+  add.appendChild(document.createElement('th'));
   const tdA = document.createElement('td'); tdA.className = 'addr'; tdA.colSpan = Math.max(1, v.width); tdA.textContent = '＋ рядок';
-  tdA.addEventListener('click', () => post({ type: 'addRow', at: v.rows.length, focus: { r: v.rows.length, c: 0 } }));
+  tdA.addEventListener('click', function () { post({ type: 'addRow', at: v.rows.length, focus: { r: v.rows.length, c: 0 } }); });
   add.appendChild(tdA); t.appendChild(add);
-  // a "+" cell at the right of the header
-  const th = document.createElement('th'); const b = btn('＋', cols ? 'Додати стовпець у кінець' : v.colsWhy, () => post({ type: 'addCol', at: v.width }), 'add', !cols);
-  th.appendChild(b); head.appendChild(th);
-  $('size').textContent = v.rows.length + ' × ' + v.width;
+  const th = document.createElement('th'); th.appendChild(btn('＋', cols ? 'Додати стовпець у кінець' : v.colsWhy, function () { post({ type: 'addCol', at: v.width }); }, 'add', !cols)); head.appendChild(th);
+  $('size').textContent = v.rows.length + ' × ' + v.width + (v.spread ? ' · spreadtab' : '');
   const w = [];
-  if (v.indexedKeys) w.push('У параметрах є ключі з номерами (row{…}, column{…}, cell{…}, hline{…}): після додавання чи видалення рядків і стовпців перевір їх.');
+  if (v.indexedKeys) w.push('У параметрах є row{odd}, row{even} або відкриті діапазони: вони залежать від кількості рядків, перевір їх після змін.');
   if (v.merged) w.push('Є об\'єднані клітинки: стовпці можна додавати й видаляти, а переставляти лише в коді.');
   $('warn').textContent = w.join(' ');
-  if (prev) { const el = t.querySelector('td.c[data-r="' + prev.r + '"][data-c="' + Math.min(prev.c, (v.rows[prev.r] ? v.rows[prev.r].cells.length : 1) - 1) + '"]'); if (el) el.focus(); }
+  const inf = [];
+  if (v.keysAuto) inf.push('Номери в row{…}, column{…}, cell{…}, hline{…}, vline{…} зсуваються разом із рядками й стовпцями.');
+  if (v.absRefs) inf.push('Посилання на клітинки у формулах (c2…) теж зсуваються автоматично.');
+  $('info').textContent = inf.join(' ');
+  if (sel && (sel.a.r >= v.rows.length || sel.f.r >= v.rows.length)) sel = null;
+  paintSel();
+  if (prev && !sel) { const el = findCell(prev.r, prev.c); if (el) el.focus(); }
 }
-
 function sig(v) { return JSON.stringify(v); }
 
-document.addEventListener('focusout', (e) => {
+/* ---------------------------------- mouse ---------------------------------- */
+document.addEventListener('mousedown', function (e) {
+  const td = e.target.closest ? e.target.closest('td.c') : null;
+  if (!td) return;
+  const r = +td.dataset.r, c = +td.dataset.c;
+  const act = document.activeElement;
+  if (e.shiftKey && (sel || isCell(act))) {
+    e.preventDefault();
+    const anchor = sel ? sel.a : { r: +act.dataset.r, c: +act.dataset.c };
+    setSel(anchor, { r: r, c: c });
+    return;
+  }
+  mouse = { r: r, c: c, td: td, dragging: false };
+  if (sel) { sel = null; paintSel(); }
+});
+document.addEventListener('mousemove', function (e) {
+  if (!mouse) return;
+  if (!(e.buttons & 1)) { mouse = null; return; }
+  const td = e.target.closest ? e.target.closest('td.c') : null;
+  if (!td || (td === mouse.td && !mouse.dragging)) return;
+  mouse.dragging = true;
+  document.body.classList.add('dragging');
+  e.preventDefault();
+  window.getSelection().removeAllRanges();
+  setSel({ r: mouse.r, c: mouse.c }, { r: +td.dataset.r, c: +td.dataset.c });
+});
+document.addEventListener('mouseup', function () { mouse = null; document.body.classList.remove('dragging'); });
+document.addEventListener('click', function (e) {
+  if (e.target.closest && e.target.closest('.tools')) return;
+  const ch = e.target.closest ? e.target.closest('th.ch') : null;
+  const rh = e.target.closest ? e.target.closest('th.rh') : null;
+  if (ch && view) { const c = +ch.dataset.col; setSel({ r: 0, c: c }, { r: view.rows.length - 1, c: c }); }
+  else if (rh && view) { const r = +rh.dataset.row; setSel({ r: r, c: 0 }, { r: r, c: view.rows[r].cells.length - 1 }); }
+});
+
+/* --------------------------------- keyboard --------------------------------- */
+function goto(r, c, from) {
+  const td = findCell(r, c, 1);
+  if (td && td !== from) td.focus();
+}
+function editKey(e, td) {
+  const r = +td.dataset.r, c = +td.dataset.c;
+  const mod = e.ctrlKey || e.metaKey;
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (mod) { td.blur(); if (e.shiftKey) post({ type: 'addRow', at: r, focus: { r: r, c: c } }); else post({ type: 'addRow', at: r + 1, below: true, focus: { r: r + 1, c: c } }); return; }
+    goto(r + (e.shiftKey ? -1 : 1), c, td);
+    return;
+  }
+  if (e.key === 'Escape') { td.textContent = td.dataset.orig; td.blur(); renderCell(td, td.dataset.orig); return; }
+  if (e.key === 'Tab') { e.preventDefault(); const cells = allCells(); const k = cells.indexOf(td) + (e.shiftKey ? -1 : 1); if (cells[k]) cells[k].focus(); return; }
+  if (mod && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); td.blur(); post({ type: 'dupRows', r1: r, r2: r, focus: { r: r + 1, c: c } }); return; }
+  if (mod && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); td.blur(); post({ type: 'delRow', r: r, focus: { r: Math.max(0, r - 1), c: c } }); return; }
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); td.blur(); const d = e.key === 'ArrowUp' ? -1 : 1; post({ type: 'moveRow', r: r, dir: d, focus: { r: r + d, c: c } }); return; }
+  if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); td.blur(); const d = e.key === 'ArrowLeft' ? -1 : 1; post({ type: 'moveCol', c: c, dir: d, focus: { r: r, c: c + d } }); return; }
+  const vertical = e.key === 'ArrowUp' || e.key === 'ArrowDown';
+  const horizontal = e.key === 'ArrowLeft' || e.key === 'ArrowRight';
+  if (!vertical && !horizontal) return;
+  if (horizontal) {
+    const s = window.getSelection();
+    const len = td.textContent.length;
+    const off = s.anchorOffset;
+    const atStart = s.isCollapsed && off === 0, atEnd = s.isCollapsed && off >= len;
+    if (!((e.key === 'ArrowLeft' && atStart) || (e.key === 'ArrowRight' && atEnd))) return;
+  }
+  e.preventDefault();
+  const nr = r + (e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0);
+  const nc = c + (e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0);
+  if (e.shiftKey) { const to = clampCell(nr, nc); if (to) setSel({ r: r, c: c }, to); }
+  else goto(nr, nc, td);
+}
+function selKey(e) {
+  const mod = e.ctrlKey || e.metaKey;
+  const rc = rect();
+  if (e.key === 'Escape') { sel = null; paintSel(); return; }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); post({ type: 'clear', r1: rc.r1, c1: rc.c1, r2: rc.r2, c2: rc.c2 }); return; }
+  if (mod && (e.key === 'a' || e.key === 'A') && view) { e.preventDefault(); setSel({ r: 0, c: 0 }, { r: view.rows.length - 1, c: view.width - 1 }); return; }
+  if (mod && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); post({ type: 'dupRows', r1: rc.r1, r2: rc.r2, focus: { r: rc.r2 + 1, c: rc.c1 } }); return; }
+  if (mod && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); if (rc.r1 !== rc.r2) { toast('Видаляй рядки по одному.'); return; } post({ type: 'delRow', r: rc.r1 }); return; }
+  if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && rc.r1 === rc.r2) { e.preventDefault(); const d = e.key === 'ArrowUp' ? -1 : 1; post({ type: 'moveRow', r: rc.r1, dir: d }); return; }
+  if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && rc.c1 === rc.c2) { e.preventDefault(); const d = e.key === 'ArrowLeft' ? -1 : 1; post({ type: 'moveCol', c: rc.c1, dir: d }); return; }
+  if (e.key.indexOf('Arrow') === 0) {
+    e.preventDefault();
+    const dr = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
+    const dc = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
+    const to = clampCell(sel.f.r + dr, sel.f.c + dc);
+    if (!to) return;
+    if (e.shiftKey) setSel(sel.a, to); else setSel(to, to);
+    return;
+  }
+  if (e.key === 'Enter' || e.key === 'F2' || (e.key.length === 1 && !mod && !e.altKey)) {
+    e.preventDefault();
+    const td = cellAt(sel.f.r, sel.f.c);
+    sel = null; paintSel();
+    if (!td) return;
+    td.focus();
+    if (e.key.length === 1) { td.textContent = e.key; caretToEnd(td); }
+  }
+}
+document.addEventListener('keydown', function (e) {
+  const act = document.activeElement;
+  const editing = isCell(act);
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && !e.altKey && (e.key === 'z' || e.key === 'Z' || e.key === 'y' || e.key === 'Y')) {
+    const typed = editing && act.textContent !== act.dataset.orig;
+    if (!typed) { e.preventDefault(); vscode.postMessage({ type: (e.key === 'y' || e.key === 'Y' || e.shiftKey) ? 'redo' : 'undo' }); }
+    return;
+  }
+  if (editing) editKey(e, act);
+  else if (sel) selKey(e);
+});
+document.addEventListener('focusin', function (e) {
   const td = e.target;
-  if (!td.classList || !td.classList.contains('c')) return;
+  if (!isCell(td)) return;
+  td.textContent = td.dataset.orig;
+  caretToEnd(td);
+});
+document.addEventListener('focusout', function (e) {
+  const td = e.target;
+  if (!isCell(td)) return;
   const txt = td.textContent.replace(/\s*[\r\n]+\s*/g, ' ').trim();
   if (txt !== td.dataset.orig) { td.dataset.orig = txt; post({ type: 'setCell', r: +td.dataset.r, c: +td.dataset.c, text: txt }); }
   renderCell(td, td.dataset.orig);
 });
-document.addEventListener('keydown', (e) => {
-  const td = e.target;
-  if (!td.classList || !td.classList.contains('c')) return;
-  const r = +td.dataset.r, c = +td.dataset.c;
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const nx = document.querySelector('td.c[data-r="' + (r + (e.shiftKey ? -1 : 1)) + '"][data-c="' + c + '"]');
-    if (nx) nx.focus(); else td.blur();
-  } else if (e.key === 'Escape') { td.textContent = td.dataset.orig; td.blur(); }
-});
-document.addEventListener('paste', (e) => {
-  const td = e.target;
-  if (!td.classList || !td.classList.contains('c')) return;
-  const txt = (e.clipboardData || window.clipboardData).getData('text/plain');
-  if (!/[\t\n]/.test(txt.replace(/[\r\n]+$/, ''))) return; // a single value: normal paste
+
+/* ----------------------------- clipboard ----------------------------- */
+document.addEventListener('copy', function (e) {
+  if (isCell(document.activeElement) || !sel) return;
   e.preventDefault();
-  const rows = txt.replace(/\r\n?/g, '\n').replace(/\n+$/, '').split('\n').map((l) => l.split('\t'));
-  post({ type: 'fill', r: +td.dataset.r, c: +td.dataset.c, rows });
+  e.clipboardData.setData('text/plain', tsv(rect()));
+});
+document.addEventListener('cut', function (e) {
+  if (isCell(document.activeElement) || !sel) return;
+  e.preventDefault();
+  const rc = rect();
+  e.clipboardData.setData('text/plain', tsv(rc));
+  post({ type: 'clear', r1: rc.r1, c1: rc.c1, r2: rc.r2, c2: rc.c2 });
+});
+document.addEventListener('paste', function (e) {
+  const act = document.activeElement;
+  const txt = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if (isCell(act)) {
+    if (!/[\t\n]/.test(txt.replace(/[\r\n]+$/, ''))) return;   // one value: an ordinary paste into the text
+    e.preventDefault();
+    post({ type: 'fill', r: +act.dataset.r, c: +act.dataset.c, rows: parseGrid(txt) });
+    return;
+  }
+  if (!sel) return;
+  e.preventDefault();
+  const rc = rect();
+  const grid = parseGrid(txt);
+  const one = grid.length === 1 && grid[0].length === 1;
+  if (one && (rc.r2 > rc.r1 || rc.c2 > rc.c1)) {
+    const rows = [];
+    for (let r = rc.r1; r <= rc.r2; r++) { const row = []; for (let c = rc.c1; c <= rc.c2; c++) row.push(grid[0][0]); rows.push(row); }
+    post({ type: 'fill', r: rc.r1, c: rc.c1, rows: rows });
+  } else post({ type: 'fill', r: rc.r1, c: rc.c1, rows: grid });
 });
 
-window.addEventListener('message', (ev) => {
+window.addEventListener('message', function (ev) {
   const m = ev.data;
   if (m.type === 'model') {
     $('what').textContent = m.view.env + ' · ' + (m.where || '');
     const s = sig(m.view);
-    const active = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('c');
+    const active = isCell(document.activeElement);
     if (s !== last || !active) { last = s; render(m.view, m.focus); } else { view = m.view; }
   } else if (m.type === 'skip') {
     $('t').innerHTML = ''; $('size').textContent = ''; $('what').textContent = 'Цю таблицю не можна редагувати візуально';
-    $('warn').textContent = m.reason + '. Правь її в коді.'; last = '';
+    $('warn').textContent = m.reason + '. Правь її в коді.'; $('info').textContent = ''; last = ''; sel = null;
   } else if (m.type === 'error') {
     toast(m.message); last = '';
   }
@@ -295,8 +513,9 @@ function ensurePanel(context) {
   panel = vscode.window.createWebviewPanel('tssworkflow.tableEditor', 'Таблиця', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] });
   panel.webview.html = html(panel.webview, context.extensionUri);
   panel.webview.onDidReceiveMessage((m) => {
-    if (m.type === 'ready') push();
-    else if (m.type === 'op') onOp(m.op).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
+    if (m.type === 'ready') enqueue(() => push());
+    else if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
+    else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
   }, null, context.subscriptions);
   panel.onDidDispose(() => { panel = null; target = null; }, null, context.subscriptions);
   return panel;

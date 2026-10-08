@@ -9,10 +9,11 @@
 
 const E4 = require('./extra4Pure');
 
-const SUPPORTED = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable'];
+const SUPPORTED = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable', 'spreadtab'];
+const BASE_OK = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable'];
 const TBLR = new Set(['tblr', 'longtblr', 'talltblr']);
 // arguments after \begin{env}: "[" optional [..], "{" mandatory {..}; the LAST {..} is the column specification
-const ARGS = { tblr: '[{', longtblr: '[{', talltblr: '[{', tabular: '[{', array: '[{', longtable: '[{', 'tabular*': '{[{', tabularx: '{[{' };
+const ARGS = { tblr: '[{', longtblr: '[{', talltblr: '[{', tabular: '[{', array: '[{', longtable: '[{', 'tabular*': '{[{', tabularx: '{[{', spreadtab: '[{' };
 
 const RULE_RE = new RegExp('^(?:' + [
   '\\\\(?:hline|toprule|midrule|bottomrule|endhead|endfirsthead|endfoot|endlastfoot|firsthline|lasthline|noalign\\{[^}]*\\}|cline\\{[^}]*\\})',
@@ -198,6 +199,9 @@ function cellInfo(t) {
 /* ------------------------------ merged cells ------------------------------ */
 // a cell: { t raw, span (columns it consumes in the row), cs / rs (colspan / rowspan to draw), kind, head, tail, inner, align }
 function classify(t) {
+  // spreadtab: "@ text" marks a text cell; "@ \\SetCell..." is still a merged cell
+  const at = /^@\s*(?=\\(?:SetCell|multicolumn)\b)/.exec(t);
+  if (at) { const c = classify(t.slice(at[0].length)); c.t = t; c.head = at[0] + c.head; return c; }
   const base = { t, span: 1, cs: 1, rs: 1, kind: 'plain', head: '', tail: '', inner: t, align: '' };
   const mc = /^\\multicolumn\s*/.exec(t);
   if (mc) {
@@ -241,11 +245,11 @@ function rebuild(cell, text) {
   return text;
 }
 
-const withMcSpan = (c, n) => classify(c.t.replace(/^(\\multicolumn\s*\{\s*)\d+/, '$1' + Math.max(1, n)));
+const withMcSpan = (c, n) => classify(c.t.replace(/^((?:@\s*)?\\multicolumn\s*\{\s*)\d+/, '$1' + Math.max(1, n)));
 // key (c / r) of the span options of \SetCell
 function withScOpt(c, key, n) {
   n = Math.max(1, n);
-  const m = /^(\\SetCell\s*)(\[([^\]]*)\])?/.exec(c.t);
+  const m = /^((?:@\s*)?\\SetCell\s*)(\[([^\]]*)\])?/.exec(c.t);
   let opts = m[3] === undefined ? '' : m[3];
   const re = new RegExp('(^|,)(\\s*' + key + '\\s*=\\s*)\\d+');
   if (re.test(opts)) opts = opts.replace(re, '$1$2' + n);
@@ -262,12 +266,28 @@ function parseTable(text, env) {
   const a = readArgs(text, env.bodyStart, ARGS[name] || '[{');
   if (!a) return { skip: 'не вдалося прочитати параметри після \\begin{' + name + '}' };
   const head = text.slice(env.bodyStart, a.headEnd);
-  const specGroup = [...a.groups].reverse().find((g) => g.kind === '{');
+  let specGroup = [...a.groups].reverse().find((g) => g.kind === '{');
   if (!specGroup) return { skip: 'немає опису стовпців' };
+  let base = name;
+  if (name === 'spreadtab') {
+    // \begin{spreadtab}{{tblr}{spec}}: the real environment and its preamble are two groups inside the argument
+    const skip = (k) => { while (k < text.length && /\s/.test(text[k])) k++; return k; };
+    const i1 = skip(specGroup.a);
+    if (text[i1] !== '{') return { skip: 'spreadtab без {{тип}{опис}}' };
+    const e1 = groupEnd(text, i1);
+    const i2 = e1 < 0 ? -1 : skip(e1);
+    if (e1 < 0 || text[i2] !== '{') return { skip: 'spreadtab без {{тип}{опис}}' };
+    const e2 = groupEnd(text, i2);
+    if (e2 < 0) return { skip: 'не збалансовані дужки в параметрах spreadtab' };
+    base = text.slice(i1 + 1, e1 - 1).trim();
+    if (!BASE_OK.includes(base)) return { skip: 'spreadtab з типом «' + base + '» не підтримується' };
+    specGroup = { kind: '{', a: i2 + 1, b: e2 - 1 };
+  }
+  const isTblr = TBLR.has(base);
   let specRange = null; // [a, b) in `head`
   const specSrc = text.slice(specGroup.a, specGroup.b);
   let spec = null;
-  if (TBLR.has(name)) {
+  if (isTblr) {
     const m = /(^|[,\s])colspec\s*=\s*\{/.exec(specSrc);
     if (m) {
       const open = m.index + m[0].length - 1;
@@ -276,7 +296,7 @@ function parseTable(text, env) {
     } else if (!/=/.test(specSrc)) specRange = [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart];
   } else specRange = [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart];
   if (specRange) spec = tokenizeSpec(head.slice(specRange[0], specRange[1]));
-  const indexedKeys = TBLR.has(name) && /(?:^|[,\s{])(?:column|row|cell|vline|hline)\s*\{/.test(specSrc);
+  const kinfo = isTblr ? keyInfo(specSrc) : { auto: false, manual: false };
 
   const body = text.slice(a.headEnd, env.bodyEnd);
   if (/\\verb\b|\\lstinline|\\mintinline/.test(body)) return { skip: 'у таблиці є \\verb або код' };
@@ -301,14 +321,17 @@ function parseTable(text, env) {
     const cs = splitTop(core, 'cell');
     if (!cs.balanced) return { skip: 'у рядку ' + (k + 1) + ' не збалансовані дужки' };
     const cells = cs.pieces.map((c) => classify(c.text.trim()));
-    out.push({ pre: r.pre, lead, trail, cells, sep: r.sep, raw: r.raw, dirty: false });
+    out.push({ pre: r.pre, lead, trail, cells, sep: r.sep, raw: r.raw, rest: r.rest, dirty: false });
   }
   if (!out.length) return { skip: 'у таблиці немає рядків' };
   const model = {
-    env: name, tailText: tail, head, specRange, spec, specDirty: false,
-    rows: out, indexedKeys, styles: TBLR.has(name) ? parseStyleRules(specSrc) : [],
+    env: name, base, isTblr, spread: name === 'spreadtab', tailText: tail, head, specRange, spec, specDirty: false,
+    groupRange: [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart], keyOps: [], keyInfo: kinfo,
+    rows: out, styles: isTblr ? parseStyleRules(specSrc) : [],
     prefix: text.slice(env.start, env.bodyStart), suffix: text.slice(env.bodyEnd, env.end)
   };
+  model.origBody = serializeBody(model);
+  model.alignInfo = detectAlign(out);
   return { model };
 }
 
@@ -327,10 +350,90 @@ function serializeBody(m) {
   return s + m.tailText;
 }
 
-function serialize(m) {
+const dlen = (t) => [...t].length;
+function ampPos(line) {
+  const p = [];
+  let d = 0;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '\\') { i++; continue; }
+    if (c === '{') d++;
+    else if (c === '}') d--;
+    else if (c === '&' && d === 0) p.push(i);
+  }
+  return p;
+}
+const plainRow = (r) => r.cells.length >= 2 && r.cells.every((c) => c.cs === 1 && c.rs === 1 && c.kind === 'plain' && !/\n/.test(c.t));
+
+// is the table written with padded cells (the & stand under each other)? { aligned, padLast }
+function detectAlign(rows) {
+  const rs = rows.filter((r) => !r.dirty && r.rest !== undefined && plainRow(r) && !/\n/.test(r.rest.trim()));
+  if (rs.length < 2) return { aligned: false, padLast: false };
+  const pos = rs.map((r) => ampPos(r.rest));
+  let evidence = false;
+  const maxN = Math.max(...pos.map((p) => p.length));
+  for (let j = 0; j < maxN; j++) {
+    const set = new Set(pos.filter((p) => p.length > j).map((p) => p[j]));
+    if (set.size > 1) return { aligned: false, padLast: false };
+  }
+  for (const r of rs) if (/\s{2,}&/.test(r.rest) || /\s{2,}$/.test(r.rest.trimEnd() + ' ') && /\S\s{2,}\S/.test(r.rest)) evidence = true;
+  const withSep = rs.filter((r) => r.sep);
+  const padLast = withSep.length >= 2 && new Set(withSep.map((r) => dlen(r.rest.replace(/\s+$/, '')) + (/\s$/.test(r.rest) ? 1 : 0))).size === 1 && withSep.some((r) => /\S\s{2,}$/.test(r.rest));
+  return { aligned: evidence, padLast };
+}
+
+// the text of the rows of the body; plain rows are padded to common widths when the original table was aligned
+function bodyText(m, doAlign) {
+  const eligible = (r) => plainRow(r);
+  const widths = [];
+  if (doAlign) {
+    for (const r of m.rows) if (eligible(r)) r.cells.forEach((c, j) => { widths[j] = Math.max(widths[j] || 0, dlen(c.t)); });
+  }
+  let s = '';
+  for (const r of m.rows) {
+    if (doAlign && eligible(r)) {
+      const n = r.cells.length;
+      const parts = r.cells.map((c, j) => (j < n - 1 || (m.alignInfo.padLast && r.sep) ? c.t + ' '.repeat(Math.max(0, widths[j] - dlen(c.t))) : c.t));
+      let cells = parts[0];
+      for (let j = 1; j < n; j++) cells += ' &' + (parts[j] === '' ? '' : ' ' + parts[j]);
+      const trail = m.alignInfo.padLast && r.sep ? ' ' : r.trail;
+      s += r.pre + r.lead + cells + trail + r.sep;
+    } else s += (r.dirty ? r.pre + r.lead + joinCells(r.cells) + r.trail : r.raw) + r.sep;
+  }
+  return s + m.tailText;
+}
+
+function serialize(m, o) {
   let head = m.head;
-  if (m.specDirty && m.specRange && m.spec) head = head.slice(0, m.specRange[0]) + specToString(m.spec) + head.slice(m.specRange[1]);
-  return m.prefix + head + serializeBody(m) + m.suffix;
+  let delta = 0;
+  if (m.specDirty && m.specRange && m.spec) {
+    const ns = specToString(m.spec);
+    delta = ns.length - (m.specRange[1] - m.specRange[0]);
+    head = head.slice(0, m.specRange[0]) + ns + head.slice(m.specRange[1]);
+  }
+  if (m.keyOps && m.keyOps.length && m.isTblr && m.groupRange) {
+    const ga = m.groupRange[0];
+    const gb = m.groupRange[1] + delta;
+    head = head.slice(0, ga) + applyKeyOps(head.slice(ga, gb), m.keyOps) + head.slice(gb);
+  }
+  const doAlign = !!(o && o.align && m.alignInfo && m.alignInfo.aligned && (!m.isTblr || m.spread));
+  const body = doAlign ? bodyText(m, true) : serializeBody(m);
+  return m.prefix + head + body + m.suffix;
+}
+
+// a tblr table that was in the "Format tblr" style stays in it after an edit
+function restyleTblr(docText, env, out, opts) {
+  const names = ['tblr', 'longtblr', 'talltblr'];
+  const orig = docText.slice(env.start, env.end);
+  const e0 = E4.findEnvs(docText, names).find((e) => e.start === env.start);
+  if (!e0) return out;
+  const f0 = E4.formatTblrEnv(docText, e0, opts);
+  if (f0.skip || f0.text !== orig) return out;
+  const nd = docText.slice(0, env.start) + out + docText.slice(env.end);
+  const e1 = E4.findEnvs(nd, names).find((e) => e.start === env.start);
+  if (!e1) return out;
+  const f1 = E4.formatTblrEnv(nd, e1, opts);
+  return f1.skip ? out : f1.text;
 }
 
 /* ---------------------------------- editing ---------------------------------- */
@@ -370,15 +473,22 @@ function replaceCell(m, ref, next) {
   for (const row of m.rows) { const k = row.cells.indexOf(ref); if (k >= 0) { row.cells[k] = next; row.dirty = true; return; } }
 }
 
-function insertRow(m, at, cells) {
+function insertRow(m, at, cells, below) {
   const w = width(m);
+  const nBefore = m.rows.length;
   // a merged \SetCell[r=..] region that the new row falls into grows by one row
   const grow = anchors(m).filter((a) => a.cell.rs > 1 && a.r < at && at <= a.r + a.cell.rs - 1);
-  const ref = m.rows[Math.min(at, m.rows.length - 1)];
+  const ref = m.rows[below && at > 0 ? at - 1 : Math.min(at, nBefore - 1)];
   const row = { pre: '', lead: ref.lead, trail: ref.trail, cells: cells || Array.from({ length: w }, mkEmpty), sep: ref.sep, raw: '', dirty: true };
-  if (at < m.rows.length) {
-    row.pre = m.rows[at].pre;
-    if (!hlineOnly(m.rows[at].pre)) { m.rows[at].pre = ''; m.rows[at].dirty = true; }
+  if (at < nBefore) {
+    if (below) {
+      // "below row r": the new row stays in the zone of row r, above the rules that precede the next row (an \hline is repeated)
+      row.pre = hlineOnly(m.rows[at].pre) ? m.rows[at].pre : '';
+    } else {
+      // "above row k": the rules above row k move up to the new row
+      row.pre = m.rows[at].pre;
+      if (!hlineOnly(m.rows[at].pre)) { m.rows[at].pre = ''; m.rows[at].dirty = true; }
+    }
     if (!row.sep) row.sep = ' \\\\';
     m.rows.splice(at, 0, row);
   } else {
@@ -389,6 +499,9 @@ function insertRow(m, at, cells) {
     m.rows.push(row);
   }
   for (const g of grow) replaceCell(m, g.cell, withScOpt(g.cell, 'r', g.cell.rs + 1));
+  const op = { t: 'rowIns', at, n: nBefore };
+  m.keyOps.push(op);
+  shiftFormulas(m, op);
 }
 
 const hasSpan = (m) => m.rows.some((r) => r.cells.some((c) => c.cs > 1 || c.rs > 1));
@@ -412,7 +525,7 @@ function applyOp(model, op) {
       return { model: m };
     }
     case 'addRow': {
-      insertRow(m, Math.max(0, Math.min(nRows, op.at)));
+      insertRow(m, Math.max(0, Math.min(nRows, op.at)), null, !!op.below);
       return { model: m };
     }
     case 'delRow': {
@@ -421,6 +534,8 @@ function applyOp(model, op) {
       if (!m.rows[r]) return err('Немає такого рядка.');
       const shrink = anchors(m).filter((a) => a.cell.rs > 1 && a.r < r && r <= a.r + a.cell.rs - 1);
       const [gone] = m.rows.splice(r, 1);
+      m.keyOps.push({ t: 'rowDel', at: r });
+      shiftFormulas(m, { t: 'rowDel', at: r });
       for (const g of shrink) replaceCell(m, g.cell, withScOpt(g.cell, 'r', g.cell.rs - 1));
       if (r < m.rows.length) { m.rows[r].pre = gone.pre + (hlineOnly(gone.pre) && hlineOnly(m.rows[r].pre) ? '' : m.rows[r].pre); m.rows[r].dirty = true; }
       else {
@@ -439,6 +554,24 @@ function applyOp(model, op) {
       m.rows[a].cells = m.rows[b].cells;
       m.rows[b].cells = t;
       m.rows[a].dirty = m.rows[b].dirty = true;
+      m.keyOps.push({ t: 'rowSwap', a: a + 1, b: b + 1 });
+      return { model: m };
+    }
+    case 'dupRows': {
+      const r1 = Math.max(0, op.r1);
+      const r2 = Math.min(nRows - 1, op.r2);
+      if (!(r1 <= r2)) return err('Немає такого рядка.');
+      for (let k = r1; k <= r2; k++) if (m.rows[k].cells.some((c) => c.rs > 1)) return err('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): дублюй у коді.');
+      const copies = m.rows.slice(r1, r2 + 1).map((r) => r.cells.map((c) => classify(c.t)));
+      copies.forEach((cells, k) => insertRow(m, r2 + 1 + k, cells, true));
+      return { model: m };
+    }
+    case 'clear': {
+      for (let r = Math.max(0, op.r1); r <= Math.min(nRows - 1, op.r2); r++) {
+        const row = m.rows[r];
+        for (let c = Math.max(0, op.c1); c <= Math.min(row.cells.length - 1, op.c2); c++) row.cells[c] = classify(rebuild(row.cells[c], ''));
+        row.dirty = true;
+      }
       return { model: m };
     }
     case 'addCol': {
@@ -458,6 +591,8 @@ function applyOp(model, op) {
         row.dirty = true;
       }
       for (const g of grow) replaceCell(m, g.cell, withScOpt(g.cell, 'c', g.cell.cs + 1));
+      m.keyOps.push({ t: 'colIns', at, n: w });
+      shiftFormulas(m, { t: 'colIns', at });
       if (m.spec) {
         const toks = m.spec.tokens;
         const ref = toks[Math.min(at, toks.length - 1)];
@@ -488,6 +623,8 @@ function applyOp(model, op) {
         row.dirty = true;
       }
       for (const g of shrink) replaceCell(m, g.cell, withScOpt(g.cell, 'c', g.cell.cs - 1));
+      m.keyOps.push({ t: 'colDel', at: col });
+      shiftFormulas(m, { t: 'colDel', at: col });
       if (m.spec && m.spec.tokens[col]) { m.spec.tokens.splice(col, 1); m.specDirty = true; }
       return { model: m };
     }
@@ -498,6 +635,7 @@ function applyOp(model, op) {
       const b = a + (op.dir < 0 ? -1 : 1);
       if (a < 0 || b < 0 || a >= width(m) || b >= width(m)) return err('Далі пересувати нікуди.');
       for (const r of m.rows) { const t = r.cells[a]; r.cells[a] = r.cells[b]; r.cells[b] = t; r.dirty = true; }
+      m.keyOps.push({ t: 'colSwap', a: a + 1, b: b + 1 });
       if (m.spec && m.spec.tokens[a] && m.spec.tokens[b]) { const t = m.spec.tokens[a].unit; m.spec.tokens[a].unit = m.spec.tokens[b].unit; m.spec.tokens[b].unit = t; m.specDirty = true; }
       return { model: m };
     }
@@ -584,6 +722,136 @@ function colorExpr(expr, defs, depth) {
 
 const css = (rgb) => 'rgb(' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v)))).join(',') + ')';
 const lum = (rgb) => (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+
+
+/* ------------------------- numbered keys of the tblr preamble ------------------------- */
+// each numbered selector in row{..}, column{..}, cell{..}{..}, hline{..}, vline{..} of the preamble goes through f(key, sels) -> sels | null (drop the item)
+function rewriteKeys(spec, f) {
+  let out = '';
+  let i = 0;
+  let depth = 0;
+  const n = spec.length;
+  while (i < n) {
+    const c = spec[i];
+    if (c === '%') { const e = spec.indexOf('\n', i); const j = e < 0 ? n : e; out += spec.slice(i, j); i = j; continue; }
+    if (c === '\\') { out += spec.slice(i, i + 2); i += 2; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+    else if (depth === 0 && /[a-z]/.test(c) && (i === 0 || /[\s,]/.test(spec[i - 1]))) {
+      const m = /^(row|column|cell|hline|vline)((?:\s*\{[^{}]*\}){1,2})(\s*=\s*)/.exec(spec.slice(i));
+      if (m) {
+        const sels = [];
+        m[2].replace(/\{([^{}]*)\}/g, (all, g) => { sels.push(g); return all; });
+        const want = m[1] === 'cell' ? 2 : 1;
+        // end of the value: a {...} group or text up to the next top-level comma
+        let j = i + m[0].length;
+        if (spec[j] === '{') { const e = E4.matchBracket(spec, j); j = e < 0 ? n : e + 1; }
+        else { let d = 0; for (; j < n; j++) { const ch = spec[j]; if (ch === '{') d++; else if (ch === '}') { if (d === 0) break; d--; } else if (ch === ',' && d === 0) break; } }
+        if (sels.length === want) {
+          const next = f(m[1], sels);
+          if (next === null) {
+            let k = j;
+            while (k < n && /[ \t]/.test(spec[k])) k++;
+            if (spec[k] === ',') k++;
+            // a line that held only this item disappears with it
+            const lineStartBlank = /\n[ \t]*$/.test(out);
+            while (k < n && /[ \t]/.test(spec[k])) k++;
+            if (lineStartBlank && spec[k] === '\n') { out = out.replace(/[ \t]*$/, ''); k++; }
+            i = k;
+            continue;
+          }
+          out += m[1] + next.map((g) => '{' + g + '}').join('') + m[3] + spec.slice(i + m[0].length, j);
+          i = j;
+          continue;
+        }
+      }
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+// maps every number / range of a selector list; fn(a, b) -> [a, b] | null. odd, even, "-", "2-", Z stay as they are
+function mapSel(sel, fn) {
+  const out = [];
+  for (const p0 of splitCommas(sel)) {
+    const p = p0.trim();
+    let m;
+    if ((m = /^(\d+)$/.exec(p))) { const r = fn(+m[1], +m[1]); if (r) out.push(r[0] === r[1] ? String(r[0]) : r[0] + '-' + r[1]); }
+    else if ((m = /^(\d+)\s*-\s*(\d+)$/.exec(p))) { const r = fn(+m[1], +m[2]); if (r) out.push(r[0] === r[1] ? String(r[0]) : r[0] + '-' + r[1]); }
+    else out.push(p);
+  }
+  return out.length ? out.join(',') : null;
+}
+
+// numbers of the selectors of this preamble: { auto: they can be shifted, manual: odd / even / open ranges that depend on the count }
+function keyInfo(spec) {
+  const info = { auto: false, manual: false };
+  rewriteKeys(spec, (key, sels) => {
+    for (const sel of sels) for (const p0 of splitCommas(sel)) {
+      const p = p0.trim();
+      if (/^\d+$/.test(p) || /^\d+\s*-\s*\d+$/.test(p)) info.auto = true;
+      else if (/^(odd|even)$/.test(p) || /^\d*\s*-\s*\d*$/.test(p) && p !== '-') info.manual = true;
+    }
+    return sels;
+  });
+  return info;
+}
+
+const insMap = (n1) => (a, b) => (a >= n1 ? [a + 1, b + 1] : b >= n1 ? [a, b + 1] : [a, b]);
+const delMap = (n0) => (a, b) => (b < n0 ? [a, b] : a > n0 ? [a - 1, b - 1] : a === b ? null : [a, b - 1]);
+const swapMap = (x, y) => (a, b) => (a === b ? (a === x ? [y, y] : a === y ? [x, x] : [a, b]) : [a, b]);
+
+// op: { t: 'rowIns'|'rowDel'|'rowSwap'|'colIns'|'colDel'|'colSwap', at, n, a, b }
+function applyKeyOps(spec, ops) {
+  let cur = spec;
+  for (const op of ops) {
+    const rows = op.t.startsWith('row');
+    let fn;
+    let lineFn;
+    if (op.t.endsWith('Ins')) {
+      fn = insMap(op.at + 1);
+      lineFn = (N) => (op.at === op.n ? (N >= op.at + 1 ? N + 1 : N) : (N >= op.at + 2 ? N + 1 : N));
+    } else if (op.t.endsWith('Del')) {
+      fn = delMap(op.at + 1);
+      lineFn = (N) => (N >= op.at + 2 ? N - 1 : N);
+    } else { fn = swapMap(op.a, op.b); lineFn = null; }
+    cur = rewriteKeys(cur, (key, sels) => {
+      const out = sels.slice();
+      if (rows) {
+        if (key === 'row' || key === 'cell') { const r = mapSel(sels[0], fn); if (r === null) return null; out[0] = r; }
+        else if (key === 'hline' && lineFn) { const r = mapSel(sels[0], (a, b) => [lineFn(a), lineFn(b)]); if (r === null) return null; out[0] = r; }
+      } else if (key === 'column' || (key === 'cell')) {
+        const k = key === 'cell' ? 1 : 0;
+        const r = mapSel(sels[k], fn);
+        if (r === null) return null;
+        out[k] = r;
+      } else if (key === 'vline' && lineFn) { const r = mapSel(sels[0], (a, b) => [lineFn(a), lineFn(b)]); if (r === null) return null; out[0] = r; }
+      return out;
+    });
+  }
+  return cur;
+}
+
+// spreadtab formulas: c2 = column c, row 2. After inserting / deleting rows or columns the absolute references follow the cells
+function shiftFormulas(m, op) {
+  if (!m.spread) return;
+  const fix = (t) => t.replace(/(?<![A-Za-z\\\d])([a-z])(\d+)(?![\d(A-Za-z])/g, (all, L, N) => {
+    let col = L.charCodeAt(0) - 97;
+    let row = +N;
+    if (op.t === 'rowIns' && row >= op.at + 1) row++;
+    else if (op.t === 'rowDel' && row > op.at + 1) row--;
+    else if (op.t === 'colIns' && col >= op.at) col++;
+    else if (op.t === 'colDel' && col > op.at) col--;
+    else return all;
+    return String.fromCharCode(97 + col) + row;
+  });
+  for (const r of m.rows) for (const c of r.cells) if (isFormula(m, c.t) && fix(c.t) !== c.t) { const nc = classify(fix(c.t)); Object.assign(c, nc); r.dirty = true; }
+}
+
+const REF_RE = /(?<![A-Za-z\\\d])[a-z]\d+(?![\d(A-Za-z])/;
+const isFormula = (m, t) => !!m.spread && t !== '' && !/^@/.test(t) && !/^\\/.test(t) && /[A-Za-z]/.test(t);
 
 /* ------------------------------ tblr styles (view only) ------------------------------ */
 function splitCommas(s) {
@@ -680,7 +948,7 @@ function toView(m, defs) {
         const unknown = !!bgExpr && !bg;
         const hidden = covered.has(r + ':' + col) && !c.inner;
         return {
-          t: text, raw: c.inner, span: c.cs, rowspan: c.rs, kind: c.kind, hidden,
+          t: text, raw: c.inner, span: c.cs, rowspan: c.rs, kind: c.kind, hidden, formula: isFormula(m, c.t),
           style: { bg: bg ? css(bg) : '', fg: fg ? css(fg) : '', bold: !!sr.bold, align: sr.align || c.align || '', unknownColor: unknown ? bgExpr : '' },
           cellcolor: cc ? cc[0] : ''
         };
@@ -697,10 +965,13 @@ function toView(m, defs) {
     canCols: true,
     colsWhy: '',
     merged: hasSpans(m),
-    indexedKeys: m.indexedKeys,
+    spread: m.spread,
+    indexedKeys: m.keyInfo.manual,
+    keysAuto: m.keyInfo.auto,
+    absRefs: m.spread && m.rows.some((r) => r.cells.some((c) => isFormula(m, c.t) && REF_RE.test(c.t))),
     rows,
     tailRule: /\\(hline|bottomrule)/.test(m.tailText)
   };
 }
 
-module.exports = { classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };
+module.exports = { restyleTblr, applyKeyOps, rewriteKeys, keyInfo, classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };
