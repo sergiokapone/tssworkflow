@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -96,6 +96,10 @@
       {
         "command": "tssworkflow.wrapEnv",
         "title": "TSS Workflow: Wrap selection in environment (pick from list)"
+      },
+      {
+        "command": "tssworkflow.wrapCmd",
+        "title": "TSS Workflow: Wrap selection in command (pick from list)"
       },
       {
         "command": "tssworkflow.pictures",
@@ -495,6 +499,11 @@
           "group": "1_modification"
         },
         {
+          "command": "tssworkflow.wrapCmd",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
           "command": "tssworkflow.sentences",
           "when": "resourceLangId == latex || resourceLangId == tex",
           "group": "1_modification"
@@ -572,6 +581,10 @@
         },
         {
           "command": "tssworkflow.wrapEnv",
+          "group": "3_structure@4"
+        },
+        {
+          "command": "tssworkflow.wrapCmd",
           "group": "3_structure@4"
         },
         {
@@ -1753,6 +1766,19 @@
           "type": "boolean",
           "default": true,
           "description": "Wrap selection in environment: indent the wrapped lines one step (not in verbatim, lstlisting, minted)."
+        },
+        "tssworkflow.wrapEnv.label": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Wrap selection in environment: add `\\label{prefix}` when the environment has a prefix in `tssworkflow.labelPrefixes` (floats: after the wrapped text, other environments: right after `\\begin`). Not added when the wrapped text already has a `\\label`."
+        },
+        "tssworkflow.wrapCmd.extra": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Own entries of the list in `Wrap selection in command` (`Ctrl+Alt+K`). Each is a command name, optionally with the arguments that stand before the wrapped one: `\"vect\"`, `\"textcolor{red}\"`, `\"href{https://example.org}\"`."
         }
       }
     },
@@ -1853,6 +1879,11 @@
       {
         "command": "tssworkflow.wrapEnv",
         "key": "ctrl+alt+numpad_add",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.wrapCmd",
+        "key": "ctrl+alt+k",
         "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
       },
       {

@@ -4,6 +4,8 @@
  *   parseEnvInput(text)      'minipage{0.5\\linewidth}' -> { name, rest }; null if it is not an environment
  *   argsOfMacro(entry)       '{}{}' for the mandatory arguments of an environment from .cls/.sty
  *   envNamesInText(text)     names used in \begin{...} (comments skipped, 'document' ignored)
+ *   countEnvs(text)          the same with the number of uses: Map name -> count
+ *   labelFor(name, prefixes, body)  { prefix, where } of the \label to add, from tssworkflow.labelPrefixes
  *   wrapLines(lines, start, end, opts)  the text edit that wraps the range in \begin ... \end */
 
 const MP = require('./macrosPure');
@@ -109,34 +111,48 @@ function stripComment(line) {
   return line;
 }
 
-// names from \begin{...} in the text, in order of first use
-function envNamesInText(text) {
-  const seen = new Set();
-  const out = [];
+// Map name -> number of \begin{name} in the text, in order of first use (comments skipped, 'document' ignored)
+function countEnvs(text) {
+  const out = new Map();
   const re = /\\begin\{([A-Za-z@][A-Za-z0-9@-]*\*?)\}/g;
   for (const line of String(text).split(/\r?\n/)) {
     const code = stripComment(line);
     let m;
     re.lastIndex = 0;
     while ((m = re.exec(code))) {
-      if (m[1] === 'document' || seen.has(m[1])) continue;
-      seen.add(m[1]);
-      out.push(m[1]);
+      if (m[1] !== 'document') out.set(m[1], (out.get(m[1]) || 0) + 1);
     }
   }
   return out;
+}
+
+// names from \begin{...} in the text, in order of first use
+const envNamesInText = (text) => [...countEnvs(text).keys()];
+
+// floats take the label after the caption (end of the body), other environments right after \begin
+const FLOAT_ENVS = new Set(['figure', 'table', 'wrapfigure', 'wraptable', 'SCfigure', 'sidewaysfigure', 'sidewaystable']);
+
+/* The \label to add when wrapping: `prefixes` is tssworkflow.labelPrefixes (environment -> 'pic:');
+ * nothing when the environment has no prefix or the wrapped text already has a \label. */
+function labelFor(name, prefixes, bodyText) {
+  const base = name.replace(/\*$/, '');
+  const prefix = prefixes && typeof prefixes === 'object' ? prefixes[base] : '';
+  if (!prefix || typeof prefix !== 'string') return null;
+  if (/\\label\s*\{/.test(String(bodyText || ''))) return null;
+  return { prefix, where: FLOAT_ENVS.has(base) ? 'end' : 'start' };
 }
 
 const leadingWs = (s) => /^[ \t]*/.exec(s)[0];
 
 /* The edit that wraps the range [start, end] (0-based line / character) in \begin{name}rest ... \end{name}.
  *   lines  the document lines (without line breaks)
- *   opts   { name, rest, unit, indent }  unit = one indentation step, indent = indent the body
+ *   opts   { name, rest, unit, indent, label }  unit = one indentation step, indent = indent the body,
+ *          label = { prefix, where: 'start' | 'end' } adds a \label{prefix} line (see labelFor)
  * Whole lines are replaced: a selection that starts or ends in the middle of a line text splits that line, so
  * \begin and \end always stand on lines of their own, with the indentation of the first selected line.
  * A range that ends at column 0 of a line does not include that line (what a line selection in VS Code does).
  * Returns { startLine, endLine, lines, cursor: { line, character } }: replace lines startLine..endLine with `lines`;
- * `cursor` is inside the first empty {} / [] of the \begin line, else at its end. */
+ * `cursor` is inside the added \label{...}, else inside the first empty {} / [] of the \begin line, else at its end. */
 function wrapLines(lines, start, end, opts) {
   const s = { line: start.line, character: start.character };
   const e = { line: end.line, character: end.character };
@@ -168,9 +184,16 @@ function wrapLines(lines, start, end, opts) {
   const out = [];
   if (splitBefore) out.push(before.replace(/[ \t]+$/, ''));
   const beginIdx = out.length;
-  out.push(beginLine, ...body, baseIndent + '\\end{' + name + '}');
+  const lab = opts.label ? baseIndent + (indentBody ? unit : '') + '\\label{' + opts.label.prefix + '}' : null;
+  out.push(beginLine);
+  let labelIdx = -1;
+  if (lab && opts.label.where !== 'end') { labelIdx = out.length; out.push(lab); }
+  out.push(...body);
+  if (lab && opts.label.where === 'end') { labelIdx = out.length; out.push(lab); }
+  out.push(baseIndent + '\\end{' + name + '}');
   if (splitAfter) out.push(baseIndent + after.trimStart());
 
+  if (labelIdx >= 0) return { startLine: s.line, endLine: e.line, lines: out, cursor: { line: s.line + labelIdx, character: lab.length - 1 } };
   const k = rest.search(/\{\}|\[\]/);
   const character = k >= 0 ? baseIndent.length + '\\begin{'.length + name.length + 1 + k + 1 : beginLine.length;
   return { startLine: s.line, endLine: e.line, lines: out, cursor: { line: s.line + beginIdx, character } };
@@ -183,4 +206,4 @@ function overlaps(edits) {
   return false;
 }
 
-module.exports = { STANDARD_ENVS, NO_INDENT, parseEnvInput, argsOfMacro, envNamesInText, wrapLines, overlaps };
+module.exports = { STANDARD_ENVS, NO_INDENT, FLOAT_ENVS, parseEnvInput, argsOfMacro, envNamesInText, countEnvs, labelFor, wrapLines, overlaps };

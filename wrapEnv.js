@@ -1,20 +1,23 @@
 'use strict';
 /* wrapEnv.js: "Wrap selection in environment" (tssworkflow.wrapEnv, Ctrl+Alt+W).
  * The environment is picked from one list that holds: the ones used last, the ones defined in the project's
- * .cls/.sty, your own (tssworkflow.wrapEnv.extra), the others already used in this file and the standard ones.
- * Anything else can be typed, with arguments: minipage{0.5\linewidth}. The logic is in wrapEnvPure.js. */
+ * .cls/.sty, your own (tssworkflow.wrapEnv.extra), the others used in the project and the standard ones.
+ * Anything else can be typed, with arguments: minipage{0.5\linewidth}. The logic is in wrapEnvPure.js.
+ * An environment that has a prefix in tssworkflow.labelPrefixes gets a \label{prefix} (wrapEnv.label). */
 const vscode = require('vscode');
 const path = require('path');
 const P = require('./wrapEnvPure');
 const MP = require('./macrosPure');
-const { cfg, info, warn } = require('./util');
+const { pickTyped, sep } = require('./pickTyped');
+const { cfg, info, warn, texFiles, textOfPath } = require('./util');
 
 const RECENT_KEY = 'tssworkflow.wrapEnv.recent';
 const RECENT_MAX = 8;
+const PROJECT_TTL = 60000;
 let state = null; // the extension's globalState (recently used environments)
+let projectCache = null; // { at, counts }: how often each environment is used in the project's files
 
-const sep = (label) => ({ label, kind: vscode.QuickPickItemKind.Separator });
-const item = (name, rest, extra) => Object.assign({ label: name, description: rest || undefined, env: { name, rest: rest || '' } }, extra);
+const item = (name, rest, extra) => Object.assign({ label: name, description: rest || undefined, pick: { name, rest: rest || '' } }, extra);
 
 async function projectEnvs(doc) {
   try {
@@ -23,13 +26,28 @@ async function projectEnvs(doc) {
   } catch (e) { return []; }
 }
 
+// Map name -> uses in all .tex/.tikz files of the workspace (cached for a minute, dropped on save)
+async function projectCounts() {
+  if (projectCache && Date.now() - projectCache.at < PROJECT_TTL) return projectCache.counts;
+  const counts = new Map();
+  try {
+    for (const u of await texFiles()) {
+      const text = textOfPath(u.fsPath);
+      if (!text) continue;
+      for (const [n, c] of P.countEnvs(text)) counts.set(n, (counts.get(n) || 0) + c);
+    }
+  } catch (e) { /* no workspace: only the open file counts */ }
+  projectCache = { at: Date.now(), counts };
+  return counts;
+}
+
 // the groups of the list; a name stays in the first group where it appears
 async function buildItems(doc) {
   const seen = new Set();
   const groups = [];
   const add = (title, list) => {
-    const fresh = list.filter((it) => !seen.has(it.env.name));
-    fresh.forEach((it) => seen.add(it.env.name));
+    const fresh = list.filter((it) => !seen.has(it.pick.name));
+    fresh.forEach((it) => seen.add(it.pick.name));
     if (fresh.length) groups.push(sep(title), ...fresh);
   };
 
@@ -44,37 +62,15 @@ async function buildItems(doc) {
   const mine = (cfg().get('wrapEnv.extra', []) || []).map((s) => P.parseEnvInput(s)).filter(Boolean);
   add('Мої (tssworkflow.wrapEnv.extra)', mine.map((p) => item(p.name, p.rest)));
 
+  // used in the project (and in the open buffer, which may be newer than the cache), most used first
   const std = new Map(P.STANDARD_ENVS.map((s) => [s.name, s]));
-  const used = P.envNamesInText(doc.getText()).filter((n) => !std.has(n));
-  add('Ще в цьому файлі', used.map((n) => item(n, '')));
+  const counts = new Map(await projectCounts());
+  for (const [n, c] of P.countEnvs(doc.getText())) if (!counts.has(n)) counts.set(n, c);
+  const used = [...counts].filter(([n]) => !std.has(n)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  add('Ще в проєкті', used.map(([n, c]) => item(n, '', { detail: c + '×' })));
 
   add('Стандартні', P.STANDARD_ENVS.map((s) => item(s.name, s.rest, { detail: s.desc })));
   return groups;
-}
-
-// QuickPick that also accepts a typed name with arguments
-function pickEnv(base, placeHolder) {
-  return new Promise((resolve) => {
-    const qp = vscode.window.createQuickPick();
-    qp.placeholder = placeHolder;
-    qp.matchOnDescription = true;
-    qp.matchOnDetail = true;
-    qp.items = base;
-    let done = false;
-    const finish = (v) => { if (done) return; done = true; resolve(v); qp.dispose(); };
-    qp.onDidChangeValue((v) => {
-      const p = P.parseEnvInput(v);
-      if (!p) { qp.items = base; return; }
-      const exact = base.some((b) => b.env && b.env.name === p.name);
-      if (exact && !p.rest) { qp.items = base; return; }
-      const typed = { label: '$(add) ' + p.name + p.rest, description: 'ввести як є', env: p, alwaysShow: true };
-      // with arguments typed the typed entry is the one wanted; a bare name must not hide the usual matches
-      qp.items = p.rest ? [typed, ...base] : [...base, typed];
-    });
-    qp.onDidAccept(() => { const sel = qp.selectedItems[0]; finish(sel && sel.env ? sel.env : undefined); });
-    qp.onDidHide(() => finish(undefined));
-    qp.show();
-  });
 }
 
 async function remember(env) {
@@ -84,17 +80,27 @@ async function remember(env) {
   await state.update(RECENT_KEY, list.slice(0, RECENT_MAX));
 }
 
-function snippetFor(env) {
-  const k = env.rest.search(/\{\}|\[\]/);
+// an empty environment at the caret: Tab goes {} of the arguments -> \label -> body
+function snippetFor(env, label) {
   const s = new vscode.SnippetString();
+  let n = 0;
+  const k = env.rest.search(/\{\}|\[\]/);
   if (k >= 0) {
-    s.appendText('\\begin{' + env.name + '}' + env.rest.slice(0, k + 1)).appendTabstop(1)
-      .appendText(env.rest.slice(k + 1) + '\n\t').appendTabstop(0);
+    s.appendText('\\begin{' + env.name + '}' + env.rest.slice(0, k + 1)).appendTabstop(++n).appendText(env.rest.slice(k + 1));
   } else {
-    s.appendText('\\begin{' + env.name + '}' + env.rest + '\n\t').appendTabstop(0);
+    s.appendText('\\begin{' + env.name + '}' + env.rest);
   }
+  const lab = () => s.appendText('\n\t\\label{' + label.prefix).appendTabstop(label.where === 'end' ? 0 : ++n).appendText('}');
+  if (label && label.where !== 'end') lab();
+  s.appendText('\n\t');
+  if (label && label.where === 'end') { s.appendTabstop(++n); lab(); } else s.appendTabstop(0);
   return s.appendText('\n\\end{' + env.name + '}');
 }
+
+const parseTyped = (v) => {
+  const p = P.parseEnvInput(v);
+  return p && { pick: p, name: p.name, label: p.name + p.rest, withArgs: !!p.rest };
+};
 
 async function wrapEnv() {
   const ed = vscode.window.activeTextEditor;
@@ -102,12 +108,14 @@ async function wrapEnv() {
   const doc = ed.document;
   const sels = ed.selections.filter((s) => !s.isEmpty);
 
-  const env = await pickEnv(await buildItems(doc),
-    (sels.length ? 'Обгорнути виділене' : 'Вставити порожнє середовище') + ': вибери зі списку або введи своє, напр. minipage{0.5\\linewidth}');
+  const env = await pickTyped(await buildItems(doc),
+    (sels.length ? 'Обгорнути виділене' : 'Вставити порожнє середовище') + ': вибери зі списку або введи своє, напр. minipage{0.5\\linewidth}', parseTyped);
   if (!env) return;
 
+  const prefixes = cfg().get('wrapEnv.label', true) ? cfg().get('labelPrefixes', {}) : {};
+
   if (!sels.length) {
-    await ed.insertSnippet(snippetFor(env));
+    await ed.insertSnippet(snippetFor(env, P.labelFor(env.name, prefixes, '')));
     await remember(env);
     return;
   }
@@ -119,7 +127,8 @@ async function wrapEnv() {
   const edits = sels
     .slice()
     .sort((a, b) => a.start.compareTo(b.start))
-    .map((s) => P.wrapLines(lines, { line: s.start.line, character: s.start.character }, { line: s.end.line, character: s.end.character }, { name: env.name, rest: env.rest, unit, indent }));
+    .map((s) => P.wrapLines(lines, { line: s.start.line, character: s.start.character }, { line: s.end.line, character: s.end.character },
+      { name: env.name, rest: env.rest, unit, indent, label: P.labelFor(env.name, prefixes, doc.getText(s)) }));
   if (P.overlaps(edits)) { warn('Два виділення на одному рядку: обгорнути їх окремо не вийде. Виділи кожне на своїх рядках.'); return; }
 
   const eol = doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
@@ -144,7 +153,10 @@ async function wrapEnv() {
 
 function register(context) {
   state = context.globalState;
-  context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.wrapEnv', wrapEnv));
+  context.subscriptions.push(
+    vscode.commands.registerCommand('tssworkflow.wrapEnv', wrapEnv),
+    vscode.workspace.onDidSaveTextDocument(() => { projectCache = null; })
+  );
 }
 
 module.exports = { register };

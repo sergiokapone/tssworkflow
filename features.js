@@ -22,6 +22,7 @@ function register(context, api) {
   require('./macros').register(context, { log: (m) => outLog.appendLine(m), exclude: EXCLUDE });
   require('./tikzExtract').register(context);
   require('./wrapEnv').register(context);
+  require('./wrapCmd').register(context);
   require('./projectInfo').register(context, {
     texFiles, textOf, buildIndex, EXCLUDE, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });

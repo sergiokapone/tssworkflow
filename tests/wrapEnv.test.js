@@ -3,10 +3,12 @@
  * Run from the repository root: node tests/wrapEnv.test.js */
 const assert = require('assert');
 const path = require('path');
-const Module = require('module');
 const EXT = path.resolve(__dirname, process.env.TSS_EXT || process.argv[2] || '../extension');
 const P = require(path.join(EXT, 'wrapEnvPure.js'));
 const MP = require(path.join(EXT, 'macrosPure.js'));
+const { runCommand } = require('./vscodeStub');
+const fs = require('fs');
+const os = require('os');
 
 let n = 0;
 const t = (name, fn) => { fn(); n++; };
@@ -91,6 +93,21 @@ t('spaces as the indentation unit; arguments; caret in the first {}', () => {
   assert.deepStrictEqual(g.cursor, { line: 0, character: '  \\begin{tabularx}{\\linewidth}{'.length });
 });
 
+t('countEnvs, labelFor, label line', () => {
+  assert.deepStrictEqual([...P.countEnvs('\\begin{a}\\begin{a}\n% \\begin{x}\n\\begin{document}\\begin{b*}').entries()], [['a', 2], ['b*', 1]]);
+  assert.deepStrictEqual(P.labelFor('figure*', { figure: 'pic:' }, 'x'), { prefix: 'pic:', where: 'end' });
+  assert.deepStrictEqual(P.labelFor('problem', { problem: 'prb:' }, 'x'), { prefix: 'prb:', where: 'start' });
+  assert.strictEqual(P.labelFor('problem', { problem: 'prb:' }, 'a \\label{x}'), null);
+  assert.strictEqual(P.labelFor('center', { problem: 'prb:' }, 'x'), null);
+  assert.strictEqual(P.labelFor('center', null, 'x'), null);
+  const L = ['x'];
+  const f = W(L, [0, 0], [0, 1], { name: 'figure', rest: '[h!]', label: { prefix: 'pic:', where: 'end' } });
+  assert.deepStrictEqual(apply(L, f), ['\\begin{figure}[h!]', '\tx', '\t\\label{pic:}', '\\end{figure}']);
+  assert.deepStrictEqual(f.cursor, { line: 2, character: '\t\\label{pic:'.length });
+  const g = W(L, [0, 0], [0, 1], { name: 'problem', label: { prefix: 'prb:', where: 'start' } });
+  assert.deepStrictEqual(apply(L, g), ['\\begin{problem}', '\t\\label{prb:}', '\tx', '\\end{problem}']);
+});
+
 t('overlaps', () => {
   const L = ['a b', 'c', 'd'];
   const a = W(L, [0, 0], [0, 1]);
@@ -101,96 +118,68 @@ t('overlaps', () => {
 });
 
 /* ---- wrapEnv.js with a stub of vscode ---- */
-class Position { constructor(l, c) { this.line = l; this.character = c; } compareTo(o) { return this.line - o.line || this.character - o.character; } }
-class Range { constructor(a, b, c, d) { if (typeof a === 'number') { this.start = new Position(a, b); this.end = new Position(c, d); } else { this.start = a; this.end = b; } } }
-class Selection extends Range { constructor(a, b, c, d) { super(a, b, c, d); this.isEmpty = this.start.compareTo(this.end) === 0; } }
-class SnippetString { constructor() { this.v = ''; } appendText(s) { this.v += s; return this; } appendTabstop(n) { this.v += '$' + n; return this; } }
-
-function makeVscode(text, selections, pickName, cfgValues) {
-  const store = {};
-  const doc = {
-    eol: 1,
-    getText: () => doc.lines.join('\n'),
-    get lineCount() { return doc.lines.length; },
-    lineAt: (i) => ({ text: doc.lines[i] }),
-    lines: text.split('\n')
-  };
-  const ed = {
-    document: doc, options: { insertSpaces: false, tabSize: 4 },
-    selections: selections.map((s) => new Selection(s[0], s[1], s[2], s[3])), snippet: null, revealed: null,
-    async edit(fn) {
-      const reps = [];
-      fn({ replace: (r, s) => reps.push([r, s]) });
-      reps.sort((a, b) => b[0].start.line - a[0].start.line);
-      for (const [r, s] of reps) doc.lines.splice(r.start.line, r.end.line - r.start.line + 1, ...s.split('\n'));
-      return true;
-    },
-    async insertSnippet(s) { ed.snippet = s.v; return true; },
-    revealRange(r) { ed.revealed = r; }
-  };
-  const handlers = {};
-  const vs = {
-    Position, Range, Selection, SnippetString,
-    EndOfLine: { LF: 1, CRLF: 2 },
-    QuickPickItemKind: { Separator: -1 },
-    window: {
-      activeTextEditor: ed, shown: null,
-      createQuickPick() {
-        const qp = { items: [], selectedItems: [], _v: [], _a: [], _h: [], show() { vs.window.shown = qp; setImmediate(() => { qp.selectedItems = [qp.items.find((i) => i.env && i.env.name === pickName.name) || qp.typedPick]; if (pickName.typed) { qp._v.forEach((f) => f(pickName.typed)); qp.selectedItems = [qp.items.find((i) => i.env)]; } qp._a.forEach((f) => f()); }); },
-          onDidChangeValue(f) { qp._v.push(f); }, onDidAccept(f) { qp._a.push(f); }, onDidHide(f) { qp._h.push(f); }, dispose() {} };
-        return qp;
-      },
-      showWarningMessage(m) { vs.warned = m; }, showInformationMessage() {}
-    },
-    workspace: { getConfiguration: () => ({ get: (k, d) => (k in cfgValues ? cfgValues[k] : d) }), workspaceFolders: [] },
-    commands: { registerCommand: (id, fn) => { handlers[id] = fn; return { dispose() {} }; } },
-    languages: {}, Uri: { file: (f) => f }
-  };
-  return { vs, ed, doc, handlers, store };
-}
-
 (async () => {
-  const origLoad = Module._load;
-  const run = async (text, sels, pick, cfgValues) => {
-    const h = makeVscode(text, sels, pick, cfgValues || {});
-    Module._load = function (req, ...rest) {
-      if (req === 'vscode') return h.vs;
-      if (/\/macros$/.test(req) || req === './macros') return { _allMacros: async () => ({ cmds: new Map(), envs: new Map([['problem', { name: 'problem', kind: 'env', tokens: [{ t: 'm', open: '{', close: '}', optional: false }], file: '/p/C.cls', line: 3 }]]) }) };
-      return origLoad.call(this, req, ...rest);
-    };
-    for (const k of Object.keys(require.cache)) if (k.startsWith(EXT) && /(wrapEnv|util)\.js$/.test(k)) delete require.cache[k];
-    const mod = require(path.join(EXT, 'wrapEnv.js'));
-    const mem = {};
-    mod.register({ subscriptions: [], globalState: { get: (k) => mem[k], update: async (k, v) => { mem[k] = v; } } });
-    await h.handlers['tssworkflow.wrapEnv']();
-    Module._load = origLoad;
-    return { h, mem };
-  };
+  const run = (text, selections, pick, cfg, extra) => runCommand(Object.assign({ ext: EXT, module: 'wrapEnv.js', id: 'tssworkflow.wrapEnv', text, selections, pick, cfg }, extra));
+  const problem = new Map([['problem', { name: 'problem', kind: 'env', tokens: [{ t: 'm', open: '{', close: '}', optional: false }], file: '/p/C.cls', line: 3 }]]);
+  const problem0 = new Map([['problem', { name: 'problem', kind: 'env', tokens: [], file: '/p/C.cls', line: 3 }]]);
+  let checks = 0;
+  const ok = (cond, msg) => { assert.ok(cond, msg); checks++; };
+  const eq = (a, b, msg) => { assert.deepStrictEqual(a, b, msg); checks++; };
 
-  let r = await run('a\nb\nc', [[0, 0, 1, 1]], { name: 'center' });
-  assert.deepStrictEqual(r.h.doc.lines, ['\\begin{center}', '\ta', '\tb', '\\end{center}', 'c']);
-  assert.deepStrictEqual(r.mem['tssworkflow.wrapEnv.recent'], [{ name: 'center', rest: '' }]);
+  let r = await run('a\nb\nc', [[0, 0, 1, 1]], { name: 'center' }, {}, { envs: problem });
+  eq(r.h.doc.lines, ['\\begin{center}', '\ta', '\tb', '\\end{center}', 'c']);
+  eq(r.mem['tssworkflow.wrapEnv.recent'], [{ name: 'center', rest: '' }]);
   const labels = r.h.vs.window.shown.items.map((i) => (i.kind === -1 ? '--' + i.label : i.label));
-  assert.ok(labels.indexOf('--Проєкт (.cls / .sty)') >= 0 && labels.indexOf('problem') > labels.indexOf('--Проєкт (.cls / .sty)'), 'project group');
-  assert.ok(labels.indexOf('equation') > labels.indexOf('--Стандартні'), 'standard group');
-  assert.strictEqual(r.h.vs.window.shown.items.find((i) => i.label === 'problem').env.rest, '{}');
+  ok(labels.indexOf('--Проєкт (.cls / .sty)') >= 0 && labels.indexOf('problem') > labels.indexOf('--Проєкт (.cls / .sty)'), 'project group');
+  ok(labels.indexOf('equation') > labels.indexOf('--Стандартні'), 'standard group');
+  eq(r.h.vs.window.shown.items.find((i) => i.label === 'problem').pick.rest, '{}');
 
   r = await run('a\nb', [[0, 0, 0, 0]], { name: 'minipage' });
-  assert.strictEqual(r.h.ed.snippet, '\\begin{minipage}{0.48\\linewidth}\n\t$0\n\\end{minipage}', 'snippet without a field');
+  eq(r.h.ed.snippet, '\\begin{minipage}{0.48\\linewidth}\n\t$0\n\\end{minipage}', 'snippet without a field');
   r = await run('a\nb', [[0, 0, 0, 0]], { name: 'tabular' });
-  assert.strictEqual(r.h.ed.snippet, '\\begin{tabular}{$1}\n\t$0\n\\end{tabular}', 'snippet with a field inside {}');
+  eq(r.h.ed.snippet, '\\begin{tabular}{$1}\n\t$0\n\\end{tabular}', 'snippet with a field inside {}');
 
   r = await run('a b c', [[0, 0, 0, 1], [0, 2, 0, 3]], { name: 'center' });
-  assert.ok(r.h.vs.warned && r.h.doc.lines.join('|') === 'a b c', 'overlapping selections are refused');
+  ok(r.h.vs.warned && r.h.doc.lines.join('|') === 'a b c', 'overlapping selections are refused');
 
   r = await run('x\n\ny', [[0, 0, 0, 1], [2, 0, 2, 1]], { name: 'quote' });
-  assert.deepStrictEqual(r.h.doc.lines, ['\\begin{quote}', '\tx', '\\end{quote}', '', '\\begin{quote}', '\ty', '\\end{quote}']);
-  assert.deepStrictEqual(r.h.ed.selections.map((s) => s.start.line), [0, 4]);
+  eq(r.h.doc.lines, ['\\begin{quote}', '\tx', '\\end{quote}', '', '\\begin{quote}', '\ty', '\\end{quote}']);
+  eq(r.h.ed.selections.map((s) => s.start.line), [0, 4]);
 
   r = await run('x', [[0, 0, 0, 1]], { name: 'center' }, { 'wrapEnv.indent': false });
-  assert.deepStrictEqual(r.h.doc.lines, ['\\begin{center}', 'x', '\\end{center}']);
+  eq(r.h.doc.lines, ['\\begin{center}', 'x', '\\end{center}']);
 
   r = await run('x', [[0, 0, 0, 1]], { typed: 'minipage{0.3\\linewidth}' });
-  assert.deepStrictEqual(r.h.doc.lines, ['\\begin{minipage}{0.3\\linewidth}', '\tx', '\\end{minipage}']);
-  console.log('wrapEnv: ' + (n + 7) + ' checks passed');
+  eq(r.h.doc.lines, ['\\begin{minipage}{0.3\\linewidth}', '\tx', '\\end{minipage}']);
+
+  // \label from tssworkflow.labelPrefixes
+  const pref = { labelPrefixes: { figure: 'pic:', problem: 'prb:' } };
+  r = await run('\\includegraphics{a}\n\\caption{c}', [[0, 0, 1, 11]], { name: 'figure' }, pref);
+  eq(r.h.doc.lines, ['\\begin{figure}[h!]', '\t\\includegraphics{a}', '\t\\caption{c}', '\t\\label{pic:}', '\\end{figure}']);
+  eq([r.h.ed.selections[0].start.line, r.h.ed.selections[0].start.character], [3, '\t\\label{pic:'.length]);
+  r = await run('text', [[0, 0, 0, 4]], { name: 'problem' }, pref, { envs: problem0 });
+  eq(r.h.doc.lines, ['\\begin{problem}', '\t\\label{prb:}', '\ttext', '\\end{problem}']);
+  r = await run('\\label{mine}', [[0, 0, 0, 12]], { name: 'problem' }, pref, { envs: problem0 });
+  eq(r.h.doc.lines, ['\\begin{problem}', '\t\\label{mine}', '\\end{problem}'], 'an existing \\label is kept alone');
+  r = await run('text', [[0, 0, 0, 4]], { name: 'problem' }, Object.assign({ 'wrapEnv.label': false }, pref), { envs: problem0 });
+  eq(r.h.doc.lines, ['\\begin{problem}', '\ttext', '\\end{problem}'], 'wrapEnv.label=false');
+  r = await run('a', [[0, 0, 0, 0]], { name: 'figure' }, pref);
+  eq(r.h.ed.snippet, '\\begin{figure}[h!]\n\t$1\n\t\\label{pic:$0}\n\\end{figure}', 'figure snippet: body, then label');
+  r = await run('a', [[0, 0, 0, 0]], { name: 'problem' }, pref, { envs: problem0 });
+  eq(r.h.ed.snippet, '\\begin{problem}\n\t\\label{prb:$1}\n\t$0\n\\end{problem}', 'problem snippet: label, then body');
+
+  // the group "Ще в проєкті": from all files, most used first, standard and project ones left out
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-'));
+  const f1 = path.join(dir, 'a.tex'); const f2 = path.join(dir, 'b.tex');
+  fs.writeFileSync(f1, '\\begin{foo}\\end{foo}\\begin{foo}\\begin{center}\\begin{problem}');
+  fs.writeFileSync(f2, '\\begin{foo}\\begin{mybox}\\end{mybox}');
+  r = await run('x \\begin{local}', [[0, 0, 0, 1]], { name: 'center' }, {}, { files: [f1, f2], envs: problem });
+  const items = r.h.vs.window.shown.items;
+  const gi = items.findIndex((i) => i.label === 'Ще в проєкті');
+  ok(gi >= 0, 'project usage group exists');
+  eq(items.slice(gi + 1, gi + 5).map((i) => i.label), ['foo', 'local', 'mybox', 'Стандартні'], 'most used first; center (standard) and problem (project) are not repeated');
+  eq(items[gi + 1].detail, '3×');
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  console.log('wrapEnv: ' + (n + checks) + ' checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });
