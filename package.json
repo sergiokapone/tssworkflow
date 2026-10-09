@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.11.3",
+  "version": "0.12.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -92,6 +92,10 @@
       {
         "command": "tssworkflow.displayToEquation",
         "title": "TSS Workflow: Convert \\[ ... \\] to equation*"
+      },
+      {
+        "command": "tssworkflow.wrapEnv",
+        "title": "TSS Workflow: Wrap selection in environment (pick from list)"
       },
       {
         "command": "tssworkflow.pictures",
@@ -486,6 +490,11 @@
           "group": "1_modification"
         },
         {
+          "command": "tssworkflow.wrapEnv",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
           "command": "tssworkflow.sentences",
           "when": "resourceLangId == latex || resourceLangId == tex",
           "group": "1_modification"
@@ -559,6 +568,10 @@
         },
         {
           "command": "tssworkflow.displayToEquation",
+          "group": "3_structure@4"
+        },
+        {
+          "command": "tssworkflow.wrapEnv",
           "group": "3_structure@4"
         },
         {
@@ -1727,6 +1740,19 @@
           "type": "boolean",
           "default": true,
           "description": "When a project is opened, warn once if latexmk or lualatex is not in PATH (offers Doctor and \"do not remind\")."
+        },
+        "tssworkflow.wrapEnv.extra": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Own entries of the list in `Wrap selection in environment` (`Ctrl+Alt+W`). Each is an environment name, optionally with arguments: `\"minipage{0.5\\\\linewidth}\"`, `\"figure[htbp]\"`, `\"tcolorbox\"`. `{}` and `[]` are where the caret stops after wrapping."
+        },
+        "tssworkflow.wrapEnv.indent": {
+          "type": "boolean",
+          "default": true,
+          "description": "Wrap selection in environment: indent the wrapped lines one step (not in verbatim, lstlisting, minted)."
         }
       }
     },
@@ -1818,6 +1844,16 @@
         "args": {
           "snippet": "\\begin{${1|equation,equation*,align,align*,gather,itemize,enumerate,figure,table,center,minipage,proof,frame|}}\n\t$TM_SELECTED_TEXT$0\n\\end{$1}"
         }
+      },
+      {
+        "command": "tssworkflow.wrapEnv",
+        "key": "ctrl+alt+w",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.wrapEnv",
+        "key": "ctrl+alt+numpad_add",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
       },
       {
         "command": "tssworkflow.toggleIffalse",

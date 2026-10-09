@@ -39,6 +39,7 @@ const GROUPS = [
   ] },
   { id: 'structure', en: 'Structure, formulas, tables', label: 'Структура, формули, таблиці', icon: 'symbol-structure', items: [
     ['convertEnv', 'Змінити формульне середовище / мітку', 'symbol-namespace'],
+    ['wrapEnv', 'Обгорнути виділене в середовище', 'symbol-namespace'],
     ['displayToEquation', '\\[ … \\] → equation*', 'symbol-numeric'],
     ['frameSections', 'Обрамити заголовки й формули', 'symbol-boolean'],
     ['reframeSections', 'Переобрамити заголовки й формули', 'refresh'],
