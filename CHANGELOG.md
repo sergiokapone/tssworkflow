@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.12.0
+- **Обгорнути виділене в середовище** (`Ctrl+Alt+W` або `Ctrl+Alt+Num+`, команда `Wrap selection in environment`). Середовище вибирається з одного списку: останні, середовища проєктних `.cls`/`.sty` (з `{}` для обов'язкових аргументів), свої (`tssworkflow.wrapEnv.extra`), ще використані в цьому файлі й стандартні; можна ввести своє разом з аргументами, напр. `minipage{0.5\linewidth}`. `\begin` і `\end` стають на власних рядках, виділені рядки зсуваються на один рівень (`tssworkflow.wrapEnv.indent`; не в `verbatim`, `lstlisting`, `minted`). Без виділення вставляється порожнє середовище. Кнопка є в правому кліку, меню «Текст і структура» й панелі «Команди».
+
 ## 0.11.3
 - **Редактор таблиць:** код вебперегляду винесено з рядка `String.raw` у `media/tableEditor/webview.js` і `webview.css`. `\SetRow[r=…]{mode=…}` і `\SetColumn{mode=…}` теж задають режим формул. Клітинка з кирилицею поза `\text{…}` у математичному режимі підкреслюється з підказкою; якщо KaTeX не вміє намалювати формулу (наприклад, невідомий макрос), клітинка підкреслюється червоним, а в підказці названо причину.
 - **Порядок у коді:** `corePure.js` (2150 рядків) розкладено на `texBasePure`, `typographyPure`, `structurePure`, `logPure`, `normalizePure`, `workspacePure`, а `features.js` (1560 рядків) на `textCommands`, `labels`, `settingsCitations`, `checksHovers`, `buildLog`, `saveAndPictures`, `quickFixes` і `util`. `corePure.js` і `features.js` лишились «дверима» з тими самими експортами. Спільні дрібні функції (`cfg`, `info`, `warn`, `projectRoot`, `textOfPath`, `escRe`, `posix` та ін.) тепер в одному місці.
