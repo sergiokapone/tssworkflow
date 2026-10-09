@@ -6,6 +6,14 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const colName = (i) => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
 const STRUCT = new Set(['addRow', 'delRow', 'moveRow', 'addCol', 'delCol', 'moveCol', 'dupRows']);
+// tells the extension which row is active, so that the file is scrolled to it (key: row, or 'x' for the whole table)
+let lastFollow = '';
+function follow(r, force) {
+  const k = Number.isInteger(r) ? String(r) : 'x';
+  if (!force && k === lastFollow) return;
+  lastFollow = k;
+  vscode.postMessage({ type: 'follow', r: Number.isInteger(r) ? r : null });
+}
 function post(op) { if (STRUCT.has(op.type)) { sel = null; paintSel(); } vscode.postMessage({ type: 'op', op: op }); }
 function toast(m) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(function () { t.style.display = 'none'; }, 5000); }
 const cellAt = (r, c) => document.querySelector('td.c[data-r="' + r + '"][data-c="' + c + '"]');
@@ -97,6 +105,7 @@ function paintSel() {
   for (let r = rc.r1; r <= rc.r2; r++) for (let c = rc.c1; c <= rc.c2; c++) { const td = cellAt(r, c); if (td) td.classList.add('sel'); }
 }
 function setSel(a, f) {
+  follow(f.r);
   const act = document.activeElement;
   if (isCell(act)) act.blur();
   sel = { a: a, f: f };
@@ -129,6 +138,7 @@ function caretToEnd(td) { const s = window.getSelection(); const rg = document.c
 /* --------------------------------- drawing --------------------------------- */
 function render(v, focus) {
   view = v;
+  lastFollow = ''; // the file may have been scrolled away since: the next focus tells the extension again
   const t = $('t');
   const act = document.activeElement;
   const prev = focus || (isCell(act) ? { r: +act.dataset.r, c: +act.dataset.c } : null);
@@ -209,6 +219,13 @@ function render(v, focus) {
 function sig(v) { return JSON.stringify(v); }
 
 /* ---------------------------------- mouse ---------------------------------- */
+// every click in the grid brings the file back to the table (to the row that was clicked, else to the table)
+document.addEventListener('mousedown', function (e) {
+  const t = e.target.closest ? e.target : null;
+  const cell = t && t.closest('td.c');
+  const head = t && t.closest('th.rh');
+  follow(cell ? +cell.dataset.r : head ? +head.dataset.row : null, true);
+});
 document.addEventListener('mousedown', function (e) {
   const td = e.target.closest ? e.target.closest('td.c') : null;
   if (!td) return;
@@ -322,6 +339,7 @@ document.addEventListener('keydown', function (e) {
 document.addEventListener('focusin', function (e) {
   const td = e.target;
   if (!isCell(td)) return;
+  follow(+td.dataset.r);
   td.textContent = td.dataset.orig;
   caretToEnd(td);
 });

@@ -325,6 +325,20 @@ function parseTable(text, env) {
   return { model };
 }
 
+/* Where the rows of a parsed table stand in the text it was parsed from: [{ start, content, end }] (offsets), one per
+ * row of the model. `start`..`end` is the row with what stands before it (\hline, comments) and its \\ ; `content` is where
+ * the first cell begins. `bodyAt` is where the rows begin: env.bodyStart + model.head.length. */
+function rowSpans(model, bodyAt) {
+  const out = [];
+  let pos = bodyAt;
+  for (const r of model.rows) {
+    const end = pos + r.raw.length + r.sep.length;
+    out.push({ start: pos, content: Math.min(end, pos + r.pre.length + r.lead.length), end });
+    pos = end;
+  }
+  return out;
+}
+
 const width = (m) => Math.max(m.spec ? m.spec.tokens.length : 0, ...m.rows.map((r) => r.cells.reduce((s, c) => s + c.span, 0)));
 const hasSpans = (m) => m.rows.some((r) => r.cells.some((c) => c.cs > 1 || c.rs > 1));
 
@@ -1020,4 +1034,4 @@ function toView(m, defs) {
   };
 }
 
-module.exports = { restyleTblr, applyKeyOps, rewriteKeys, keyInfo, classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };
+module.exports = { rowSpans, restyleTblr, applyKeyOps, rewriteKeys, keyInfo, classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };

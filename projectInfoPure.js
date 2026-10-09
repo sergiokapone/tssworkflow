@@ -94,8 +94,56 @@ function countRe(t, re) {
   return m ? m.length : 0;
 }
 
-// counters of a piece of text; extra: { name: regexSource }
-function textStats(text, extra) {
+/* ---- built-in counters: problems and control questions ---- */
+const LIST_ENVS = new Set(['itemize', 'enumerate', 'description', 'itemize*', 'enumerate*', 'compactitem', 'compactenum', 'questions']);
+const DEFAULT_QUESTION_TITLE = '(?:контрольн\\p{L}*\\s+(?:запитан|питан)\\p{L}*|(?:запитан|питан)\\p{L}*\\s+(?:для|до)\\s+(?:само)?(?:перевірк|контрол)\\p{L}*|(?:запитан|питан)\\p{L}*\\s+до\\s+розділу|review\\s+questions|^questions?$)';
+
+// items of the outermost lists of a text: \item at list depth 1, and every \question (exam class)
+function countListItems(text) {
+  let depth = 0;
+  let n = 0;
+  const re = /\\(begin|end)\{([^}]*)\}|\\item(?![A-Za-z])|\\question(?![A-Za-z])/g;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m[1]) { if (LIST_ENVS.has(m[2])) depth = Math.max(0, depth + (m[1] === 'begin' ? 1 : -1)); } else if (m[0].startsWith('\\item')) { if (depth === 1) n++; } else n++;
+  }
+  return n;
+}
+
+/* Items in the sections whose title matches `titleRe` (a section ends at the next heading of the same or a higher level).
+ * `t` is text without comments. 0 when there is no such section. */
+function countQuestionItems(t, titleRe) {
+  const lines = String(t).split('\n');
+  const heads = P.scanHeadings(lines);
+  let n = 0;
+  let covered = -1;
+  heads.forEach((h, i) => {
+    if (h.line < covered || !titleRe.test(h.title)) return;
+    let end = lines.length;
+    for (let k = i + 1; k < heads.length; k++) if (heads[k].level <= h.level) { end = heads[k].line; break; }
+    n += countListItems(lines.slice(h.line + 1, end).join('\n'));
+    covered = end;
+  });
+  return n;
+}
+
+const envsRe = (envs) => new RegExp('\\\\begin\\{(?:' + envs.map(escRe).join('|') + ')\\*?\\}', 'g');
+
+/* The counters that need no setting: { 'Задач': fn, 'Контр. запитань': fn }, each fn takes text without comments.
+ * opts: { problemEnvs: ['problem'], questionTitle: regex source (case-insensitive, unicode) } */
+function builtinCounters(opts) {
+  const o = opts || {};
+  const envs = (Array.isArray(o.problemEnvs) ? o.problemEnvs : ['problem']).map(String).filter(Boolean);
+  let titleRe;
+  try { titleRe = new RegExp(String(o.questionTitle || DEFAULT_QUESTION_TITLE), 'iu'); } catch (e) { titleRe = new RegExp(DEFAULT_QUESTION_TITLE, 'iu'); }
+  const out = {};
+  if (envs.length) { const re = envsRe(envs); out['Задач'] = (t) => countRe(t, re); }
+  out['Контр. запитань'] = (t) => countQuestionItems(t, titleRe);
+  return out;
+}
+
+// counters of a piece of text; extra: { name: regexSource }; fns: { name: (textWithoutComments) => number } (builtinCounters)
+function textStats(text, extra, fns) {
   const t = stripComments(text);
   const st = {
     words: countWords(text),
@@ -108,6 +156,7 @@ function textStats(text, extra) {
     extra: {}
   };
   st.eqStar = Math.floor(st.eqStar);
+  for (const [name, fn] of Object.entries(fns || {})) st.extra[name] = fn(t);
   for (const [name, src] of Object.entries(extra || {})) {
     try { st.extra[name] = countRe(t, new RegExp(src, 'g')); } catch (e) { st.extra[name] = 0; }
   }
@@ -115,18 +164,18 @@ function textStats(text, extra) {
 }
 
 // rows for one file: the total and one row per \chapter / \section (up to the next one)
-function fileStats(text, extra) {
+function fileStats(text, extra, fns) {
   const lines = String(text).split(/\r?\n/);
   const heads = P.scanHeadings(lines).filter((h) => h.level >= 1 && h.level <= 2);
-  const total = textStats(text, extra);
+  const total = textStats(text, extra, fns);
   const rows = [];
   const part = (from, to) => lines.slice(from, to).join('\n');
   if (heads.length) {
-    const intro = textStats(part(0, heads[0].line), extra);
-    if (intro.words || intro.eqNum || intro.eqStar || intro.figures) rows.push({ title: '(до першого заголовка)', level: 0, st: intro });
+    const intro = textStats(part(0, heads[0].line), extra, fns);
+    if (intro.words || intro.eqNum || intro.eqStar || intro.figures || Object.values(intro.extra).some(Boolean)) rows.push({ title: '(до першого заголовка)', level: 0, st: intro });
     heads.forEach((h, i) => rows.push({
       title: h.title, level: h.level, kind: h.kind, line: h.line,
-      st: textStats(part(h.line, i + 1 < heads.length ? heads[i + 1].line : lines.length), extra)
+      st: textStats(part(h.line, i + 1 < heads.length ? heads[i + 1].line : lines.length), extra, fns)
     }));
   }
   return { total, rows };
@@ -370,5 +419,6 @@ function applyTypoFixes(lines, opts) {
 
 module.exports = {
   parseAux, auxInputs, countWords, textStats, fileStats, addStats, emptyStats, scanTodos,
+  countListItems, countQuestionItems, builtinCounters, DEFAULT_QUESTION_TITLE,
   typographyChecks, typoFixPlan, applyTypoFixes, fixHomoglyphs, numberedEquations, starEquation, stripComments
 };

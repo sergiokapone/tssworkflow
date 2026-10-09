@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1352,6 +1352,26 @@
           ],
           "description": "Words that mark a note in a % comment for the TSS TODO view in the Explorer. \\\\todo{...} commands are always listed."
         },
+        "tssworkflow.stats.builtinCounters": {
+          "type": "boolean",
+          "default": true,
+          "description": "Project statistics: add the columns Problems and Control questions (see stats.problemEnvs, stats.questionTitle)."
+        },
+        "tssworkflow.stats.problemEnvs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "problem"
+          ],
+          "description": "Project statistics: environments counted as problems (each \\begin{name} is one), e.g. [\"problem\", \"exercise\"]."
+        },
+        "tssworkflow.stats.questionTitle": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Project statistics: regular expression (case-insensitive, Unicode) for the title of the control-questions section; the items of the lists inside it (until the next heading of the same or a higher level) are counted. Empty: `Контрольні запитання`, `Контрольні питання`, `Питання для самоперевірки`, `Запитання до розділу`, `Review questions`."
+        },
         "tssworkflow.statsCounters": {
           "type": "object",
           "default": {},
@@ -1738,6 +1758,23 @@
           "type": "boolean",
           "default": true,
           "description": "Save PDF copy: add the time (HHMM) after the date."
+        },
+        "tssworkflow.tableEditor.followEditor": {
+          "type": "string",
+          "enum": [
+            "off",
+            "reveal",
+            "highlight",
+            "cursor"
+          ],
+          "enumDescriptions": [
+            "The file stays where it is.",
+            "A click or a move to another row in the grid scrolls the file to that row of the table (the focus stays in the grid).",
+            "Like reveal, and the table and the active row are highlighted in the file.",
+            "Like highlight, and the text caret is put at the start of the active row."
+          ],
+          "default": "highlight",
+          "description": "Table editor: how the file follows the grid."
         },
         "tssworkflow.tableEditor.codeLens": {
           "type": "boolean",

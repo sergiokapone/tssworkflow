@@ -114,6 +114,9 @@ async function projectStats() {
   if (!folder) { info('Відкрий папку проєкту.'); return; }
   const root = folder.uri.fsPath;
   const extra = cfg().get('statsCounters', {}) || {};
+  // built-in columns: problems and items of the control-questions section (stats.*), shown as — when there are none
+  const builtin = cfg().get('stats.builtinCounters', true) ? X.builtinCounters({ problemEnvs: cfg().get('stats.problemEnvs', ['problem']), questionTitle: cfg().get('stats.questionTitle', '') }) : {};
+  const builtinNames = Object.keys(builtin);
   const files = (await api.texFiles()).filter((u) => /\.tex$/i.test(u.fsPath) && u.fsPath.startsWith(root));
   const byPath = new Map(files.map((u) => [u.fsPath, u]));
   const ordered = [];
@@ -132,22 +135,23 @@ async function projectStats() {
   } catch (e) { /* no main file: alphabetical order */ }
   files.map((u) => u.fsPath).sort().forEach(add);
 
-  const extraNames = Object.keys(extra);
+  const extraNames = builtinNames.concat(Object.keys(extra).filter((n) => !builtinNames.includes(n)));
   const head = ['Розділ', 'Слів', 'Формул (нум. / ненум.)', 'Рисунків', 'Таблиць', 'tikz', 'Цитувань'].concat(extraNames);
+  const cell = (st, n) => { const v = st.extra[n] || 0; return !v && builtinNames.includes(n) ? '—' : v; };
   const row = (title, st) => '| ' + [title, st.words, st.eqNum + ' / ' + st.eqStar, st.figures, st.tables, st.tikz, st.cites]
-    .concat(extraNames.map((n) => st.extra[n] || 0)).join(' | ') + ' |';
+    .concat(extraNames.map((n) => cell(st, n))).join(' | ') + ' |';
   const out = ['# Статистика проєкту', '', '| ' + head.join(' | ') + ' |', '|' + head.map((h, i) => (i ? '---:' : ':---')).join('|') + '|'];
   let total = X.emptyStats();
   for (const u of ordered) {
-    const fs0 = X.fileStats(api.textOf(u), extra);
+    const fs0 = X.fileStats(api.textOf(u), extra, builtin);
     const t = fs0.total;
-    if (!t.words && !t.eqNum && !t.eqStar && !t.figures && !t.tables && !t.tikz && !t.cites) continue;
+    if (!t.words && !t.eqNum && !t.eqStar && !t.figures && !t.tables && !t.tikz && !t.cites && !Object.values(t.extra).some(Boolean)) continue;
     total = X.addStats(total, t);
     out.push(row('**' + mdCell(relPath(u.fsPath)) + '**', t));
     for (const r of fs0.rows) out.push(row('&emsp;' + (r.level === 1 ? '▸ ' : '') + mdCell(r.title), r.st));
   }
   out.push(row('**Разом**', total));
-  out.push('', '_Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`._');
+  out.push('', '_Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`. «Задач»: `\\begin{problem}` (`stats.problemEnvs`); «Контр. запитань»: пункти списків у секції із заголовком «Контрольні запитання…» (`stats.questionTitle`); — означає, що таких немає._');
   const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: out.join('\n') + '\n' });
   await vscode.window.showTextDocument(doc, { preview: false });
 }

@@ -15,6 +15,9 @@ const { cfg, isTex } = require('./util');
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
 let panel = null;
+let deco = null; // decoration types of the table / row shown in the file
+let followTimer = null;
+let followRow = null;
 let target = null; // { uri, start, name }
 let selfEdit = 0;
 let refreshTimer = null;
@@ -115,6 +118,62 @@ async function history(cmd) {
   }
 }
 
+/* ------------------- the file follows the grid (tableEditor.followEditor) ------------------- */
+const followMode = () => String(cfg().get('tableEditor.followEditor', 'highlight'));
+
+function decos() {
+  if (!deco) {
+    deco = {
+      table: vscode.window.createTextEditorDecorationType({ isWholeLine: true, backgroundColor: new vscode.ThemeColor('editor.rangeHighlightBackground') }),
+      row: vscode.window.createTextEditorDecorationType({ isWholeLine: true, backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'), overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'), overviewRulerLane: vscode.OverviewRulerLane.Center })
+    };
+  }
+  return deco;
+}
+
+function clearFollow() {
+  if (!deco) return;
+  for (const ed of vscode.window.visibleTextEditors) { ed.setDecorations(deco.table, []); ed.setDecorations(deco.row, []); }
+}
+
+// shows the table (row: its row) in the file without taking the focus from the grid
+async function follow(row) {
+  const mode = followMode();
+  if (!panel || !target) return;
+  if (mode === 'off') { clearFollow(); return; }
+  const cur = await current();
+  if (!cur || cur.skip || !cur.doc) return;
+  let ed = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === cur.doc.uri.toString());
+  if (!ed) ed = await vscode.window.showTextDocument(cur.doc, { viewColumn: panel.viewColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One, preserveFocus: true, preview: false });
+  const at = (o) => cur.doc.positionAt(o);
+  const tableRange = new vscode.Range(at(cur.env.start), at(cur.env.end));
+  let rowRange = null;
+  if (Number.isInteger(row)) {
+    const spans = X.rowSpans(cur.model, cur.env.bodyStart + cur.model.head.length);
+    const sp = spans[Math.max(0, Math.min(row, spans.length - 1))];
+    if (sp) {
+      let e = sp.end;
+      while (e > sp.content && /\s/.test(cur.text[e - 1])) e--;
+      rowRange = new vscode.Range(at(sp.content), at(e));
+    }
+  }
+  ed.revealRange(rowRange || new vscode.Range(tableRange.start, tableRange.start), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  clearFollow();
+  if (mode === 'highlight' || mode === 'cursor') {
+    const d = decos();
+    ed.setDecorations(d.table, [tableRange]);
+    ed.setDecorations(d.row, rowRange ? [rowRange] : []);
+  }
+  if (mode === 'cursor') { const p = (rowRange || tableRange).start; ed.selection = new vscode.Selection(p, p); }
+}
+
+// bursts of messages (arrow keys) become one reveal, after the pending changes of the file
+function scheduleFollow(row) {
+  followRow = row;
+  clearTimeout(followTimer);
+  followTimer = setTimeout(() => { enqueue(() => follow(followRow)).catch(() => {}); }, 60);
+}
+
 // the changes go one after another: each one starts from the text the previous one left
 let chain = Promise.resolve();
 const enqueue = (fn) => { chain = chain.then(fn, fn); return chain; };
@@ -140,9 +199,11 @@ function ensurePanel(context) {
   panel.webview.onDidReceiveMessage((m) => {
     if (m.type === 'ready') enqueue(() => push());
     else if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
+    else if (m.type === 'follow') scheduleFollow(Number.isInteger(m.r) ? m.r : null);
     else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
   }, null, context.subscriptions);
-  panel.onDidDispose(() => { panel = null; target = null; }, null, context.subscriptions);
+  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); }, null, context.subscriptions);
+  panel.onDidDispose(() => { clearTimeout(followTimer); clearFollow(); panel = null; target = null; followRow = null; }, null, context.subscriptions);
   return panel;
 }
 
@@ -174,6 +235,7 @@ async function openTable(context, uri, start) {
   target = { uri: doc.uri, start: env.start, name: env.name };
   ensurePanel(context);
   await push();
+  scheduleFollow(null);
 }
 
 function register(context) {
