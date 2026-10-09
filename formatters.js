@@ -7,11 +7,8 @@
  * The logic without VS Code is in formattersPure.js. */
 const vscode = require('vscode');
 const X = require('./formattersPure');
+const { cfg, info, isTex, warn } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m, ...b) => vscode.window.showInformationMessage(m, ...b);
-const warn = (m, ...b) => vscode.window.showWarningMessage(m, ...b);
-const isTex = (doc) => doc && (doc.languageId === 'latex' || doc.languageId === 'tex');
 
 function docLines(doc) {
   const a = [];

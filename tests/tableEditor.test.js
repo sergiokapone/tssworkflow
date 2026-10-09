@@ -62,6 +62,18 @@ e & f \\
   assert.strictEqual(m[0][1], '');      // row 1 matches nothing
 });
 
+t('\\SetRow[r=2]{mode=...} covers two rows, \\SetColumn{mode=...} the column, and the row command is stronger', () => {
+  const src = String.raw`\begin{tblr}{colspec={ccc}}
+\SetRow{mode=dmath} a & b & c \\
+\SetRow[r=2]{bg=red, mode=math}
+d & e & f \\
+g & h & i \\
+\SetColumn{mode=text} j & k & l \\
+m & n & o \\
+\end{tblr}`;
+  assert.deepStrictEqual(modes(src), [['dmath', 'dmath', 'dmath'], ['math', 'math', 'math'], ['math', 'math', 'math'], ['text', '', ''], ['text', '', '']]);
+});
+
 t('a table without mode= and tabular have no modes at all', () => {
   assert.deepStrictEqual(modes(String.raw`\begin{tblr}{colspec={cc}}
 a & b \\

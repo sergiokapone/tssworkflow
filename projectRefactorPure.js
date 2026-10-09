@@ -5,8 +5,8 @@
  *   .bib entries for \cite completion and hover
  *   the tree of the "Проблеми" panel; names and pruning of project snapshots */
 const C = require('./chaptersPure');
+const { escRe } = require('./corePure');
 
-const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /* ================================ chapters ================================= */
 // 'Charges', 'Steady-Efield', 'A_1': letters, digits, _ and -, starting with a letter (it is a folder AND a file name)

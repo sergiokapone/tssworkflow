@@ -6,8 +6,8 @@ const vscode = require('vscode');
 const path = require('path');
 const S = require('./sidebarPure');
 const P = require('./corePure');
+const { cfg } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
 let provider = null;
 let building = null; // { label, job } while a build runs

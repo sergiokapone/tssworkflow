@@ -8,14 +8,9 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const C = require('./chaptersPure');
+const { cfg, projectRoot } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
-function projectRoot() {
-  const ed = vscode.window.activeTextEditor;
-  const f = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
-  return f ? f.uri.fsPath : null;
-}
 
 const readText = (p) => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return null; } };
 

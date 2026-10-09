@@ -14,11 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
+const { cfg, info, isTex, textOfPath, warn } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m, ...b) => vscode.window.showInformationMessage(m, ...b);
-const warn = (m, ...b) => vscode.window.showWarningMessage(m, ...b);
-const isTex = (doc) => !!doc && (doc.languageId === 'latex' || doc.languageId === 'tex');
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
 const isBib = (doc) => !!doc && (doc.languageId === 'bibtex' || doc.uri.fsPath.toLowerCase().endsWith('.bib'));
 const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}';
@@ -32,11 +29,6 @@ const rootOf = (uri) => { const f = vscode.workspace.getWorkspaceFolder(uri) || 
 const existsFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } };
 const docLines = (doc) => { const a = []; for (let i = 0; i < doc.lineCount; i++) a.push(doc.lineAt(i).text); return a; };
 
-function textOfPath(abs) {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === abs);
-  if (open) return open.getText();
-  try { return fs.readFileSync(abs, 'utf8'); } catch (e) { return null; }
-}
 
 // [{ path (relative, with /), abs, text }]
 async function projectFiles(exts, root) {

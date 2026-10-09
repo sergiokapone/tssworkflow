@@ -4,6 +4,7 @@ const fs = require('fs');
 const cp = require('child_process');
 const P = require('./corePure');
 const features = require('./features');
+const { PIC_EXTS } = require('./util');
 
 /* ------------------------------------------------------------------ *
  * 1. Clickable file names
@@ -741,7 +742,6 @@ const refDefinition = {
  *    \localinput      -> files of <dir of current file>/tikz  (with extension)
  *    \includegraphics -> files of <dir of current file>/Pictures (without extension)
  * ------------------------------------------------------------------ */
-const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
 const COMPLETE = [
   { re: /\\localinput\{([^}]*)$/, macro: '\\localinput', sub: 'tikz', exts: ['.tikz', '.tex'], stripExt: false },
   { re: /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)$/, macro: '\\includegraphics', sub: 'Pictures', exts: PIC_EXTS, stripExt: true }

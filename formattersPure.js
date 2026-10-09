@@ -7,10 +7,10 @@
  * or unbalanced braces is skipped with a reason. */
 
 const P = require('./corePure');
+const { dispLen, escRe } = require('./corePure');
 
 /* ------------------------------ scanning helpers ----------------------------- */
 const VERB_ENVS = 'verbatim\\*?|Verbatim\\*?|lstlisting|minted|alltt|comment';
-const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const collapseWs = (s) => s.replace(/\s+/g, ' ').trim();
 
 // ranges [from, to) of the text that are comments, verbatim-like environments or \verb|...|
@@ -538,7 +538,6 @@ function parseBody(body) {
 }
 
 /* ------------------------------- layout of rows ------------------------------ */
-const dispLen = (s) => Array.from(s).length;
 const indentWidth = (s, tab) => Array.from(s).reduce((a, c) => a + (c === '\t' ? tab : 1), 0);
 const trimEnd = (s) => s.replace(/[ \t]+$/, '');
 

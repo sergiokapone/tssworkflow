@@ -1,7 +1,7 @@
 'use strict';
+const { escRe } = require('./corePure');
 /* Pure helpers of TSS Workflow 0.4.2 (no VS Code API): the chapters of a project for the "Розділи" panel. */
 
-const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // a line without its comment (the part after an unescaped %)
 function stripComment(line) {

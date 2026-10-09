@@ -5,9 +5,8 @@
  * Also: a one-time warning at the start when latexmk or lualatex is not in PATH. */
 const vscode = require('vscode');
 const P = require('./corePure');
+const { EXCLUDE, cfg } = require('./util');
 
-const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
 class EmptyTree {
   getTreeItem(el) { return el; }

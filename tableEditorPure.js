@@ -930,6 +930,29 @@ function modeOfSetCell(head) {
   return e > 0 ? (parseProps(head.slice(i + 1, e)).mode || '') : '';
 }
 
+// mode= of the last \SetRow[r=2]{...} / \SetColumn[c=2]{...} in the commands before a row: { mode, n } or null
+function setCmdMode(pre, name, key) {
+  const re = new RegExp('\\\\' + name + '(?![A-Za-z])\\s*', 'g');
+  let m, out = null;
+  while ((m = re.exec(pre))) {
+    let i = m.index + m[0].length, n = 1;
+    if (pre[i] === '[') {
+      const e = E4.matchBracket(pre, i);
+      if (e < 0) break;
+      const k = new RegExp('(?:^|,)\\s*' + key + '\\s*=\\s*(\\d+)').exec(pre.slice(i + 1, e));
+      if (k) n = +k[1];
+      i = e + 1;
+    }
+    while (/\s/.test(pre[i] || '')) i++;
+    if (pre[i] !== '{') continue;
+    const e = E4.matchBracket(pre, i);
+    if (e < 0) break;
+    const mode = parseProps(pre.slice(i + 1, e)).mode;
+    if (mode) out = { mode, n };
+  }
+  return out;
+}
+
 /* ------------------------------------ view ------------------------------------ */
 function toView(m, defs) {
   const w = width(m);
@@ -943,6 +966,15 @@ function toView(m, defs) {
   }
   const resolve = (e) => (e ? colorExpr(e, defs, 0) : null);
   const modes = m.isTblr && m.spec ? m.spec.tokens.map((t) => modeOfUnit(t.unit)) : null;
+  const rowSet = [], colSet = []; // mode= from \SetRow / \SetColumn (a \SetColumn before a row speaks about the columns from the first one)
+  if (m.isTblr) {
+    m.rows.forEach((row, r) => {
+      const sr = setCmdMode(row.pre || '', 'SetRow', 'r');
+      if (sr) for (let k = 0; k < sr.n; k++) rowSet[r + k] = sr.mode;
+      const sc = setCmdMode(row.pre || '', 'SetColumn', 'c');
+      if (sc) for (let k = 0; k < sc.n; k++) colSet[k] = sc.mode;
+    });
+  }
   const rows = m.rows.map((row, r) => {
     const st = starts(row);
     const rowColor = /\\rowcolor(?:\[[^\]]*\])?\{([^}]*)\}/.exec(row.pre);
@@ -954,7 +986,7 @@ function toView(m, defs) {
         const cc = /^\\cellcolor(?:\[[^\]]*\])?\{([^}]*)\}\s*/.exec(text);
         if (cc) { bgExpr = cc[1]; text = text.slice(cc[0].length); }
         const sr = styleOf(m.styles || [], r + 1, col + 1, nr, w);
-        const mode = (c.kind === 'sc' && modeOfSetCell(c.head)) || sr.mode || (modes && modes[col]) || '';
+        const mode = (c.kind === 'sc' && modeOfSetCell(c.head)) || rowSet[r] || colSet[col] || sr.mode || (modes && modes[col]) || '';
         if (sr.bg) bgExpr = sr.bg;
         const bg = resolve(bgExpr);
         let fg = resolve(sr.fg);

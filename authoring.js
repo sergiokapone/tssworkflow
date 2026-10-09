@@ -8,10 +8,9 @@ const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
 const X = require('./authoringPure');
+const { cfg, info, warn } = require('./util');
+const { posix } = require('./corePure');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m) => vscode.window.showInformationMessage(m);
-const warn = (m) => vscode.window.showWarningMessage(m);
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif'];
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 const SRC_EXT = ['.tex', '.tikz', '.cls', '.sty', '.bib'];
@@ -31,7 +30,6 @@ function run(cmd, args, opts) {
     });
   });
 }
-const posix = (p) => p.split(path.sep).join('/');
 
 /* ============================ figures: drop and paste ============================ */
 function figureSnippet(doc, position, stem, tab) {

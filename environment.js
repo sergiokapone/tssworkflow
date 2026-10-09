@@ -6,8 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const P = require('./corePure');
+const { cfg } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
 // first line of `<program> --version`, '' if it does not answer in 4 s
 function versionOf(file) {

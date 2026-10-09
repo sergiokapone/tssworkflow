@@ -14,11 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const T = require('./templatesPure');
+const { cfg, errText, info, warn } = require('./util');
 
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m) => vscode.window.showInformationMessage(m);
-const warn = (m) => vscode.window.showWarningMessage(m);
-const errText = (e) => (e && e.message ? e.message : String(e));
 
 let ctx = null;
 

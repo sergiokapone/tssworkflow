@@ -14,20 +14,11 @@
 
 const path = require('path');
 const zlib = require('zlib');
+const { codePart, escRe, posix } = require('./corePure');
 
 const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
 const TEX_EXTS = ['.tex', '.tikz'];
-const posix = (p) => String(p).split(path.sep).join('/');
-const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// the part of a line before an unescaped %
-function codePart(line) {
-  for (let i = 0; i < line.length; i++) {
-    if (line[i] === '\\') { i++; continue; }
-    if (line[i] === '%') return line.slice(0, i);
-  }
-  return line;
-}
 
 /* ================================ 1. file macros =============================== */
 const DEFAULT_FILE_MACROS = {

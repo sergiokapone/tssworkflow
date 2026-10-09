@@ -5,9 +5,9 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const M = require('./macrosPure');
+const { cfg } = require('./util');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{tex,tikz,cls,sty,ltx}' }];
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 
 let EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
 let log = () => {};

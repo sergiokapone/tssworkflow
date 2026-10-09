@@ -8,11 +8,9 @@ const fs = require('fs');
 const P = require('./corePure');
 const X = require('./projectInfoPure');
 const M = require('./macros');
+const { SEL_ANY, cfg, info } = require('./util');
 
 let api = null;
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m, ...btn) => vscode.window.showInformationMessage(m, ...btn);
-const SEL_ANY = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
 const QF = vscode.CodeActionKind.QuickFix;
 const FIXALL = vscode.CodeActionKind.SourceFixAll.append('tssworkflow');
 const eolOf = (doc) => (doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');

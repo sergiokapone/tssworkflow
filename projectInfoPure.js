@@ -2,6 +2,7 @@
 /* Pure helpers (no vscode API) for: .aux parsing, project statistics, TODO scan,
  * extra typography checks, numbered equations nobody refers to. Tested by tests/projectInfo.test.js. */
 const P = require('./corePure');
+const { escRe } = require('./corePure');
 
 /* ------------------------------ .aux ------------------------------- */
 // reads the balanced {...} group that starts at s[i] (after whitespace); null if there is none
@@ -141,7 +142,6 @@ function addStats(a, b) {
 const emptyStats = () => ({ words: 0, eqNum: 0, eqStar: 0, figures: 0, tables: 0, tikz: 0, cites: 0, extra: {} });
 
 /* ------------------------------- TODO ------------------------------ */
-const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // [{ line, kw, text }] : keywords inside % comments, and \todo{...} commands
 function scanTodos(text, keywords) {

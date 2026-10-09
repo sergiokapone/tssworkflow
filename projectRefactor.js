@@ -15,23 +15,13 @@ const fs = require('fs');
 const X = require('./projectRefactorPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
+const { EXCLUDE, SEL_ANY, cfg, errText, info, projectRoot, textOfPath, warn } = require('./util');
+const { posix } = require('./corePure');
 
-const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
 const SRC_GLOB = '**/*.{tex,tikz,cls,sty,bib}';
-const SEL_ANY = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
-const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
-const info = (m, ...b) => vscode.window.showInformationMessage(m, ...b);
-const warn = (m, ...b) => vscode.window.showWarningMessage(m, ...b);
-const errText = (e) => (e && e.message ? e.message : String(e));
-const posix = (p) => p.split(path.sep).join('/');
 
 let ctx = null;
 
-function projectRoot() {
-  const ed = vscode.window.activeTextEditor;
-  const f = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
-  return f ? f.uri.fsPath : null;
-}
 
 function needRoot() {
   const r = projectRoot();
@@ -45,11 +35,6 @@ const mainSettings = () => ({
   listMacros: (() => { const l = cfg().get('chapterListMacros', ['\\multiinclude']); return Array.isArray(l) ? l : []; })()
 });
 
-function textOfPath(abs) {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === abs);
-  if (open) return open.getText();
-  try { return fs.readFileSync(abs, 'utf8'); } catch (e) { return null; }
-}
 
 // the source files of the project: [{ path: 'rel/with/slashes', abs, text }]; `exts` limits the extensions
 async function projectFiles(root, exts) {
