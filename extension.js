@@ -404,10 +404,10 @@ async function openInLatexWorkshop(pdf) {
 
 // runs latexmk and, when it finishes, parses the log and (optionally) opens the PDF
 let buildSeq = 0;
-async function runBuild({ folder, args, job, label, openPdf, done, exe, repeat }) {
+async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, done, exe, repeat }) {
   if (building) { busyWarning(); if (done) done(); return; }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
-  const cwd = folder.uri.fsPath;
+  const cwd = cwdOverride || folder.uri.fsPath; // folder: the workspace folder of the task (or TaskScope.Workspace); cwd: where the build runs and writes
   // unwrapped log lines, so that the warnings can be attributed to files
   const env = { max_print_line: '10000', error_line: '254', half_error_line: '238' };
   const id = ++buildSeq;
@@ -544,9 +544,11 @@ async function compileMain(openPdf, done, fileOverride) {
 // Root files (main.tex, alone.tex ...) are not checked: ▷ / F5 on them build the whole document
 function warnDocumentClass(doc) {
   const name = path.basename(doc.uri.fsPath);
+  const btn = 'Зібрати цей файл окремо';
   vscode.window.showWarningMessage(
-    '«' + name + '» містить \\documentclass: це окремий документ, а не розділ чи рисунок, тож його не можна підставити в драйвер і зібрати кнопкою ▷ (F5). Збірку не запущено.'
-  );
+    '«' + name + '» містить \\documentclass: це окремий документ, а не розділ чи рисунок, тож його не можна підставити в драйвер і зібрати кнопкою ▷ (F5). Збірку не запущено.',
+    btn
+  ).then((pick) => { if (pick === btn) compileCurrent(true); });
 }
 const docClassWarned = new Set(); // Auto-compile warns once per file and session
 
@@ -597,6 +599,39 @@ async function compile(openPdf, done) {
     done,
     repeat: fixed ? passes : 1
   });
+}
+
+/* The file in the active editor on its own, with its own preamble (a document with \documentclass that is not the project's
+ * main file): latexmk runs on this file, not through the driver and not on mainFile. The job is named after the file and the
+ * PDF stands next to it (tssworkflow.compileCurrent.workDir = 'file') or in the workspace folder ('workspace'). */
+async function compileCurrent(openPdf, done) {
+  const ed = vscode.window.activeTextEditor;
+  const finish = () => { if (done) done(); };
+  if (!ed || !/\.(?:tex|ltx)$/i.test(ed.document.uri.fsPath)) {
+    vscode.window.showInformationMessage('Відкрий .tex-файл з \\documentclass, який треба зібрати окремо.');
+    return finish();
+  }
+  const doc = ed.document;
+  const file = doc.uri.fsPath;
+  if (P.isPackageFile(file)) return warnPackageFile(doc, openPdf, done);
+  if (!P.hasDocumentClass(doc.getText())) {
+    const asChapter = 'Зібрати як розділ (▷)';
+    const whole = 'Зібрати весь документ';
+    const pick = await vscode.window.showWarningMessage(
+      '«' + path.basename(file) + '» не має \\documentclass, тож окремо його не зібрати: немає преамбули.',
+      asChapter, whole
+    );
+    if (pick === asChapter) return compile(openPdf, done);
+    if (pick === whole) return compileMain(openPdf, done);
+    return finish();
+  }
+  if (doc.isDirty && !(await doc.save())) { vscode.window.showWarningMessage('Не вдалося зберегти файл перед збіркою.'); return finish(); }
+  const cfg = vscode.workspace.getConfiguration('tssworkflow');
+  const fo = vscode.workspace.getWorkspaceFolder(doc.uri);
+  const { cwd, args, job } = P.standalonePlan(file, fo ? fo.uri.fsPath : null, {
+    workDir: cfg.get('compileCurrent.workDir', 'file'), engine: cfg.get('compileCurrent.engine', 'lualatex'), force: cfg.get('forceRebuild', true)
+  });
+  await runBuild({ folder: fo || vscode.TaskScope.Workspace, cwd, args, job, label: 'Compile ' + path.basename(file) + ' (окремо)', openPdf, done });
 }
 
 function clean(withPdf) {
@@ -1013,6 +1048,7 @@ function activate(context) {
     vscode.languages.registerDocumentLinkProvider([{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }], provider),
     vscode.commands.registerCommand('tssworkflow.compilePdf', () => compile(true)),
     vscode.commands.registerCommand('tssworkflow.compile', () => compile(false)),
+    vscode.commands.registerCommand('tssworkflow.compileCurrent', () => compileCurrent(true)),
     vscode.commands.registerCommand('tssworkflow.compileMainPdf', () => compileMain(true)),
     vscode.commands.registerCommand('tssworkflow.compileMain', () => compileMain(false)),
     // 0.5.0: a copy of the main file with only some \part's (see projectRefactor.js); not in the palette
@@ -1089,6 +1125,27 @@ function activate(context) {
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.statusBarMain')) refresh(); }));
   refresh();
 
+  // the button "Compile this file" is shown only in a document with its own preamble (\documentclass)
+  let docClassLast = null;
+  let docClassTimer = null;
+  const updateDocClass = () => {
+    const ed = vscode.window.activeTextEditor;
+    const on = !!(ed && /\.(?:tex|ltx)$/i.test(ed.document.uri.fsPath) && P.hasDocumentClass(ed.document.getText()));
+    if (on === docClassLast) return;
+    docClassLast = on;
+    vscode.commands.executeCommand('setContext', 'tssworkflow.hasDocumentClass', on);
+  };
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(updateDocClass),
+    vscode.workspace.onDidChangeTextDocument((e) => {
+      const ed = vscode.window.activeTextEditor;
+      if (!ed || e.document !== ed.document) return;
+      clearTimeout(docClassTimer);
+      docClassTimer = setTimeout(updateDocClass, 400);
+    })
+  );
+  updateDocClass();
+
   features.register(context, { onSave: compileOnSave });
   require('./authoring').register(context);
   require('./templates').register(context);
@@ -1098,7 +1155,7 @@ function activate(context) {
   require('./projectRefactor').register(context, { frameSettings: features.frameSettings });
   require('./formatters').register(context, { applyWithPreview: features.applyWithPreview });
   require('./filesAndLabels').register(context, { applyWithPreview: features.applyWithPreview });
-  require('./tableEditor').register(context);
+  require('./tableEditor').register(context, { log: (m) => LOG && LOG.appendLine(m) });
   require('./start').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   setTimeout(() => offerProjectSettings(context).catch(() => {}), 3000);

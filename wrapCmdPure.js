@@ -54,6 +54,27 @@ const STANDARD_CMDS = [
   { name: 'cite', desc: 'Цитування' }
 ];
 
+/* The menu "Format" (like the one of a word processor): the commands most often put round a selection.
+ * quick: the position of the button shown above a selection (1, 2, 3). */
+const FORMAT_MENU = [
+  { name: 'textbf', label: 'Напівжирний', group: 'Текст', quick: 1 },
+  { name: 'textit', label: 'Курсив', group: 'Текст', quick: 2 },
+  { name: 'emph', label: 'Виділення (emph)', group: 'Текст' },
+  { name: 'underline', label: 'Підкреслення', group: 'Текст', quick: 3 },
+  { name: 'texttt', label: 'Моноширинний', group: 'Текст' },
+  { name: 'textsc', label: 'Капітель', group: 'Текст' },
+  { name: 'footnote', label: 'Виноска', group: 'Текст' },
+  { name: 'mathrm', label: 'Прямий шрифт', group: 'Формула' },
+  { name: 'mathbf', label: 'Напівжирний', group: 'Формула' },
+  { name: 'boldsymbol', label: 'Напівжирний символ', group: 'Формула' },
+  { name: 'mathcal', label: 'Каліграфічний', group: 'Формула' },
+  { name: 'mathbb', label: 'Ажурний', group: 'Формула' },
+  { name: 'text', label: 'Текст у формулі', group: 'Формула' },
+  { name: 'vec', label: 'Вектор (стрілка)', group: 'Формула' },
+  { name: 'overline', label: 'Риска зверху', group: 'Формула' }
+];
+const formatSpec = (name) => { const f = FORMAT_MENU.find((x) => x.name === name); return f ? { name: f.name, pre: '', open: '{', close: '}', post: '' } : null; };
+
 const NAME_RE = /^[A-Za-z@]+\*?/;
 const FIELD_RE = /\{\}|\[\]/;
 
@@ -96,4 +117,4 @@ function wrapInline(selected, spec) {
   return { text, cursor: text.length };
 }
 
-module.exports = { STANDARD_CMDS, parseCmdInput, partsOfMacro, wrapInline, fill };
+module.exports = { STANDARD_CMDS, FORMAT_MENU, formatSpec, parseCmdInput, partsOfMacro, wrapInline, fill };

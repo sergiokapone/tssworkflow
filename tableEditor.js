@@ -21,25 +21,44 @@ let followRow = null;
 let target = null; // { uri, start, name }
 let selfEdit = 0;
 let refreshTimer = null;
+let log = () => {};
+let openedAt = 0; // when the tab was created: the time to the first picture is logged on 'ready'
+const ms = (t0) => Date.now() - t0;
 
 const nonce = () => { let s = ''; const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; for (let i = 0; i < 24; i++) s += c[Math.floor(Math.random() * c.length)]; return s; };
 
 /* ------------------------------ colours of the project ------------------------------ */
-let defsCache = { at: 0, defs: new Map() };
-async function projectColors() {
-  if (Date.now() - defsCache.at < 20000) return defsCache.defs;
-  const texts = [];
-  try {
-    const files = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}', 3000);
-    for (const u of files) {
-      const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === u.fsPath);
-      let t = null;
-      try { t = open ? open.getText() : fs.readFileSync(u.fsPath, 'utf8'); } catch (e) { /* skip */ }
-      if (t && /\\(?:definecolor|colorlet|providecolor)/.test(t)) texts.push(t);
-    }
-  } catch (e) { /* no workspace */ }
-  defsCache = { at: Date.now(), defs: X.colorDefs(texts) };
-  return defsCache.defs;
+// The definitions are looked for in all files of the project: that takes long on a big project, so the result is kept
+// until a file with definitions is saved, the scan runs once at a time and reads the files in parallel.
+const DEF_RE = /\\(?:definecolor|colorlet|providecolor)/;
+const DEFS_TTL = 5 * 60 * 1000;
+let defsCache = { at: 0, defs: new Map(), files: new Set() };
+let defsPending = null;
+const colorsFresh = () => Date.now() - defsCache.at < DEFS_TTL;
+
+function projectColors() {
+  if (colorsFresh()) return Promise.resolve(defsCache.defs);
+  if (defsPending) return defsPending;
+  defsPending = (async () => {
+    const t0 = Date.now();
+    const results = [];
+    const files = new Set();
+    try {
+      const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}', 3000);
+      const t1 = Date.now();
+      const read = async (u, k) => {
+        const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === u.fsPath);
+        let t = null;
+        try { t = open ? open.getText() : await fs.promises.readFile(u.fsPath, 'utf8'); } catch (e) { /* skip */ }
+        if (t && DEF_RE.test(t)) { results[k] = t; files.add(u.fsPath); }
+      };
+      for (let k = 0; k < found.length; k += 32) await Promise.all(found.slice(k, k + 32).map((u, n) => read(u, k + n)));
+      log('[таблиця] кольори проєкту: ' + found.length + ' файлів; пошук файлів ' + (t1 - t0) + ' мс, читання ' + ms(t1) + ' мс; з визначеннями ' + files.size);
+    } catch (e) { /* no workspace */ }
+    defsCache = { at: Date.now(), defs: X.colorDefs(results.filter(Boolean)), files };
+    return defsCache.defs;
+  })().finally(() => { defsPending = null; });
+  return defsPending;
 }
 
 /* ------------------------------ document side ------------------------------ */
@@ -62,18 +81,38 @@ async function current() {
 
 function lineOf(doc, env) { return doc.positionAt(env.start).line + 1; }
 
-// the macros of the project's classes / packages for KaTeX in the grid
+// the macros of the project's classes / packages for KaTeX in the grid (kept for a minute: the index itself is cached too)
+let macrosCache = { key: '', at: 0, macros: {} };
+const macrosFresh = (doc) => macrosCache.key === doc.uri.toString() && Date.now() - macrosCache.at < 60000;
 async function katexMacros(doc) {
-  try { return MP.toKatexMacros([...(await M._allMacros(doc)).cmds.values()]); } catch (e) { return {}; }
+  if (macrosFresh(doc)) return macrosCache.macros;
+  const t0 = Date.now();
+  let macros = {};
+  try { macros = MP.toKatexMacros([...(await M._allMacros(doc)).cmds.values()]); } catch (e) { /* none */ }
+  macrosCache = { key: doc.uri.toString(), at: Date.now(), macros };
+  log('[таблиця] макроси проєкту: ' + Object.keys(macros).length + ' за ' + ms(t0) + ' мс');
+  return macros;
 }
 
+// The grid is shown at once with what is already known; when the colours and macros of the project still have to be
+// found (first time, or after a file with definitions was saved), they are searched for in the background and sent after.
 async function push(extra) {
   if (!panel) return;
+  const t0 = Date.now();
   const cur = await current();
   if (!cur) return;
   if (cur.skip) { panel.webview.postMessage({ type: 'skip', reason: cur.skip }); return; }
-  panel.title = 'Таблиця: ' + path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env);
-  panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, await projectColors()), macros: await katexMacros(cur.doc), where: path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env) }, extra || {}));
+  const where = path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env);
+  panel.title = 'Таблиця: ' + where;
+  const send = (colors, macros) => panel && panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, colors), macros, where }, extra || {}));
+  const known = macrosCache.key === cur.doc.uri.toString() ? macrosCache.macros : {};
+  if (colorsFresh() && macrosFresh(cur.doc)) { send(defsCache.defs, macrosCache.macros); return; }
+  send(defsCache.defs, known);
+  log('[таблиця] сітка надіслана за ' + ms(t0) + ' мс; кольори й макроси проєкту ще шукаються');
+  const t1 = Date.now();
+  await Promise.all([projectColors(), katexMacros(cur.doc)]);
+  log('[таблиця] кольори й макроси готові за ' + ms(t1) + ' мс');
+  if (panel && colorsFresh()) await push(); // the second picture, now with colours and macros (nothing is left to wait for)
 }
 
 async function onOp(op) {
@@ -197,7 +236,7 @@ function ensurePanel(context) {
   panel = vscode.window.createWebviewPanel('tssworkflow.tableEditor', 'Таблиця', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] });
   panel.webview.html = html(panel.webview, context.extensionUri);
   panel.webview.onDidReceiveMessage((m) => {
-    if (m.type === 'ready') enqueue(() => push());
+    if (m.type === 'ready') { if (openedAt) { log('[таблиця] сторінка вкладки завантажилась за ' + ms(openedAt) + ' мс'); openedAt = 0; } enqueue(() => push()); }
     else if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
     else if (m.type === 'follow') scheduleFollow(Number.isInteger(m.r) ? m.r : null);
     else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
@@ -233,13 +272,30 @@ async function openTable(context, uri, start) {
   }
   if (!env) { vscode.window.showWarningMessage('Таблицю не знайдено (файл змінився?).'); return; }
   target = { uri: doc.uri, start: env.start, name: env.name };
+  const fresh = !panel;
+  const t0 = Date.now();
   ensurePanel(context);
-  await push();
+  // a new panel asks for the table itself ('ready') when its page has loaded: a message sent now would be lost
+  if (fresh) openedAt = t0; else await push();
   scheduleFollow(null);
 }
 
-function register(context) {
+let warmTimer = null;
+// a file with tables was shown: look for the colours and macros of the project now, before the tab is opened
+function warm(doc) {
+  if (!cfg().get('tableEditor.prefetch', true) || (colorsFresh() && macrosFresh(doc)) || warmTimer) return;
+  warmTimer = setTimeout(async () => {
+    try { await Promise.all([projectColors(), katexMacros(doc)]); } catch (e) { /* later, on demand */ } finally { warmTimer = null; }
+  }, 1500);
+}
+
+function register(context, api) {
+  if (api && api.log) log = api.log;
   context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((d) => {
+      if (!/\.(?:tex|cls|sty)$/i.test(d.uri.fsPath)) return;
+      if (defsCache.files.has(d.uri.fsPath) || DEF_RE.test(d.getText())) defsCache.at = 0;
+    }),
     vscode.commands.registerCommand('tssworkflow.editTable', (uri, start) => openTable(context, uri instanceof vscode.Uri ? uri : null, start).catch((e) => vscode.window.showErrorMessage('Редактор таблиць: ' + (e && e.message ? e.message : e)))),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
@@ -254,6 +310,7 @@ function register(context) {
           const p = doc.positionAt(e.start);
           out.push(new vscode.CodeLens(new vscode.Range(p, p), { title: '$(table) Редагувати таблицю', command: 'tssworkflow.editTable', arguments: [doc.uri, e.start] }));
         }
+        if (out.length) warm(doc);
         return out;
       }
     })
@@ -261,3 +318,10 @@ function register(context) {
 }
 
 exports.register = register;
+// the caches of the colours and macros of the project are shared with the panel "Preview selection"
+exports.projectColors = projectColors;
+exports.colorsFresh = colorsFresh;
+exports.colorsNow = () => defsCache.defs;
+exports.katexMacros = katexMacros;
+exports.macrosFresh = macrosFresh;
+exports.macrosNow = (doc) => (macrosCache.key === doc.uri.toString() ? macrosCache.macros : {});

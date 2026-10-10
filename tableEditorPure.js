@@ -50,7 +50,14 @@ function groupEnd(s, i) {
 function readArgs(text, from, pattern) {
   const groups = [];
   let i = from;
-  const skipWs = (k) => { while (k < text.length && /\s/.test(text[k])) k++; return k; };
+  // spaces, line breaks and %-comments (\begin{tblr}%<newline>{...}: the comment swallows the line break, the group goes on)
+  const skipWs = (k) => {
+    for (;;) {
+      while (k < text.length && /\s/.test(text[k])) k++;
+      if (text[k] !== '%') return k;
+      while (k < text.length && text[k] !== '\n') k++;
+    }
+  };
   for (const want of pattern) {
     const j = skipWs(i);
     if (text[j] === want) {

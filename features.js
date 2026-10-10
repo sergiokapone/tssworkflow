@@ -23,6 +23,7 @@ function register(context, api) {
   require('./tikzExtract').register(context);
   require('./wrapEnv').register(context);
   require('./wrapCmd').register(context);
+  require('./selectionPreview').register(context);
   require('./projectInfo').register(context, {
     texFiles, textOf, buildIndex, EXCLUDE, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });

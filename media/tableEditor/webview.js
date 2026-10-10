@@ -216,6 +216,7 @@ function render(v, focus) {
   paintSel();
   if (prev && !sel) { const el = findCell(prev.r, prev.c); if (el) el.focus(); }
 }
+let lastMacros = '';
 function sig(v) { return JSON.stringify(v); }
 
 /* ---------------------------------- mouse ---------------------------------- */
@@ -390,9 +391,13 @@ window.addEventListener('message', function (ev) {
   if (m.type === 'model') {
     macros = m.macros || {};
     $('what').textContent = m.view.env + ' · ' + (m.where || '');
+    // the macros of the project arrive after the first picture: the formulas are drawn again (the active cell is kept)
+    const ms = JSON.stringify(macros);
+    const macrosChanged = ms !== lastMacros;
+    lastMacros = ms;
     const s = sig(m.view);
     const active = isCell(document.activeElement);
-    if (s !== last || !active) { last = s; render(m.view, m.focus); } else { view = m.view; }
+    if (s !== last || !active || macrosChanged) { last = s; render(m.view, m.focus); } else { view = m.view; }
   } else if (m.type === 'skip') {
     $('t').innerHTML = ''; $('size').textContent = ''; $('what').textContent = 'Цю таблицю не можна редагувати візуально';
     $('warn').textContent = m.reason + '. Правь її в коді.'; $('info').textContent = ''; last = ''; sel = null;

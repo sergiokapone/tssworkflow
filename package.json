@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -102,6 +102,14 @@
         "title": "TSS Workflow: Wrap selection in command (pick from list)"
       },
       {
+        "command": "tssworkflow.formatSelection",
+        "title": "TSS Workflow: Format selection (bold, italic, underline, ...)"
+      },
+      {
+        "command": "tssworkflow.previewSelection",
+        "title": "TSS Workflow: Preview selection (rendered, the focus stays in the editor)"
+      },
+      {
         "command": "tssworkflow.pictures",
         "title": "TSS Workflow: Pictures browser",
         "icon": "$(file-media)"
@@ -148,6 +156,14 @@
         "command": "tssworkflow.goToHeading",
         "title": "TSS Workflow: Go to heading (whole project)",
         "icon": "$(list-tree)"
+      },
+      {
+        "command": "tssworkflow.compileCurrent",
+        "title": "TSS Workflow: Compile this file on its own (own preamble) + open PDF",
+        "icon": {
+          "light": "media/compile-current-light.svg",
+          "dark": "media/compile-current-dark.svg"
+        }
       },
       {
         "command": "tssworkflow.compileMainPdf",
@@ -452,6 +468,11 @@
           "group": "navigation@8"
         },
         {
+          "command": "tssworkflow.compileCurrent",
+          "group": "navigation@9",
+          "when": "(resourceLangId == latex || resourceLangId == tex) && tssworkflow.hasDocumentClass && !tssworkflow.building"
+        },
+        {
           "command": "tssworkflow.stopBuild",
           "when": "tssworkflow.building && (resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz)",
           "group": "navigation@1"
@@ -501,6 +522,11 @@
         {
           "command": "tssworkflow.wrapCmd",
           "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "1_modification"
+        },
+        {
+          "command": "tssworkflow.previewSelection",
+          "when": "(resourceLangId == latex || resourceLangId == tex) && editorHasSelection",
           "group": "1_modification"
         },
         {
@@ -588,6 +614,14 @@
           "group": "3_structure@4"
         },
         {
+          "command": "tssworkflow.formatSelection",
+          "group": "3_structure@4"
+        },
+        {
+          "command": "tssworkflow.previewSelection",
+          "group": "3_structure@5"
+        },
+        {
           "command": "tssworkflow.alignTable",
           "group": "4_tables@1"
         },
@@ -661,6 +695,10 @@
       "tssworkflow.submenu.build": [
         {
           "command": "tssworkflow.compileMain",
+          "group": "1_build@1"
+        },
+        {
+          "command": "tssworkflow.compileCurrent",
           "group": "1_build@1"
         },
         {
@@ -1759,6 +1797,64 @@
           "default": true,
           "description": "Save PDF copy: add the time (HHMM) after the date."
         },
+        "tssworkflow.compileCurrent.workDir": {
+          "type": "string",
+          "enum": [
+            "file",
+            "workspace"
+          ],
+          "enumDescriptions": [
+            "Build in the folder of the file: the PDF and the aux files are written next to it.",
+            "Build in the workspace folder (like the whole document): paths in the file are relative to it."
+          ],
+          "default": "file",
+          "description": "Compile this file on its own: where latexmk runs and writes its files."
+        },
+        "tssworkflow.compileCurrent.engine": {
+          "type": "string",
+          "enum": [
+            "lualatex",
+            "pdflatex",
+            "xelatex"
+          ],
+          "default": "lualatex",
+          "description": "Compile this file on its own: the TeX engine (the other builds of the extension use lualatex)."
+        },
+        "tssworkflow.wrapCmd.selectionHint": {
+          "type": "string",
+          "enum": [
+            "codelens",
+            "lightbulb",
+            "both",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Buttons above the selected text: Bold, Italic, Underline and a Format menu. They appear a moment after the selection stops changing and push the lines below down while shown.",
+            "Only the light bulb (Ctrl+.) on a selection, the text does not move.",
+            "Buttons and the light bulb.",
+            "Nothing is shown; the command Format selection stays in the palette."
+          ],
+          "default": "codelens",
+          "description": "What is offered when text is selected in a .tex file: formatting it as bold, italic, underline, ..."
+        },
+        "tssworkflow.selectionPreview.emptySelection": {
+          "type": "string",
+          "enum": [
+            "paragraph",
+            "none"
+          ],
+          "enumDescriptions": [
+            "With nothing selected the panel shows the paragraph around the caret.",
+            "With nothing selected the panel shows nothing."
+          ],
+          "default": "paragraph",
+          "description": "Preview selection: what is shown when no text is selected."
+        },
+        "tssworkflow.tableEditor.prefetch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Table editor: when a file with tables is shown, look for the colours and macros of the project in the background, so that the grid opens at once (the search is repeated at most every 5 minutes and after a file with colour definitions is saved)."
+        },
         "tssworkflow.tableEditor.followEditor": {
           "type": "string",
           "enum": [
@@ -1909,6 +2005,11 @@
         }
       },
       {
+        "command": "tssworkflow.compileCurrent",
+        "key": "ctrl+f5",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
         "command": "tssworkflow.wrapEnv",
         "key": "ctrl+alt+w",
         "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
@@ -1916,6 +2017,11 @@
       {
         "command": "tssworkflow.wrapEnv",
         "key": "ctrl+alt+numpad_add",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.previewSelection",
+        "key": "ctrl+alt+r",
         "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
       },
       {

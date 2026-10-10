@@ -265,6 +265,27 @@ function isPackageFile(fileName) {
   return /\.(?:cls|sty|clo|def|cfg|ldf|bbx|cbx|lbx|fd|bst)$/i.test(String(fileName || ''));
 }
 
+/* The build of a document on its own (a file with \documentclass): where latexmk runs, the arguments, the job name.
+ *   file: absolute path; wsFolder: the workspace folder of the file (or null)
+ *   opts: { workDir: 'file' | 'workspace', engine: 'lualatex' | 'pdflatex' | 'xelatex', force: boolean (-g) }
+ * 'file': it runs in the folder of the file, the PDF stands next to it; 'workspace' (and the file is in a workspace folder):
+ * it runs in that folder and the file is given by its relative path, like the whole document. */
+function standalonePlan(file, wsFolder, opts) {
+  const nodePath = require('path');
+  const o = Object.assign({ workDir: 'file', engine: 'lualatex', force: true }, opts || {});
+  const flags = { lualatex: '-lualatex', pdflatex: '-pdf', xelatex: '-xelatex' };
+  const cwd = o.workDir === 'workspace' && wsFolder ? wsFolder : nodePath.dirname(file);
+  return {
+    cwd,
+    job: nodePath.basename(file, nodePath.extname(file)),
+    args: [
+      ...(o.force ? ['-g'] : []),
+      flags[o.engine] || flags.lualatex, '-interaction=nonstopmode', '-synctex=1', '-file-line-error', '-shell-escape',
+      nodePath.relative(cwd, file)
+    ]
+  };
+}
+
 function hasDocumentClass(text) {
   const BEGIN = /\\begin\{(verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblisting)\}/;
   const INLINE = /\\(?:verb\*?|lstinline(?:\[[^\]]*\])?)(.)(.*?)\1/g;
@@ -317,6 +338,7 @@ module.exports = {
   formatEnvReport,
   formatFileSize,
   hasDocumentClass,
+  standalonePlan,
   imagePreviewPlan,
   isPackageFile,
   mergeMissingSettings,

@@ -7,7 +7,7 @@
 const vscode = require('vscode');
 const P = require('./wrapCmdPure');
 const { pickTyped, sep } = require('./pickTyped');
-const { cfg } = require('./util');
+const { cfg, isTex } = require('./util');
 
 const RECENT_KEY = 'tssworkflow.wrapCmd.recent';
 const RECENT_MAX = 8;
@@ -83,24 +83,13 @@ function snippetFor(spec) {
   return s.appendTabstop(0);
 }
 
-async function wrapCmd() {
-  const ed = vscode.window.activeTextEditor;
-  if (!ed) return;
+// puts `spec` round every range (sorted copies of them), places the carets and remembers the choice
+async function applySpec(ed, ranges, spec) {
   const doc = ed.document;
-  let ranges = ed.selections.filter((s) => !s.isEmpty).map((s) => new vscode.Range(s.start, s.end));
-  const wordMode = !ranges.length;
-  if (wordMode) ranges = ed.selections.map((s) => wordAt(doc, s.active)).filter(Boolean);
-
-  const spec = await pickTyped(await buildItems(doc),
-    (wordMode ? (ranges.length ? 'Обгорнути слово біля курсора' : 'Вставити команду') : 'Обгорнути виділене') + ' в команду: вибери зі списку або введи, напр. textcolor{red}', parseTyped);
-  if (!spec) return;
-
-  if (!ranges.length) { await ed.insertSnippet(snippetFor(spec)); await remember(spec); return; }
-
-  ranges.sort((a, b) => a.start.compareTo(b.start));
+  ranges = ranges.slice().sort((a, b) => a.start.compareTo(b.start));
   const jobs = ranges.map((r) => ({ range: r, from: doc.offsetAt(r.start), old: doc.getText(r).length, w: P.wrapInline(doc.getText(r), spec) }));
   const ok = await ed.edit((b) => { for (const j of jobs) b.replace(j.range, j.w.text); });
-  if (!ok) return;
+  if (!ok) return false;
   let delta = 0;
   const cursors = jobs.map((j) => {
     const p = ed.document.positionAt(j.from + delta + j.w.cursor);
@@ -110,11 +99,104 @@ async function wrapCmd() {
   ed.selections = cursors;
   ed.revealRange(cursors[0]);
   await remember(spec);
+  return true;
 }
 
+// what a command acts on: the selections, else the words at the carets
+function targets(ed) {
+  const sel = ed.selections.filter((s) => !s.isEmpty).map((s) => new vscode.Range(s.start, s.end));
+  if (sel.length) return { ranges: sel, words: false };
+  return { ranges: ed.selections.map((s) => wordAt(ed.document, s.active)).filter(Boolean), words: true };
+}
+
+async function wrapCmd() {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed) return;
+  const doc = ed.document;
+  const { ranges, words } = targets(ed);
+
+  const spec = await pickTyped(await buildItems(doc),
+    (words ? (ranges.length ? 'Обгорнути слово біля курсора' : 'Вставити команду') : 'Обгорнути виділене') + ' в команду: вибери зі списку або введи, напр. textcolor{red}', parseTyped);
+  if (!spec) return;
+
+  if (!ranges.length) { await ed.insertSnippet(snippetFor(spec)); await remember(spec); return; }
+  await applySpec(ed, ranges, spec);
+}
+
+/* ---------------- the menu "Format" (above a selection, in the light bulb, in the command palette) ---------------- */
+const hintMode = () => String(cfg().get('wrapCmd.selectionHint', 'codelens'));
+const SEL = [{ language: 'latex' }, { language: 'tex' }];
+
+// tssworkflow.formatSelection(name?): the command of the menu round the selection; without a name the menu is shown
+async function formatSelection(name) {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed) return;
+  const { ranges } = targets(ed);
+  if (!ranges.length) { vscode.window.showInformationMessage('Виділи текст (або постав курсор на слово), який треба оформити.'); return; }
+  let spec = typeof name === 'string' ? P.formatSpec(name) : null;
+  if (!spec) {
+    const items = [];
+    let group = '';
+    for (const f of P.FORMAT_MENU) {
+      if (f.group !== group) { group = f.group; items.push(sep(group)); }
+      items.push({ label: f.label, description: '\\' + f.name + '{…}', spec: P.formatSpec(f.name) });
+    }
+    items.push(sep(''), { label: '$(list-selection) Інша команда…', description: 'увесь список', other: true });
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Оформити виділене', matchOnDescription: true });
+    if (!pick) return;
+    if (pick.other) { await vscode.commands.executeCommand('tssworkflow.wrapCmd'); return; }
+    spec = pick.spec;
+  }
+  await applySpec(ed, ranges, spec);
+}
+
+// the buttons above the first line of a non-empty selection: bold, italic, underline, the menu
+const lensChanged = new vscode.EventEmitter();
+const selectionLens = {
+  onDidChangeCodeLenses: lensChanged.event,
+  provideCodeLenses(doc) {
+    const ed = vscode.window.activeTextEditor;
+    if (!['codelens', 'both'].includes(hintMode()) || !ed || ed.document !== doc || ed.selection.isEmpty) return [];
+    const at = new vscode.Range(ed.selection.start.line, 0, ed.selection.start.line, 0);
+    const quick = P.FORMAT_MENU.filter((f) => f.quick).sort((a, b) => a.quick - b.quick);
+    const icon = { textbf: '$(bold) ', textit: '$(italic) ' };
+    return quick.map((f) => new vscode.CodeLens(at, { title: (icon[f.name] || '') + f.label, command: 'tssworkflow.formatSelection', arguments: [f.name], tooltip: '\\' + f.name + '{…}' }))
+      .concat(new vscode.CodeLens(at, { title: '$(chevron-down) Формат', command: 'tssworkflow.formatSelection', tooltip: 'Оформити виділене: список команд' }));
+  }
+};
+
+// the light bulb (Ctrl+.) on a selection: the same entries
+const selectionActions = {
+  provideCodeActions(doc, range) {
+    if (!['lightbulb', 'both'].includes(hintMode()) || !range || range.isEmpty) return [];
+    const kind = vscode.CodeActionKind.RefactorRewrite.append('tssworkflow');
+    const out = P.FORMAT_MENU.filter((f) => f.quick || f.name === 'emph').map((f) => {
+      const a = new vscode.CodeAction('TSS: ' + f.label + ' \\' + f.name + '{…}', kind);
+      a.command = { title: f.label, command: 'tssworkflow.formatSelection', arguments: [f.name] };
+      return a;
+    });
+    const more = new vscode.CodeAction('TSS: Оформити виділене…', kind);
+    more.command = { title: 'Формат', command: 'tssworkflow.formatSelection' };
+    return out.concat(more);
+  }
+};
+
+let lensTimer = null;
 function register(context) {
   state = context.globalState;
-  context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.wrapCmd', wrapCmd));
+  context.subscriptions.push(
+    vscode.commands.registerCommand('tssworkflow.wrapCmd', wrapCmd),
+    vscode.commands.registerCommand('tssworkflow.formatSelection', formatSelection),
+    vscode.languages.registerCodeLensProvider(SEL, selectionLens),
+    vscode.languages.registerCodeActionsProvider(SEL, selectionActions, { providedCodeActionKinds: [vscode.CodeActionKind.RefactorRewrite] }),
+    // the buttons follow the selection, a moment after it stopped changing (they move the lines below down while shown)
+    vscode.window.onDidChangeTextEditorSelection((e) => {
+      if (!['codelens', 'both'].includes(hintMode()) || !isTex(e.textEditor.document)) return;
+      clearTimeout(lensTimer);
+      lensTimer = setTimeout(() => lensChanged.fire(), e.textEditor.selection.isEmpty ? 0 : 400);
+    }),
+    lensChanged
+  );
 }
 
 module.exports = { register };
