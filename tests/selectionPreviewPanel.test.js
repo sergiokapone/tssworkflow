@@ -5,6 +5,8 @@
 const assert = require('assert');
 const path = require('path');
 const Module = require('module');
+const fs = require('fs');
+const os = require('os');
 const EXT = path.resolve(__dirname, process.env.TSS_EXT || process.argv[2] || '../extension');
 const MP = require(path.join(EXT, 'macrosPure.js'));
 const { makeVscode, Selection } = require('./vscodeStub');
@@ -14,11 +16,13 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
 const ok = (c, m) => { assert.ok(c, m); n++; };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function scenario(text, selections, cfgValues, act) {
+async function scenario(text, selections, cfgValues, act, extra) {
+  const dir = (extra && extra.dir) || '/p';
   const h = makeVscode(text, selections, {}, cfgValues || {});
   const { vs, ed, doc } = h;
   doc.languageId = 'latex';
-  doc.uri = { fsPath: '/p/a.tex', toString: () => 'file:///p/a.tex', path: '/p/a.tex' };
+  doc.uri = { fsPath: dir + '/a.tex', toString: () => 'file://' + dir + '/a.tex', path: dir + '/a.tex' };
+  if (extra && extra.folders) vs.workspace.workspaceFolders = extra.folders.map((f) => ({ uri: { fsPath: f } }));
   const st = { created: [], posted: [], revealed: [], disposed: 0, selectionChangedBy: 0, macrosDone: false };
   const listeners = { selection: [], editor: [], text: [] };
   vs.ViewColumn = { One: 1, Two: 2, Beside: -2 };
@@ -38,7 +42,7 @@ async function scenario(text, selections, cfgValues, act) {
       get visible() { return visible; },
       reveal: (col, preserve) => { st.revealed.push([col, preserve]); },
       dispose: () => { st.disposed++; if (onDispose) onDispose(); },
-      webview: { html: '', cspSource: 'x', postMessage: (m) => { st.posted.push(m); }, asWebviewUri: (u) => ({ toString: () => String(u) }), onDidReceiveMessage: (f) => { onMsg = f; } },
+      webview: { html: '', cspSource: 'x', postMessage: (m) => { st.posted.push(m); }, asWebviewUri: (u) => ({ toString: () => 'https://webview.test' + String(u) }), onDidReceiveMessage: (f) => { onMsg = f; }, options: opts },
       onDidChangeViewState: (f) => { onView = f; },
       onDidDispose: (f) => { onDispose = f; }
     };
@@ -197,6 +201,77 @@ async function scenario(text, selections, cfgValues, act) {
     eq([a.ed.selection.start.character, a.ed.selection.end.character], [2, 12], 'the selection of the editor is untouched');
     eq(a.h.vs.executed.length, 0, 'no commands that could move the focus were executed');
   });
+
+  // the macros file of the formula preview (mathjax-macros.tex) is read: its commands are known to KaTeX, and win over the class
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-'));
+  const macroFile = path.join(tmp, 'mathjax-macros.tex');
+  fs.writeFileSync(macroFile, '% generated\n\\newcommand{\\grad}{\\nabla}\n\\newcommand{\\vect}[1]{\\boldsymbol{#1}}\n\\DeclareMathOperator{\\rot}{rot}\n');
+  await scenario('Поле $\\grad f$ і $\\vect{j}$.', [[0, 0, 0, 30]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    const last = a.renders().pop();
+    eq(last.macros['\\grad'], '\\nabla', 'a macro that only the file has');
+    eq(last.macros['\\rot'], '\\operatorname{rot}', 'an operator of the file');
+    eq(last.macros['\\vect'], '\\boldsymbol{#1}', 'the file wins over the class');
+  }, { dir: tmp, folders: [tmp] });
+  // the file changes: the cache notices it (no waiting for the minute), the picture is redrawn with the new macros
+  await scenario('Поле $\\grad f$.', [[0, 0, 0, 12]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    ok(a.renders().pop().macros['\\grad'] === '\\nabla', 'first version');
+    const later = new Date(Date.now() + 5000);
+    fs.writeFileSync(macroFile, '\\newcommand{\\grad}{\\operatorname{grad}}\n');
+    fs.utimesSync(macroFile, later, later);
+    a.select(0, 0, 0, 10);
+    await a.sleep(600);
+    eq(a.renders().pop().macros['\\grad'], '\\operatorname{grad}', 'the new definition after the file was saved');
+  }, { dir: tmp, folders: [tmp] });
+  // the file named in the LaTeX Workshop setting is read too
+  const lwFile = path.join(tmp, 'sub', 'lw.tex');
+  fs.mkdirSync(path.dirname(lwFile), { recursive: true });
+  fs.writeFileSync(lwFile, '\\newcommand{\\lwonly}{\\alpha}\n');
+  await scenario('$\\lwonly$', [[0, 0, 0, 9]], { 'hover.preview.newcommand.newcommandFile': 'sub/lw.tex' }, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    eq(a.renders().pop().macros['\\lwonly'], '\\alpha', 'newcommandFile of latex-workshop');
+  }, { dir: tmp, folders: [tmp] });
+  // no file: the macros are only the class ones (as before)
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-empty-'));
+  await scenario('$\\vect{j}$', [[0, 0, 0, 10]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    eq(Object.keys(a.renders().pop().macros), ['\\vect'], 'no macros file: only the macros of the class');
+  }, { dir: empty, folders: [empty] });
+
+  // pictures: found next to the file, in Pictures/ (\graphicspath), by name without the extension; PDF and missing ones stay frames
+  const pics = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-pics-'));
+  fs.mkdirSync(path.join(pics, 'Pictures'));
+  fs.writeFileSync(path.join(pics, 'Pictures', 'field.png'), 'png');
+  fs.writeFileSync(path.join(pics, 'plot.svg'), '<svg/>');
+  fs.writeFileSync(path.join(pics, 'vec.pdf'), 'pdf');
+  fs.writeFileSync(path.join(pics, 'main.tex'), '\\graphicspath{{Pictures/}}\n');
+  const PICS = '\\begin{figure}\n\\includegraphics[width=0.5\\linewidth]{field}\n\\caption{Поле}\n\\end{figure}\n\n\\includegraphics{plot.svg} \\includegraphics{vec} \\includegraphics{none.png} \\includegraphics{Pictures/\\name}';
+  await scenario(PICS, [[0, 0, 5, 150]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    const h = a.renders().pop().html;
+    ok(h.includes('<img src="https://webview.test' + path.join(pics, 'Pictures', 'field.png') + '?t='), 'a picture from \\graphicspath without the extension: ' + h);
+    ok(h.includes('style="width:50%"'), 'width=0.5\\linewidth is kept: ' + h);
+    ok(h.includes('<div class="cap">Поле</div>'), 'the caption stays');
+    ok(h.includes('plot.svg?t='), 'svg is a picture');
+    ok(h.includes('vec.pdf</') === false && h.includes('🖼 vec (PDF і EPS у перегляді не показуються)'), 'PDF is a frame with the reason: ' + h);
+    ok(h.includes('🖼 none.png (файл не знайдено)'), 'a missing file is a frame with the reason');
+    ok(h.includes('(файл не знайдено)') && h.split('(файл не знайдено)').length === 3, 'a name made by a macro is a frame too');
+    eq(a.st.created[0].opts.localResourceRoots.length, 2, 'the page may read media/ and the folder of the project');
+  }, { dir: pics, folders: [pics] });
+  // a picture outside the folders of the project: its folder is added to what the page may read (once)
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-out-'));
+  fs.writeFileSync(path.join(outside, 'far.jpg'), 'jpg');
+  await scenario('\\includegraphics{' + outside.replace(/\\/g, '/') + '/far.jpg}', [[0, 0, 0, 80]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    ok(a.renders().pop().html.includes('far.jpg?t='), 'the absolute path is found');
+    const roots = a.st.panel.webview.options.localResourceRoots.map((u) => u.fsPath || u.path);
+    ok(roots.some((r) => r === outside), 'the folder of the picture is allowed: ' + roots.join(' | '));
+    a.select(0, 0, 0, 70);
+    await a.sleep(500);
+    eq(a.st.panel.webview.options.localResourceRoots.length, roots.length, 'not added twice');
+  }, { dir: empty, folders: [empty] });
+  fs.rmSync(tmp, { recursive: true, force: true });
 
   console.log('selectionPreviewPanel: ' + n + ' checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });

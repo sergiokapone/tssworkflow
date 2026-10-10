@@ -512,4 +512,85 @@ function toKatexMacros(entries) {
   return out;
 }
 
-module.exports = { toKatexMacros, toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };
+// The macros of a .tex file of definitions (a hand-written or generated mathjax-macros.tex) as a KaTeX `macros` object.
+// Reads \newcommand / \renewcommand / \providecommand (also with *), \DeclareMathOperator, \def, \gdef and \let.
+// A default for the first argument ([n][default]) is not expressible in KaTeX: such a macro is left out, and an older
+// definition of the same name is dropped so that a wrong one is not used.
+function parseKatexMacros(text) {
+  const s = stripComments(String(text || ''));
+  const out = {};
+  const re = /\\(newcommand|renewcommand|providecommand|DeclareMathOperator|def|gdef|let)(?![A-Za-z@])/g;
+  const readName = (i) => {
+    i = skipWs(s, i);
+    const braced = s[i] === '{';
+    if (braced) i = skipWs(s, i + 1);
+    const m = /^\\([A-Za-z]+)/.exec(s.slice(i, i + 80));
+    if (!m) return null;
+    i += m[0].length;
+    if (braced) { i = skipWs(s, i); if (s[i] !== '}') return null; i++; }
+    return { key: '\\' + m[1], end: i };
+  };
+  let m;
+  while ((m = re.exec(s))) {
+    const kind = m[1];
+    let i = m.index + m[0].length;
+    if (kind === 'let') {
+      const n = readName(i);
+      if (!n) continue;
+      let k = skipWs(s, n.end);
+      if (s[k] === '=') k = skipWs(s, k + 1);
+      const t = /^\\([A-Za-z]+)/.exec(s.slice(k, k + 80));
+      if (t) { out[n.key] = '\\' + t[1]; re.lastIndex = k + t[0].length; }
+      continue;
+    }
+    if (kind === 'def' || kind === 'gdef') {
+      const n = readName(i);
+      if (!n) continue;
+      let k = n.end;
+      let params = '';
+      while (k < s.length && s[k] !== '{' && params.length < 40) params += s[k++];
+      const g = readGroup(s, k, '{', '}');
+      if (!g) continue;
+      re.lastIndex = g.end;
+      const p = params.replace(/\s+/g, '');
+      if (!/^(?:#\d)*$/.test(p) || (p && !/^(?:#1(?:#2(?:#3(?:#4(?:#5(?:#6(?:#7(?:#8(?:#9)?)?)?)?)?)?)?)?)$/.test(p))) { delete out[n.key]; continue; }
+      out[n.key] = g.text.replace(/\s*\n\s*/g, ' ').trim();
+      continue;
+    }
+    if (kind === 'DeclareMathOperator') {
+      let k = i;
+      const star = s[k] === '*' ? '*' : '';
+      if (star) k++;
+      const n = readName(k);
+      if (!n) continue;
+      const g = readGroup(s, skipWs(s, n.end), '{', '}');
+      if (!g) continue;
+      re.lastIndex = g.end;
+      out[n.key] = '\\operatorname' + star + '{' + g.text.replace(/\s*\n\s*/g, ' ').trim() + '}';
+      continue;
+    }
+    // \newcommand family
+    if (s[i] === '*') i++;
+    const n = readName(i);
+    if (!n) continue;
+    let k = skipWs(s, n.end);
+    let nargs = 0;
+    let hasDefault = false;
+    let g = readGroup(s, k, '[', ']');
+    if (g && /^\s*[0-9]\s*$/.test(g.text)) {
+      nargs = +g.text;
+      k = skipWs(s, g.end);
+      const d = readGroup(s, k, '[', ']');
+      if (d) { hasDefault = true; k = skipWs(s, d.end); }
+    }
+    const body = readGroup(s, k, '{', '}');
+    if (!body) continue;
+    re.lastIndex = body.end;
+    if (hasDefault) { delete out[n.key]; continue; }
+    if (kind === 'providecommand' && Object.prototype.hasOwnProperty.call(out, n.key)) continue;
+    out[n.key] = body.text.replace(/\s*\n\s*/g, ' ').trim();
+  }
+  return out;
+}
+
+module.exports = { parseKatexMacros, toKatexMacros, toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };

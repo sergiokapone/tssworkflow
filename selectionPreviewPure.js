@@ -4,7 +4,8 @@
  *     html   safe HTML: all text is escaped, formulas are empty <span class="m" data-tex=".." data-d="0|1"> that the page
  *            draws with KaTeX (with the macros of the project), tables come from the model of the table editor
  *     notes  what is not drawn: commands and environments that were not understood (shown under the preview)
- *   opts: { colors: Map of project colours (tableEditorPure.colorDefs), limit: characters, default 200000 }
+ *   opts: { colors: Map of project colours (tableEditorPure.colorDefs), limit: characters, default 200000,
+ *           image: (name) => { src } | { skip: 'pdf' | 'missing' } finds the file of \includegraphics (without it: a frame with the name) }
  * This is not LaTeX: it understands the common text commands, lists, theorem-like blocks, formulas and tables; the PDF is
  * the only exact rendering. */
 
@@ -96,7 +97,31 @@ const mathEnv = (name, body) => {
 
 /* --------------------------------- the converter --------------------------------- */
 function makeCtx(opts) {
-  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), depth: 0 };
+  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, depth: 0 };
+}
+
+// \includegraphics[opt]{name}: the picture itself when the panel found the file (opts.image(name) -> { src } or
+// { skip: 'pdf' | 'missing' }), else a frame with the file name. width= of the options is kept (a share of the line or an
+// absolute length), the rest of the options is ignored.
+function imgWidth(opt) {
+  const m = /(?:^|,)\s*width\s*=\s*(-?[0-9]*\.?[0-9]+)?\s*(\\(?:line|text|column)width|cm|mm|in|pt|bp)?\s*(?:,|$)/.exec(String(opt || ''));
+  if (!m || !m[2]) return '';
+  const v = m[1] === undefined ? 1 : parseFloat(m[1]);
+  if (!(v > 0) || v > 1000) return '';
+  return m[2][0] === '\\' ? 'width:' + Math.round(Math.min(v, 1) * 1000) / 10 + '%' : 'width:' + v + (m[2] === 'bp' ? 'pt' : m[2]);
+}
+function graphic(opt, name, ctx, block) {
+  const file = String(name || '').trim();
+  const base = file.split('/').pop();
+  const tag = block ? 'div' : 'span';
+  let r = null;
+  if (ctx.image && file) { try { r = ctx.image(file); } catch (e) { r = null; } }
+  if (r && typeof r.src === 'string' && r.src && !/^\s*(?:javascript|vbscript|data:(?!image\/))/i.test(r.src)) {
+    const w = imgWidth(opt);
+    return '<' + tag + ' class="pic"><img src="' + esc(r.src) + '" alt="' + esc(base) + '" title="' + esc(base) + '"' + (w ? ' style="' + w + '"' : '') + '></' + tag + '>';
+  }
+  const why = r && r.skip === 'pdf' ? ' (PDF і EPS у перегляді не показуються)' : r && r.skip === 'missing' ? ' (файл не знайдено)' : '';
+  return '<' + tag + ' class="img">🖼 ' + esc(base) + why + '</' + tag + '>';
 }
 const note = (ctx, s) => ctx.notes.add(s);
 
@@ -260,7 +285,7 @@ function inline(text, ctx) {
         const o = readOpt(text, i); if (o) i = o.end;
         const g = readGroup(text, i);
         if (g) i = g.end;
-        out += '<span class="img">🖼 ' + esc(g ? g.text.split('/').pop() : '') + '</span>';
+        out += graphic(o ? o.text : '', g ? g.text : '', ctx, false);
         continue;
       }
       if (name === 'caption' || name === 'subcaption') {
@@ -452,7 +477,7 @@ function blocks(text, ctx) {
         let k = i + m[0].length;
         const o = readOpt(text, k); if (o) k = o.end;
         const g = readGroup(text, k);
-        if (g) { flush(); out.push('<div class="img">🖼 ' + esc(g.text.split('/').pop()) + '</div>'); i = g.end; continue; }
+        if (g) { flush(); out.push(graphic(o ? o.text : '', g.text, ctx, true)); i = g.end; continue; }
       }
       if (/^\\par(?![A-Za-z@])/.test(rest)) { flush(); i += 4; continue; }
       // any other command belongs to the paragraph: copy its name (the arguments are copied with the following text)

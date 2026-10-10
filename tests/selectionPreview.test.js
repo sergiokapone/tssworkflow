@@ -87,8 +87,8 @@ r = R('\\begin{myenv}{T} text\\end{myenv}');
 ok(r.html.includes('<span class="tag">myenv</span>') && r.notes.includes('myenv'), r.html);
 
 // safety: only tags and attributes of the converter can be in the result, no matter what the source holds
-const TAGS = new Set(['p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
-const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan']);
+const TAGS = new Set(['p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'img', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
+const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt']);
 function assertSafe(h, what) {
   const text = h.replace(/<[^>]*>/g, '');
   assert.ok(!/[<>]/.test(text), 'a raw < or > in text: ' + what + ' -> ' + h);
@@ -106,6 +106,28 @@ for (const evil of ['<script>alert(1)</script>', '"><img src=x onerror=alert(1)>
   assertSafe(h, evil);
 }
 ok(!/href=/.test(html('\\href{javascript:alert(1)}{x}')), 'no links are made');
+
+// pictures: with a resolver \includegraphics is the picture, without one a frame with the name (as before)
+const IMG = (full) => { const name = full.split('/').pop(); return (name === 'a.png' ? { src: 'https://w.test/a.png?t=1' } : name === 'v.pdf' ? { skip: 'pdf' } : { skip: 'missing' }); };
+r = R('\\includegraphics[width=0.5\\linewidth]{fig/a.png}', { image: IMG });
+eq(r.html, '<div class="pic"><img src="https://w.test/a.png?t=1" alt="a.png" title="a.png" style="width:50%"></div>', 'block picture');
+r = R('текст \\includegraphics[width=3cm]{a.png} далі', { image: IMG });
+ok(r.html.includes('<img src="https://w.test/a.png?t=1" alt="a.png" title="a.png" style="width:3cm">'), r.html);
+eq(R('\\includegraphics{a.png}', { image: IMG }).html.includes('style='), false, 'no width: no style');
+eq(R('\\includegraphics[width=\\textwidth]{a.png}', { image: IMG }).html.includes('style="width:100%"'), true, 'width=\\textwidth');
+eq(R('\\includegraphics[width=2\\linewidth]{a.png}', { image: IMG }).html.includes('style="width:100%"'), true, 'wider than the line: the line');
+eq(R('\\includegraphics[height=2cm]{a.png}', { image: IMG }).html.includes('style='), false, 'height is ignored');
+eq(R('\\includegraphics[width=1e9cm]{a.png}', { image: IMG }).html.includes('style='), false, 'a strange width is ignored');
+eq(R('\\includegraphics{v.pdf}', { image: IMG }).html, '<div class="img">🖼 v.pdf (PDF і EPS у перегляді не показуються)</div>');
+eq(R('\\includegraphics{x.png}', { image: IMG }).html, '<div class="img">🖼 x.png (файл не знайдено)</div>');
+eq(R('\\includegraphics{x.png}').html, '<div class="img">🖼 x.png</div>', 'no resolver: the frame as before');
+eq(R('\\includegraphics{a.png}', { image: () => { throw new Error('boom'); } }).html, '<div class="img">🖼 a.png</div>', 'a failing resolver is a frame');
+ok(!R('\\includegraphics{a.png}', { image: () => ({ src: 'javascript:alert(1)' }) }).html.includes('<img'), 'javascript: is never a source');
+ok(!R('\\includegraphics{a.png}', { image: () => ({ src: 'data:text/html,<b>' }) }).html.includes('<img'), 'only data:image');
+for (const evil of ['\\includegraphics{a"onerror="x.png}', '\\includegraphics[width=1cm"onload="x]{a.png}', '\\includegraphics{<img src=x onerror=y>}']) {
+  const h = R(evil, { image: (nm) => ({ src: 'https://w.test/' + nm }) }).html;
+  assertSafe(h, evil);
+}
 
 // robustness: broken input never throws or hangs
 const t0 = Date.now();

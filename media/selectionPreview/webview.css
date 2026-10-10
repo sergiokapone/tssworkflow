@@ -13,6 +13,7 @@ table.tb tr.rule td{border-top:2px solid var(--vscode-foreground)}table.tb tr.ta
 figure.fl{margin:.6em 0;padding:0}.cap{font-style:italic;opacity:.85;margin:.2em 0}
 .th{margin:.6em 0;padding:.2em .8em;border-left:3px solid var(--vscode-focusBorder)}.th>b:first-child{margin-right:.3em}
 .env{margin:.6em 0;padding:.2em .8em;border-left:3px dashed var(--vscode-editorWarning-foreground)}.env .tag{display:inline-block;font-size:.8em;padding:0 6px;border-radius:8px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);margin-bottom:.2em}
+.pic{margin:.4em 0}div.pic{text-align:center}.pic img{max-width:100%;height:auto;vertical-align:middle;background:#fff}
 .ph,.img{display:inline-block;margin:.4em 0;padding:.5em 1em;border:1px dashed var(--vscode-editorWidget-border,#888);opacity:.8;font-size:.9em}
 blockquote{margin:.5em 1.6em;opacity:.92}.mp{display:block;margin:.4em 0;padding-left:.8em;border-left:1px solid var(--vscode-editorWidget-border,#888)}
 .fns{margin-top:1.2em;padding-top:.4em;border-top:1px solid var(--vscode-editorWidget-border,#888);font-size:.88em;opacity:.9}sup.fn{color:var(--vscode-textLink-foreground);cursor:help}
