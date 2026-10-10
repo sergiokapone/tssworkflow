@@ -272,6 +272,12 @@ async function scenario(text, selections, cfgValues, act, extra) {
     await a.sleep(500);
     eq(a.st.panel.webview.options.localResourceRoots.length, roots.length, 'not added twice');
   }, { dir: empty, folders: [empty] });
+  // 0.15.4: the page loads mhchem after KaTeX (\ce)
+  await scenario('x', [[0, 0, 0, 1]], {}, async (a) => {
+    await a.command();
+    const hh = a.st.panel.webview.html;
+    ok(hh.includes('katex/mhchem.min.js') && hh.indexOf('katex.min.js') < hh.indexOf('mhchem.min.js') && hh.indexOf('mhchem.min.js') < hh.indexOf('webview.js'), 'mhchem is loaded after katex and before the page script: ' + hh.slice(-400));
+  });
   // 0.15.2: \graphicspath{{\currfilebase/Pictures}}: the macro is the name of the file (a chapter X/X.tex), else the name of its folder
   const book = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-book-'));
   fs.mkdirSync(path.join(book, 'Chap', 'Pictures'), { recursive: true });

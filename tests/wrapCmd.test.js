@@ -13,6 +13,9 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
 const ok = (c, m) => { assert.ok(c, m); n++; };
 
 // pure
+ok(C.FORMAT_MENU.some((f) => f.name === 'enquote' && f.group === 'Текст'), '\\enquote is in the Format menu');
+ok(C.STANDARD_CMDS.some((f) => f.name === 'enquote'), '\\enquote is in the list of standard commands');
+eq(C.wrapInline('самий', C.formatSpec('enquote')), { text: '\\enquote{самий}', cursor: 15 }, 'wraps in \\enquote');
 eq(C.parseCmdInput('emph'), { name: 'emph', pre: '', open: '{', close: '}', post: '' });
 eq(C.parseCmdInput('\\textcolor{red}'), { name: 'textcolor', pre: '{red}', open: '{', close: '}', post: '' });
 eq(C.parseCmdInput('  href [x]{u} ').pre, '[x]{u}');

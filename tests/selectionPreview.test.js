@@ -181,4 +181,23 @@ eq(html('\\end{tikzpicture}'), '<div class="ph">tikz: код рисунка, р�
 ok(html('Текст \\draw тут').includes('<p>'), 'a command in the middle of a text is not code');
 assertSafe(html('\\draw (0,0) -- (1,1);'), 'tikz frame');
 
+// 0.15.4: \ce and \pu (mhchem) in a text are small formulas, KaTeX draws them
+r = R('Вода \\ce{H2O} і \\pu{5 mol/L}, реакція \\ce{2H2 + O2 -> 2H2O}.');
+ok(r.html.includes('data-tex="\\ce{H2O}"') && r.html.includes('data-tex="\\pu{5 mol/L}"') && r.html.includes('data-tex="\\ce{2H2 + O2 -&gt; 2H2O}"'), r.html);
+eq(r.notes, [], '\\ce is understood, not reported');
+assertSafe(r.html, 'ce');
+ok(html('$\\ce{SO4^2-}$').includes('data-tex="\\ce{SO4^2-}"'), 'a \\ce inside a formula stays in it');
+// the page really draws them: katex.min.js of the extension with mhchem.min.js (a version of KaTeX that does not take mhchem fails here)
+{
+  const Module = require('module');
+  const katex = require(path.join(EXT, 'media', 'katex', 'katex.min.js'));
+  const orig = Module._load;
+  Module._load = function (rq, ...a) { return rq === 'katex' ? katex : orig.call(this, rq, ...a); };
+  try { require(path.join(EXT, 'media', 'katex', 'mhchem.min.js')); } finally { Module._load = orig; }
+  for (const t of ['\\ce{H2O}', '\\ce{SO4^2-}', '\\ce{2H2 + O2 -> 2H2O}', '\\ce{CO2 <=> H2CO3}', '\\pu{1.5 mol//L}']) {
+    const h = katex.renderToString(t, { throwOnError: true, strict: 'ignore', output: 'html' });
+    ok(h.includes('katex') && !h.includes('katex-error'), 'KaTeX with mhchem draws ' + t);
+  }
+}
+
 console.log('selectionPreview: ' + n + ' checks passed');

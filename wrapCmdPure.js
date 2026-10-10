@@ -12,6 +12,7 @@ const MP = require('./macrosPure');
 const STANDARD_CMDS = [
   // text
   { name: 'emph', desc: 'Виділення (курсив)' },
+  { name: 'enquote', desc: 'Лапки (csquotes)' },
   { name: 'textbf', desc: 'Напівжирний' },
   { name: 'textit', desc: 'Курсив' },
   { name: 'textsc', desc: 'Капітель' },
@@ -60,6 +61,7 @@ const FORMAT_MENU = [
   { name: 'textbf', label: 'Напівжирний', group: 'Текст', quick: 1 },
   { name: 'textit', label: 'Курсив', group: 'Текст', quick: 2 },
   { name: 'emph', label: 'Виділення (emph)', group: 'Текст' },
+  { name: 'enquote', label: 'Лапки (enquote)', group: 'Текст' },
   { name: 'underline', label: 'Підкреслення', group: 'Текст', quick: 3 },
   { name: 'texttt', label: 'Моноширинний', group: 'Текст' },
   { name: 'textsc', label: 'Капітель', group: 'Текст' },

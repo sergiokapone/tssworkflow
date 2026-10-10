@@ -234,7 +234,7 @@ function html(webview, extUri) {
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + kx('katex.min.css') + '"><link rel="stylesheet" href="' + own('webview.css') + '"></head><body>' +
     '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div>' +
     '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+Z: скасувати зміну у файлі</div>' +
-    '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
+    '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
 }
 
 function ensurePanel(context) {

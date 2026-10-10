@@ -28,7 +28,7 @@ function html(webview, extUri) {
   return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + asset('katex', 'katex.min.css') + '"><link rel="stylesheet" href="' + asset('selectionPreview', 'webview.css') + '"></head><body>' +
     '<div id="bar"><span id="what"></span><span id="where"></span></div><div id="notes"></div><div id="wrap"><div id="out"></div></div>' +
-    '<script nonce="' + n + '" src="' + asset('katex', 'katex.min.js') + '"></script><script nonce="' + n + '" src="' + asset('selectionPreview', 'webview.js') + '"></script></body></html>';
+    '<script nonce="' + n + '" src="' + asset('katex', 'katex.min.js') + '"></script><script nonce="' + n + '" src="' + asset('katex', 'mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + asset('selectionPreview', 'webview.js') + '"></script></body></html>';
 }
 
 /* ------------------------------ pictures ------------------------------ */

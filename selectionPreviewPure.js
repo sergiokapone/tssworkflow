@@ -286,6 +286,10 @@ function inline(text, ctx) {
         }
         continue;
       }
+      if (name === 'ce' || name === 'pu') { // mhchem: KaTeX draws \ce{...} and \pu{...} in math mode (media/katex/mhchem.min.js)
+        const g = readGroup(text, i);
+        if (g) { i = g.end; out += math('\\' + name + '{' + g.text + '}', false); continue; }
+      }
       if (name === 'enquote') { const g = readGroup(text, i); if (g) { i = g.end; out += '«' + inline(g.text, ctx) + '»'; } continue; }
       if (name === 'foreignlanguage' || name === 'selectlanguage') { const l = readGroup(text, i); if (l) i = l.end; if (name === 'foreignlanguage') { const t = readGroup(text, i); if (t) { i = t.end; out += inline(t.text, ctx); } } continue; }
       if (name === 'includegraphics') {
