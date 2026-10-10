@@ -47,8 +47,19 @@ function graphicsPaths(doc) {
   } catch (e) { /* no main file */ }
   for (const t of texts) {
     const m = /\\graphicspath\s*\{((?:\s*\{[^{}]*\})+)\s*\}/.exec(t.replace(/(^|[^\\])%.*$/gm, '$1'));
-    if (m) for (const g of m[1].match(/\{([^{}]*)\}/g) || []) out.push(g.slice(1, -1));
+    if (m) for (const g of m[1].match(/\{([^{}]*)\}/g) || []) for (const x of expandCurrFile(g.slice(1, -1), doc)) if (!out.includes(x)) out.push(x);
   }
+  return out;
+}
+
+// \graphicspath{{\currfilebase/Pictures}}: the macro is the base name of the file (without the extension), as in the project class;
+// when the folder of the file has another name (a part of the chapter), the name of the folder is tried too
+function expandCurrFile(g, doc) {
+  if (!/\\currfilebase/.test(g)) return [g];
+  const file = doc.uri.fsPath;
+  const bases = [path.basename(file, path.extname(file)), path.basename(path.dirname(file))];
+  const out = [];
+  for (const b of bases) { const x = g.replace(/\\currfilebase\s?/g, () => b); if (b && !out.includes(x)) out.push(x); }
   return out;
 }
 
