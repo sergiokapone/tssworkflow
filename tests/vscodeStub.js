@@ -42,6 +42,8 @@ function makeVscode(text, selections, pick, cfgValues, files) {
   const ed = {
     document: doc, options: { insertSpaces: false, tabSize: 4 }, snippet: null, revealed: null,
     selections: selections.map((s) => new Selection(s[0], s[1], s[2], s[3])),
+    get selection() { return ed.selections[0]; },
+    set selection(v) { ed.selections = [v]; },
     async edit(fn) {
       const reps = [];
       fn({ replace: (r, s) => reps.push([doc.offsetAt(r.start), doc.offsetAt(r.end), s]) });
@@ -82,14 +84,30 @@ function makeVscode(text, selections, pick, cfgValues, files) {
       findFiles: async () => (files || []).map((f) => ({ fsPath: f })),
       onDidSaveTextDocument: () => ({ dispose() {} })
     },
-    commands: { registerCommand: (id, fn) => { handlers[id] = fn; return { dispose() {} }; } },
-    languages: {}, Uri: { file: (f) => f }
+    commands: {
+      registerCommand: (id, fn) => { handlers[id] = fn; return { dispose() {} }; },
+      executeCommand: async (id, ...a) => { vs.executed.push([id, ...a]); if (handlers[id]) return handlers[id](...a); return undefined; }
+    },
+    executed: [],
+    languages: {
+      registerCodeLensProvider: (sel, prov) => { vs.lensProviders.push(prov); return { dispose() {} }; },
+      registerCodeActionsProvider: (sel, prov, meta) => { vs.actionProviders.push([prov, meta]); return { dispose() {} }; }
+    },
+    lensProviders: [], actionProviders: [],
+    Uri: { file: (f) => f },
+    EventEmitter: class { constructor() { this.listeners = []; this.event = (f) => { this.listeners.push(f); return { dispose() {} }; }; } fire() { this.listeners.forEach((f) => f()); } dispose() {} },
+    CodeLens: class { constructor(range, command) { this.range = range; this.command = command; } },
+    CodeAction: class { constructor(title, kind) { this.title = title; this.kind = kind; } },
+    CodeActionKind: { RefactorRewrite: { value: 'refactor.rewrite', append(x) { return { value: 'refactor.rewrite.' + x }; } } }
   };
+  vs.window.onDidChangeTextEditorSelection = (f) => { vs.selectionListeners.push(f); return { dispose() {} }; };
+  vs.selectionListeners = [];
+  vs.window.showQuickPick = async (items, opts) => { vs.quickPickItems = items; vs.quickPickOpts = opts; return items.find((i) => i.label === (pick.menu || '')); };
   return { vs, ed, doc, handlers };
 }
 
 /* loads <ext>/<module>.js against the stub (fresh copy), registers it and runs the command `id` */
-async function runCommand({ ext, module, id, text, selections, pick, cfg, files, envs, cmds }) {
+async function runCommand({ ext, module, id, text, selections, pick, cfg, files, envs, cmds, args }) {
   const path = require('path');
   const h = makeVscode(text, selections, pick, cfg || {}, files);
   const orig = Module._load;
@@ -101,7 +119,7 @@ async function runCommand({ ext, module, id, text, selections, pick, cfg, files,
   for (const k of Object.keys(require.cache)) if (k.startsWith(ext) && /\.js$/.test(k)) delete require.cache[k];
   const mem = {};
   require(path.join(ext, module)).register({ subscriptions: [], globalState: { get: (k) => mem[k], update: async (k, v) => { mem[k] = v; } } });
-  try { await h.handlers[id](); } finally { Module._load = orig; }
+  try { await h.handlers[id](...(args || [])); } finally { Module._load = orig; }
   return { h, mem };
 }
 

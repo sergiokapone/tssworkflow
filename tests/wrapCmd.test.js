@@ -84,3 +84,93 @@ eq(C.partsOfMacro(by.get('foo')), null);
 
   console.log('wrapCmd: ' + n + ' checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });
+
+/* ---- the menu "Format": command, buttons above a selection, light bulb ---- */
+(async () => {
+  const cmds = new Map();
+  const ctx = (text, selections, extra) => Object.assign({ ext: EXT, module: 'wrapCmd.js', id: 'tssworkflow.formatSelection', text, selections, pick: {}, cmds }, extra);
+  let m = 0;
+  const e2 = (a, b, msg) => { assert.deepStrictEqual(a, b, msg); m++; };
+  const ok2 = (c, msg) => { assert.ok(c, msg); m++; };
+  const fmtRun = async (text, selections, name, cfg, menu) => {
+    const h = require('./vscodeStub');
+    const orig = h.runCommand;
+    return orig(Object.assign(ctx(text, selections, { cfg: cfg || {}, pick: { menu } }), { args: name === undefined ? [] : [name] }));
+  };
+
+  // a command of the menu by name round the selection (what the buttons call)
+  let r = await runCommand(ctx('a bold b', [[0, 2, 0, 6]], { args: ['textbf'] }));
+  e2(r.h.doc.lines, ['a \\textbf{bold} b']);
+  r = await runCommand(ctx('a bold b', [[0, 2, 0, 6]], { args: ['underline'] }));
+  e2(r.h.doc.lines, ['a \\underline{bold} b']);
+  r = await runCommand(ctx('x = y', [[0, 0, 0, 1], [0, 4, 0, 5]], { args: ['mathrm'] }));
+  e2(r.h.doc.lines, ['\\mathrm{x} = \\mathrm{y}'], 'several selections');
+  // no selection: the word at the caret
+  r = await runCommand(ctx('foo bar', [[0, 5, 0, 5]], { args: ['emph'] }));
+  e2(r.h.doc.lines, ['foo \\emph{bar}']);
+  // nothing to format: a message, the text stays
+  r = await runCommand(ctx('a  b', [[0, 2, 0, 2]], { args: ['emph'] }));
+  e2(r.h.doc.lines, ['a  b']);
+  // the menu: groups, the choice, "other command"
+  r = await runCommand(ctx('a bold b', [[0, 2, 0, 6]], { args: [], pick: { menu: 'Курсив' } }));
+  e2(r.h.doc.lines, ['a \\textit{bold} b']);
+  const labels = r.h.vs.quickPickItems.map((i) => (i.kind === -1 ? '--' + i.label : i.label));
+  ok2(labels.indexOf('--Текст') === 0 && labels.includes('--Формула') && labels.includes('Напівжирний') && labels[labels.length - 1].includes('Інша команда'), 'menu groups: ' + labels.join(' | '));
+  r = await runCommand(ctx('a bold b', [[0, 2, 0, 6]], { args: [], pick: { menu: '$(list-selection) Інша команда…' } }));
+  e2(r.h.doc.lines, ['a bold b'], 'the full list is opened instead');
+  ok2(r.h.vs.executed.some((x) => x[0] === 'tssworkflow.wrapCmd'), 'the command with the full list is called');
+  // an unknown name falls back to the menu
+  r = await runCommand(ctx('a bold b', [[0, 2, 0, 6]], { args: ['nonsense'], pick: { menu: 'Капітель' } }));
+  e2(r.h.doc.lines, ['a \\textsc{bold} b']);
+
+  // the buttons above a selection
+  r = await runCommand(ctx('line1\nsome text', [[1, 0, 1, 4]], { args: [], pick: { menu: 'nothing chosen' }, cfg: {} })); // the menu is dismissed: the selection stays
+  const lens = r.h.vs.lensProviders[0];
+  const titles = (cfg2) => lens.provideCodeLenses(r.h.doc);
+  let ls = lens.provideCodeLenses(r.h.doc);
+  e2(ls.map((l) => l.command.title), ['$(bold) Напівжирний', '$(italic) Курсив', 'Підкреслення', '$(chevron-down) Формат'], 'three buttons and the menu');
+  e2(ls.map((l) => l.command.arguments || null), [['textbf'], ['textit'], ['underline'], null]);
+  e2(ls.map((l) => l.range.start.line), [1, 1, 1, 1], 'all above the first line of the selection');
+  void titles;
+  // an empty selection or another document: no buttons
+  r.h.ed.selections = [new (require('./vscodeStub').Selection)(0, 1, 0, 1)];
+  e2(lens.provideCodeLenses(r.h.doc), [], 'empty selection');
+  e2(lens.provideCodeLenses({}), [], 'another document');
+
+  // the settings
+  const modeRun = async (mode) => {
+    const x = await runCommand(ctx('abc def', [[0, 0, 0, 3]], { args: ['textbf'], cfg: { 'wrapCmd.selectionHint': mode } }));
+    x.h.ed.selections = [new (require('./vscodeStub').Selection)(0, 0, 0, 3)];
+    return { lens: x.h.vs.lensProviders[0].provideCodeLenses(x.h.doc).length, acts: x.h.vs.actionProviders[0][0].provideCodeActions(x.h.doc, new (require('./vscodeStub').Range)(0, 0, 0, 3)).length };
+  };
+  e2(await modeRun('codelens'), { lens: 4, acts: 0 });
+  e2(await modeRun('lightbulb'), { lens: 0, acts: 5 });
+  e2(await modeRun('both'), { lens: 4, acts: 5 });
+  e2(await modeRun('off'), { lens: 0, acts: 0 });
+
+  // the light bulb entries run the same command; nothing on an empty range
+  r = await runCommand(ctx('abc', [[0, 0, 0, 3]], { args: ['textbf'], cfg: { 'wrapCmd.selectionHint': 'both' } }));
+  const acts = r.h.vs.actionProviders[0][0].provideCodeActions(r.h.doc, new (require('./vscodeStub').Range)(0, 0, 0, 3));
+  e2(acts.map((a) => a.command.arguments || null), [['textbf'], ['textit'], ['emph'], ['underline'], null]);
+  ok2(acts.every((a) => a.kind.value === 'refactor.rewrite.tssworkflow' && a.title.startsWith('TSS: ')), 'kind and titles');
+  e2(r.h.vs.actionProviders[0][0].provideCodeActions(r.h.doc, new (require('./vscodeStub').Range)(0, 1, 0, 1)), [], 'empty range');
+  e2(r.h.vs.actionProviders[0][1].providedCodeActionKinds.map((k) => k.value), ['refactor.rewrite']);
+
+  // the buttons are refreshed a moment after the selection changes (at once when it is cleared)
+  r = await runCommand(ctx('abc', [[0, 0, 0, 3]], { args: ['textbf'] }));
+  let fired = 0;
+  r.h.vs.lensProviders[0].onDidChangeCodeLenses(() => fired++);
+  const listener = r.h.vs.selectionListeners[0];
+  r.h.doc.languageId = 'latex';
+  listener({ textEditor: { document: r.h.doc, selection: new (require('./vscodeStub').Selection)(0, 0, 0, 2) } });
+  await new Promise((res) => setTimeout(res, 150));
+  e2(fired, 0, 'not yet: the selection may still be changing');
+  await new Promise((res) => setTimeout(res, 400));
+  e2(fired, 1, 'refreshed once it stopped');
+  listener({ textEditor: { document: r.h.doc, selection: new (require('./vscodeStub').Selection)(0, 1, 0, 1) } });
+  await new Promise((res) => setTimeout(res, 50));
+  e2(fired, 2, 'cleared selection: at once');
+  void fmtRun;
+
+  console.log('wrapCmd (format menu): ' + m + ' checks passed');
+})().catch((e) => { console.error(e); process.exit(1); });
