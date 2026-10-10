@@ -87,8 +87,8 @@ r = R('\\begin{myenv}{T} text\\end{myenv}');
 ok(r.html.includes('<span class="tag">myenv</span>') && r.notes.includes('myenv'), r.html);
 
 // safety: only tags and attributes of the converter can be in the result, no matter what the source holds
-const TAGS = new Set(['p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'img', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
-const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt']);
+const TAGS = new Set(['a', 'p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'img', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
+const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt', 'href', 'data-open', 'data-via']);
 function assertSafe(h, what) {
   const text = h.replace(/<[^>]*>/g, '');
   assert.ok(!/[<>]/.test(text), 'a raw < or > in text: ' + what + ' -> ' + h);
@@ -96,6 +96,8 @@ function assertSafe(h, what) {
     const m = /^<\/?([a-z0-9]+)((?:\s+[a-z-]+="[^"<>]*")*)\s*\/?>$/.exec(tag);
     assert.ok(m && TAGS.has(m[1]), 'a tag outside the list: ' + tag + ' for ' + what);
     for (const a of m[2].match(/[a-z-]+(?==")/g) || []) assert.ok(ATTRS.has(a), 'an attribute outside the list: ' + a + ' for ' + what);
+    const hr = /\shref="([^"]*)"/.exec(tag);
+    if (hr) assert.strictEqual(hr[1], '#', 'the only link is the empty anchor of a tikz frame: ' + tag);
     const st = /\sstyle="([^"]*)"/.exec(tag);
     if (st) assert.ok(/^[a-z0-9:;#%.,() -]*$/i.test(st[1]), 'style: ' + st[1]);
   }
@@ -148,5 +150,35 @@ ok(Date.now() - t0 < 5000, 'robustness runs fast: ' + (Date.now() - t0) + ' ms')
 // a long text is cut
 r = R('x'.repeat(300000), { limit: 1000 });
 ok(r.html.length < 2000 && r.notes.some((x) => /обрізано/.test(x)), 'limit');
+
+// 0.15.3: the code of tikz is not drawn; SCfigure has the caption beside the picture; \localinput of tikz is a frame with the name
+r = R('\\begin{SCfigure}[][h!]\n\\centering\n\\includegraphics[height=3cm]{x.png}\n\\caption{Демонстрація.\\label{pic:a}}\n\\end{SCfigure}', { image: IMG });
+ok(!r.html.includes('[h!]') && !r.html.includes('[]') && !r.html.includes('class="tag"'), 'SCfigure: no options, no tag of an unknown environment: ' + r.html);
+ok(/^<figure class="fl sc"><div class="sc-pic">.*<\/div><div class="cap sc-cap">Демонстрація\.<\/div><\/figure>$/.test(r.html), 'SCfigure: the picture and the caption side by side: ' + r.html);
+ok(!r.html.includes('<p></p>'), 'no empty paragraph from \\centering');
+ok(!r.notes.includes('SCfigure'), 'SCfigure is understood: ' + r.notes);
+for (const [src, name, via] of [
+  ['\\begin{figure}[h!]\\centering\n\\localinput{triboseries.tikz}\n\\caption{Ряд}\n\\end{figure}', 'triboseries.tikz', 'localinput'],
+  ['\\begin{wrapfigure}{r}{0.4\\linewidth}\\input{tikz/a.tikz}\\caption{c}\\end{wrapfigure}', 'tikz/a.tikz', 'input'],
+  ['\\begin{wrapstuff}[r,width=5cm]\\localinput{b}\\caption{c}\\end{wrapstuff}', 'b', 'localinput'],
+  ['\\begin{SCfigure}[][h!]\\localinput{s.tikz}\\caption{c}\\end{SCfigure}', 's.tikz', 'localinput']
+]) {
+  const h = html(src);
+  ok(h.includes('<a class="tikzf" href="#" data-open="' + name + '" data-via="' + via + '"'), src + ' -> ' + h);
+  ok(h.includes('>' + name.split('/').pop() + '</a>'), 'the name of the file is in the frame: ' + h);
+  assertSafe(h, src);
+}
+ok(!html('\\begin{figure}\\localinput{x.tikz}\\end{figure}').includes('[h!]'), 'no options');
+eq(html('\\input{chap.tex}'), '', '\\input of a .tex stays silent as before');
+ok(html('\\localinput{b}').includes('class="unk"') && !html('\\localinput{b}').includes('tikzf'), '\\localinput without .tikz outside a figure: as before');
+ok(html('\\input{a/b.tikz}').includes('data-open="a/b.tikz"'), 'a .tikz file outside a figure is a frame too');
+ok(!html('\\localinput{a"onclick="x.tikz}').includes('onclick="x'), 'the name is escaped');
+// code of a picture without \begin: one frame for all the paragraphs of code
+r = R('\\draw[->] (0,0) -- (1,1);\n\\node at (0,0) {$x$};\n\n\\fill (1,1) circle (1pt);\n\\pgfmathsetmacro{\\angle}{atan(3/2)}\n\nЗвичайний текст.');
+eq(r.html, '<div class="ph">tikz: код рисунка, рисунок буде лише в PDF</div><p>Звичайний текст.</p>', 'the code of tikz is a frame: ' + r.html);
+ok(!r.html.includes('\\draw') && !r.html.includes('data-tex'), 'nothing of the code is shown');
+eq(html('\\end{tikzpicture}'), '<div class="ph">tikz: код рисунка, рисунок буде лише в PDF</div>', 'the end of a picture alone');
+ok(html('Текст \\draw тут').includes('<p>'), 'a command in the middle of a text is not code');
+assertSafe(html('\\draw (0,0) -- (1,1);'), 'tikz frame');
 
 console.log('selectionPreview: ' + n + ' checks passed');

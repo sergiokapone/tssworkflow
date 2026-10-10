@@ -21,7 +21,8 @@ async function scenario(text, selections, cfgValues, act, extra) {
   const h = makeVscode(text, selections, {}, cfgValues || {});
   const { vs, ed, doc } = h;
   doc.languageId = 'latex';
-  doc.uri = { fsPath: dir + '/a.tex', toString: () => 'file://' + dir + '/a.tex', path: dir + '/a.tex' };
+  const rel = (extra && extra.file) || 'a.tex';
+  doc.uri = { fsPath: dir + '/' + rel, toString: () => 'file://' + dir + '/' + rel, path: dir + '/' + rel };
   if (extra && extra.folders) vs.workspace.workspaceFolders = extra.folders.map((f) => ({ uri: { fsPath: f } }));
   const st = { created: [], posted: [], revealed: [], disposed: 0, selectionChangedBy: 0, macrosDone: false };
   const listeners = { selection: [], editor: [], text: [] };
@@ -271,6 +272,63 @@ async function scenario(text, selections, cfgValues, act, extra) {
     await a.sleep(500);
     eq(a.st.panel.webview.options.localResourceRoots.length, roots.length, 'not added twice');
   }, { dir: empty, folders: [empty] });
+  // 0.15.2: \graphicspath{{\currfilebase/Pictures}}: the macro is the name of the file (a chapter X/X.tex), else the name of its folder
+  const book = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-book-'));
+  fs.mkdirSync(path.join(book, 'Chap', 'Pictures'), { recursive: true });
+  fs.writeFileSync(path.join(book, 'Chap', 'Pictures', 'Discharges.jpg'), 'jpg');
+  fs.writeFileSync(path.join(book, 'main.tex'), '\\documentclass{book}\n');
+  const CB = '\\graphicspath{{\\currfilebase/Pictures}}\n\\includegraphics[width=0.8\\linewidth]{Discharges}';
+  for (const file of ['Chap/Chap.tex', 'Chap/part.tex']) {
+    await scenario(CB, [[0, 0, 1, 60]], {}, async (a) => {
+      await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+      const h = a.renders().pop().html;
+      ok(h.includes('<img src="https://webview.test' + path.join(book, 'Chap', 'Pictures', 'Discharges.jpg') + '?t='), file + ': \\currfilebase in \\graphicspath is expanded: ' + h);
+      ok(!h.includes('(файл не знайдено)'), file + ': no "file not found" frame');
+    }, { dir: book, folders: [book], file });
+  }
+  // 0.15.3: the code of tikz is a frame (a .tikz file, or the caret inside \begin{tikzpicture}); a click on the frame of \localinput opens the file
+  const tk = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-tikz-'));
+  fs.mkdirSync(path.join(tk, 'Chap', 'tikz'), { recursive: true });
+  fs.writeFileSync(path.join(tk, 'Chap', 'tikz', 'tribo.tikz'), '\\begin{tikzpicture}\\end{tikzpicture}');
+  fs.writeFileSync(path.join(tk, 'secret.tikz'), 'x');
+  fs.writeFileSync(path.join(tk, 'main.tex'), '\\documentclass{book}\n');
+  const FIGT = '\\begin{figure}[h!]\\centering\n\\localinput{tribo.tikz}\n\\caption{Ряд}\n\\end{figure}';
+  await scenario(FIGT, [[0, 0, 3, 12]], {}, async (a) => {
+    const opened = [];
+    a.vs.window.showTextDocument = async (uri, o) => { opened.push([uri.fsPath, o]); };
+    a.vs.window.showWarningMessage = (m) => { opened.push(['warn', m]); };
+    a.ed.viewColumn = 1;
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    const h = a.renders().pop().html;
+    ok(h.includes('<a class="tikzf" href="#" data-open="tribo.tikz" data-via="localinput"'), 'the frame of the tikz file: ' + h);
+    a.message({ type: 'open', name: 'tribo.tikz', via: 'localinput' }); await a.sleep(100);
+    eq(opened.length, 1, 'a click opens one file');
+    eq(opened[0][0], path.join(tk, 'Chap', 'tikz', 'tribo.tikz'), 'tikz/ next to the open file: ' + opened[0][0]);
+    eq(opened[0][1].viewColumn, 1, 'in the column of the .tex editor');
+    a.message({ type: 'open', name: '../../secret.tikz', via: 'input' }); await a.sleep(100);
+    ok(opened[1] && opened[1][0] === 'warn' || opened[1][0] === path.join(tk, 'secret.tikz'), 'a path inside the project is allowed, a missing file warns');
+    a.message({ type: 'open', name: '\\x{y}', via: 'input' }); await a.sleep(100);
+    eq(opened[opened.length - 1][0], 'warn', 'a name with a macro is not opened');
+    a.message({ type: 'open', name: '/etc/passwd', via: 'input' }); await a.sleep(100);
+    eq(opened[opened.length - 1][0], 'warn', 'a file outside the project is not opened');
+  }, { dir: path.join(tk, 'Chap'), folders: [tk], file: 'Chap.tex' });
+  // the caret in the middle of a picture: a frame, not the code
+  const INPIC = '\\begin{tikzpicture}[scale=1]\n\n\\draw (0,0) -- (1,1);\n\\node at (0,0) {$x$};\n\n\\end{tikzpicture}';
+  await scenario(INPIC, [[2, 0, 3, 5]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    const h = a.renders().pop().html;
+    ok(h.includes('tikzpicture: рисунок буде лише в PDF') && !h.includes('\\draw') && !h.includes('data-tex'), 'inside \\begin{tikzpicture}: a frame: ' + h);
+  });
+  await scenario('\\draw (0,0) -- (1,1);\n\\node {a};', [[0, 0, 1, 8]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    ok(a.renders().pop().html.includes('tikzpicture: рисунок буде лише в PDF'), 'a .tikz file is always a frame');
+  }, { dir: tk, folders: [tk], file: 'figure.tikz' });
+  await scenario('Текст\n\n\\begin{tikzpicture}\\draw (0,0);\\end{tikzpicture}\n\nПісля $x$', [[4, 0, 4, 10]], {}, async (a) => {
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    ok(a.renders().pop().html.includes('data-tex="x"'), 'after a closed picture the text is drawn as usual');
+  });
+  fs.rmSync(tk, { recursive: true, force: true });
+  fs.rmSync(book, { recursive: true, force: true });
   fs.rmSync(tmp, { recursive: true, force: true });
 
   console.log('selectionPreviewPanel: ' + n + ' checks passed');

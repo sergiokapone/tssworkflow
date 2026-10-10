@@ -17,6 +17,7 @@ let extUri = null;
 let roots = []; // folders (besides media/) the page may read pictures from
 let timer = null;
 let seq = 0;
+let last = null; // { doc, column } of the last .tex editor: where a file opened from the panel goes
 
 const nonce = () => { let t = ''; const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; for (let i = 0; i < 32; i++) t += c[Math.floor(Math.random() * c.length)]; return t; };
 
@@ -113,6 +114,65 @@ function pictureResolver(doc) {
   };
 }
 
+/* ------------------------------ tikz ------------------------------ */
+// the file of \localinput{name} / \input{name} in a frame of the panel; only inside the project or next to the open file
+function resolveTikz(name, doc) {
+  const f0 = String(name || '').trim();
+  if (!f0 || /[\\{}$\0]/.test(f0)) return null;
+  const dir = path.dirname(doc.uri.fsPath);
+  const bases = [];
+  const add = (d) => { if (d && !bases.includes(d)) bases.push(d); };
+  let sub = 'tikz';
+  try { sub = require('./filesAndLabels').legacySub('\\localinput', 'tikz') || 'tikz'; } catch (e) { /* the default */ }
+  add(path.join(dir, sub));
+  add(dir);
+  const allowed = [dir];
+  try {
+    const ws = vscode.workspace;
+    const folder = (ws.getWorkspaceFolder && ws.getWorkspaceFolder(doc.uri)) || (ws.workspaceFolders || [])[0];
+    if (folder) {
+      const mainDir = path.dirname(path.resolve(folder.uri.fsPath, String(cfg().get('mainFile', 'main.tex') || 'main.tex')));
+      add(mainDir); add(folder.uri.fsPath); allowed.push(folder.uri.fsPath);
+    }
+  } catch (e) { /* none */ }
+  for (const r of roots) allowed.push(r);
+  const names = path.extname(f0) ? [f0] : [f0, f0 + '.tikz', f0 + '.tex'];
+  for (const b of bases) {
+    for (const n of names) {
+      const f = path.resolve(b, n);
+      if (isFile(f) && allowed.some((r) => inside(f, r))) return f;
+    }
+  }
+  return null;
+}
+
+async function openTikz(m) {
+  const doc = last && last.doc;
+  if (!doc || !m || typeof m.name !== 'string') return;
+  const f = resolveTikz(m.name, doc);
+  if (!f) { vscode.window.showWarningMessage('Файл не знайдено: ' + String(m.name).slice(0, 200)); return; }
+  // into the column of the .tex editor (the panel stands beside it), as a click on the name in the editor does
+  await vscode.window.showTextDocument(vscode.Uri.file(f), { viewColumn: (last && last.column) || vscode.ViewColumn.One, preserveFocus: false });
+}
+
+// is the start of the fragment inside \begin{tikzpicture} ... \end{tikzpicture}? -> the name of the environment, else ''
+// (a .tikz file is the code of one picture). The code of a picture is not drawn: it is a frame.
+function pictureAround(doc, startLine) {
+  if (/\.tikz$/i.test(doc.uri.fsPath || '')) return 'tikzpicture';
+  let before = '';
+  try { before = doc.getText(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(startLine, 0))); } catch (e) { return ''; }
+  before = P.stripComments(before);
+  const stack = [];
+  const re = /\\(begin|end)\s*\{([^{}]*)\}/g;
+  let m;
+  while ((m = re.exec(before))) {
+    if (!P.PICTURE_ENVS.has(m[2])) continue;
+    if (m[1] === 'begin') stack.push(m[2]);
+    else { const k = stack.lastIndexOf(m[2]); if (k >= 0) stack.length = k; }
+  }
+  return stack.length ? stack[stack.length - 1] : '';
+}
+
 // what is drawn: the selections, else the paragraph at the caret
 function fragment(ed) {
   const doc = ed.document;
@@ -140,7 +200,10 @@ async function update() {
   if (!ed || !isTex(ed.document)) return; // the panel itself or another kind of file: what is shown stays
   const doc = ed.document;
   const mine = ++seq;
+  last = { doc, column: ed.viewColumn };
   const fr = fragment(ed);
+  const pic = fr.text ? pictureAround(doc, Math.max(0, fr.from - 1)) : '';
+  if (pic) fr.text = '\\begin{' + pic + '}\\end{' + pic + '}'; // the code of a picture: a frame, not the code
   const where = path.basename(doc.uri.fsPath) + (fr.from ? ':' + fr.from + (fr.to !== fr.from ? '–' + fr.to : '') : '');
   const send = () => {
     if (!panel || mine !== seq) return;
@@ -173,7 +236,7 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
   ready = false;
   panel.webview.html = html(panel.webview, context.extensionUri);
-  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } }, null, context.subscriptions);
+  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); }, null, context.subscriptions);
   panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, context.subscriptions);
   panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; }, null, context.subscriptions);
 }
@@ -192,3 +255,4 @@ function register(context) {
 }
 
 exports.register = register;
+exports._t = { resolveTikz, pictureAround };

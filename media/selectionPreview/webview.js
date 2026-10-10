@@ -30,4 +30,12 @@ window.addEventListener('message', function (e) {
   wrap.scrollTop = y;
 });
 
+// a frame of a tikz file (\\localinput, \\input): a click asks the extension to open the file
+document.addEventListener('click', function (e) {
+  const a = e.target && e.target.closest ? e.target.closest('a[data-open]') : null;
+  if (!a) return;
+  e.preventDefault();
+  vscode.postMessage({ type: 'open', name: a.getAttribute('data-open') || '', via: a.getAttribute('data-via') || '' });
+});
+
 vscode.postMessage({ type: 'ready' });

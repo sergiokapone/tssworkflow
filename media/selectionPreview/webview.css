@@ -21,3 +21,6 @@ blockquote{margin:.5em 1.6em;opacity:.92}.mp{display:block;margin:.4em 0;padding
 .unk{border-bottom:1px dotted var(--vscode-editorWarning-foreground)}code{font-family:var(--vscode-editor-font-family)}pre.raw{white-space:pre-wrap;font-family:var(--vscode-editor-font-family);background:var(--vscode-textCodeBlock-background);padding:.5em .8em;border-radius:3px}
 .sc{font-variant:small-caps}.sf{font-family:sans-serif}.s0{font-size:.5em}.s1{font-size:.7em}.s2{font-size:.8em}.s3{font-size:.9em}.s5{font-size:1.2em}.s6{font-size:1.44em}.s7{font-size:1.7em}.s8{font-size:2em}.s9{font-size:2.4em}
 .empty{opacity:.6}
+figure.fl.sc{display:flex;gap:1.2em;align-items:center}.sc-pic{flex:0 1 65%;min-width:0}.sc-cap{flex:1 1 30%;margin:0;text-align:left}
+a.tikzf{display:flex;align-items:center;justify-content:center;min-height:5.5em;margin:.5em 0;padding:.6em 1em;border:1px dashed var(--vscode-editorWidget-border,#888);border-radius:3px;color:var(--vscode-textLink-foreground);text-decoration:none;cursor:pointer;font-family:var(--vscode-editor-font-family);font-size:.9em}
+a.tikzf:hover{background:var(--vscode-list-hoverBackground);text-decoration:underline}

@@ -97,7 +97,7 @@ const mathEnv = (name, body) => {
 
 /* --------------------------------- the converter --------------------------------- */
 function makeCtx(opts) {
-  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, depth: 0 };
+  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, depth: 0, fig: 0 };
 }
 
 // \includegraphics[opt]{name}: the picture itself when the panel found the file (opts.image(name) -> { src } or
@@ -124,6 +124,13 @@ function graphic(opt, name, ctx, block) {
   return '<' + tag + ' class="img">🖼 ' + esc(base) + why + '</' + tag + '>';
 }
 const note = (ctx, s) => ctx.notes.add(s);
+
+// \\localinput{x.tikz} / \\input{x.tikz}: a frame with the name of the file in the middle; a click opens the file (the panel resolves the name)
+function tikzFrame(name, via) {
+  const base = String(name).split('/').pop();
+  return '<a class="tikzf" href="#" data-open="' + esc(name) + '" data-via="' + esc(via) + '" title="Відкрити ' + esc(name) + '">' + esc(base) + '</a>';
+}
+const isTikzRef = (cmd, name, ctx) => !!name && !/[\\{}$]/.test(name) && (/\.tikz$/i.test(name) || (cmd === 'localinput' && ctx.fig > 0));
 
 // readers of command arguments: { text, end } or null
 function readGroup(text, i) {
@@ -300,6 +307,11 @@ function inline(text, ctx) {
         note(ctx, name === 'begin' ? '\\begin{' + (g ? g.text : '') + '}' : '');
         continue;
       }
+      if (name === 'localinput' || name === 'input') {
+        const g = readGroup(text, i);
+        const f = g ? g.text.trim() : '';
+        if (g && isTikzRef(name, f, ctx)) { i = g.end; out += tikzFrame(f, name); continue; }
+      }
       if (Object.prototype.hasOwnProperty.call(SKIP_CMDS, name)) {
         let skip = SKIP_CMDS[name];
         while (skip-- > 0) { const o = readOpt(text, i); if (o) i = o.end; const g = readGroup(text, i); if (g) i = g.end; }
@@ -324,7 +336,23 @@ function inline(text, ctx) {
   } finally { ctx.depth--; }
 }
 
-const paragraphs = (text, ctx) => text.split(/\n[ \t]*\n/).map((p) => p.trim()).filter(Boolean).map((p) => '<p>' + inline(p.replace(/\s*\n\s*/g, ' '), ctx) + '</p>').join('');
+// a paragraph that starts with a TikZ command is a piece of the code of a picture (the selection is inside \\begin{tikzpicture}): one frame, not the code
+const TIKZ_CODE = /^\\(?:draw|node|path|fill|filldraw|shade|shadedraw|coordinate|clip|foreach|pgf[A-Za-z]*|tikzset|tikzstyle|useasboundingbox|matrix|addplot|begin\{scope\}|end\{scope\}|end\{(?:tikzpicture|circuitikz|axis)\})/;
+const paragraphs = (text, ctx) => {
+  let html = '';
+  let code = false;
+  for (const p of text.split(/\n[ \t]*\n/).map((q) => q.trim()).filter(Boolean)) {
+    if (TIKZ_CODE.test(p)) {
+      if (!code) { note(ctx, 'tikz'); html += '<div class="ph">tikz: код рисунка, рисунок буде лише в PDF</div>'; }
+      code = true;
+      continue;
+    }
+    code = false;
+    const h = inline(p.replace(/\s*\n\s*/g, ' '), ctx);
+    if (h.trim()) html += '<p>' + h + '</p>'; // \\centering and the like leave nothing: no empty paragraph
+  }
+  return html;
+};
 
 // the items of a list body: [{ label, body }]; \item inside nested environments and groups does not split
 function splitItems(body) {
@@ -491,6 +519,17 @@ function blocks(text, ctx) {
   } finally { ctx.depth--; }
 }
 
+// the first \\caption{...} of a body: { rest: the body without it, cap: its text | null }
+function splitCaption(body) {
+  const m = /\\caption\*?\s*/.exec(body);
+  if (!m) return { rest: body, cap: null };
+  let k = m.index + m[0].length;
+  const o = readOpt(body, k); if (o) k = o.end;
+  const g = readGroup(body, k);
+  if (!g) return { rest: body, cap: null };
+  return { rest: body.slice(0, m.index) + body.slice(g.end), cap: g.text };
+}
+
 function envHtml(name, body, whole, ctx) {
   const base = name.replace(/\*$/, '');
   if (MATH_ENVS.has(name) || MATH_ENVS.has(base)) return '<div class="dm">' + math(mathEnv(name, body), true) + '</div>';
@@ -498,7 +537,20 @@ function envHtml(name, body, whole, ctx) {
   if (LIST_ENVS.has(name)) return listHtml(name, body, ctx);
   if (TABLE_ENVS.has(name)) return tableHtml(whole, ctx);
   if (PICTURE_ENVS.has(name)) { note(ctx, name); return '<div class="ph">' + esc(name) + ': рисунок буде лише в PDF</div>'; }
-  if (name === 'figure' || name === 'figure*' || name === 'table' || name === 'table*' || name === 'wrapfigure' || name === 'subfigure') return '<figure class="fl">' + blocks(body.replace(/^\s*(?:\[[^\]]*\]|\{[^}]*\})+/, ''), ctx) + '</figure>';
+  if (base === 'SCfigure' || base === 'SCtable') {
+    // sidecap: the options [width][pos] are not shown, the caption stands beside the picture
+    const sc = splitCaption(body.replace(/^\s*(?:\[[^\]]*\]\s*)+/, ''));
+    ctx.fig++;
+    try { return '<figure class="fl sc"><div class="sc-pic">' + blocks(sc.rest, ctx) + '</div>' + (sc.cap === null ? '' : '<div class="cap sc-cap">' + inline(sc.cap.replace(/\s*\n\s*/g, ' '), ctx) + '</div>') + '</figure>'; } finally { ctx.fig--; }
+  }
+  if (base === 'wrapstuff' || base === 'wraptable' || base === 'floatingfigure' || base === 'sidewaysfigure' || base === 'sidewaystable') {
+    ctx.fig++;
+    try { return '<figure class="fl">' + blocks(body.replace(/^\s*(?:\[[^\]]*\]\s*)+/, ''), ctx) + '</figure>'; } finally { ctx.fig--; }
+  }
+  if (name === 'figure' || name === 'figure*' || name === 'table' || name === 'table*' || name === 'wrapfigure' || name === 'wrapfigure*' || name === 'subfigure') {
+    ctx.fig++;
+    try { return '<figure class="fl">' + blocks(body.replace(/^\s*(?:\[[^\]]*\]|\{[^}]*\})+/, ''), ctx) + '</figure>'; } finally { ctx.fig--; }
+  }
   if (BLOCK_STYLE[name]) return '<div style="' + BLOCK_STYLE[name] + '">' + blocks(body, ctx) + '</div>';
   if (name === 'quote' || name === 'quotation') return '<blockquote>' + blocks(body, ctx) + '</blockquote>';
   if (name === 'abstract') return '<div class="th"><b>Анотація.</b> ' + blocks(body, ctx) + '</div>';
@@ -528,4 +580,4 @@ function render(src, opts) {
   return { html, notes: [...ctx.notes].filter(Boolean) };
 }
 
-module.exports = { render, esc, stripComments, splitItems, groupEnd, matchEnd };
+module.exports = { render, esc, stripComments, splitItems, groupEnd, matchEnd, PICTURE_ENVS };
