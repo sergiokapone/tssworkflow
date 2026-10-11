@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1436,10 +1436,28 @@
           ],
           "description": "Project statistics: environments counted as problems (each \\begin{name} is one), e.g. [\"problem\", \"exercise\"]."
         },
+        "tssworkflow.stats.questionEnvs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "quizlist"
+          ],
+          "description": "Project statistics: environments whose items are the control questions: every \\item at the first level of \\begin{name} is one (a nested list is not counted), anywhere in the file. Empty list: the lists inside the section whose title matches stats.questionTitle are counted instead."
+        },
+        "tssworkflow.stats.exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Project statistics: files and folders that are left out of the table and of the total, as in .gitignore: a name without / matches at any depth (a folder: everything inside; a file: with or without .tex), a path with / (or / in front) is counted from the project root; * ** ? work; a closing / means a folder only. E.g. [\"Preface\", \"Appendix/Tests/\", \"**/draft*.tex\"]."
+        },
         "tssworkflow.stats.questionTitle": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Project statistics: regular expression (case-insensitive, Unicode) for the title of the control-questions section; the items of the lists inside it (until the next heading of the same or a higher level) are counted. Empty: `Контрольні запитання`, `Контрольні питання`, `Питання для самоперевірки`, `Запитання до розділу`, `Review questions`."
+          "markdownDescription": "Project statistics, only when `stats.questionEnvs` is empty: regular expression (case-insensitive, Unicode) for the title of the control-questions section; the items of the lists inside it (until the next heading of the same or a higher level) are counted. Empty: `Контрольні запитання`, `Контрольні питання`, `Питання для самоперевірки`, `Запитання до розділу`, `Review questions`."
         },
         "tssworkflow.statsCounters": {
           "type": "object",

@@ -115,9 +115,13 @@ async function projectStats() {
   const root = folder.uri.fsPath;
   const extra = cfg().get('statsCounters', {}) || {};
   // built-in columns: problems and items of the control-questions section (stats.*), shown as — when there are none
-  const builtin = cfg().get('stats.builtinCounters', true) ? X.builtinCounters({ problemEnvs: cfg().get('stats.problemEnvs', ['problem']), questionTitle: cfg().get('stats.questionTitle', '') }) : {};
+  const builtin = cfg().get('stats.builtinCounters', true) ? X.builtinCounters({ problemEnvs: cfg().get('stats.problemEnvs', ['problem']), questionEnvs: cfg().get('stats.questionEnvs', ['quizlist']), questionTitle: cfg().get('stats.questionTitle', '') }) : {};
   const builtinNames = Object.keys(builtin);
-  const files = (await api.texFiles()).filter((u) => /\.tex$/i.test(u.fsPath) && u.fsPath.startsWith(root));
+  // files and folders left out (stats.exclude): they are neither in the table nor in the total
+  const exclude = cfg().get('stats.exclude', []);
+  const all = (await api.texFiles()).filter((u) => /\.tex$/i.test(u.fsPath) && u.fsPath.startsWith(root));
+  const files = all.filter((u) => !X.excludedPath(path.relative(root, u.fsPath), exclude));
+  const leftOut = all.length - files.length;
   const byPath = new Map(files.map((u) => [u.fsPath, u]));
   const ordered = [];
   const seen = new Set();
@@ -151,7 +155,7 @@ async function projectStats() {
     for (const r of fs0.rows) out.push(row('&emsp;' + (r.level === 1 ? '▸ ' : '') + mdCell(r.title), r.st));
   }
   out.push(row('**Разом**', total));
-  out.push('', '_Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`. «Задач»: `\\begin{problem}` (`stats.problemEnvs`); «Контр. запитань»: пункти списків у секції із заголовком «Контрольні запитання…» (`stats.questionTitle`); — означає, що таких немає._');
+  out.push('', '_Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`. «Задач»: `\\begin{problem}` (`stats.problemEnvs`); «Контр. запитань»: пункти середовищ `quizlist` (`stats.questionEnvs`; якщо перелік порожній, пункти списків у секції із заголовком «Контрольні запитання…», `stats.questionTitle`); — означає, що таких немає.' + (leftOut ? ' Не враховано файлів: ' + leftOut + ' (`stats.exclude`).' : '') + '_');
   const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: out.join('\n') + '\n' });
   await vscode.window.showTextDocument(doc, { preview: false });
 }

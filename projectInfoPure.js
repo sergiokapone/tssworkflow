@@ -99,13 +99,14 @@ const LIST_ENVS = new Set(['itemize', 'enumerate', 'description', 'itemize*', 'e
 const DEFAULT_QUESTION_TITLE = '(?:контрольн\\p{L}*\\s+(?:запитан|питан)\\p{L}*|(?:запитан|питан)\\p{L}*\\s+(?:для|до)\\s+(?:само)?(?:перевірк|контрол)\\p{L}*|(?:запитан|питан)\\p{L}*\\s+до\\s+розділу|review\\s+questions|^questions?$)';
 
 // items of the outermost lists of a text: \item at list depth 1, and every \question (exam class)
-function countListItems(text) {
+function countListItems(text, extraEnvs) {
+  const lists = extraEnvs && extraEnvs.size ? new Set([...LIST_ENVS, ...extraEnvs]) : LIST_ENVS;
   let depth = 0;
   let n = 0;
   const re = /\\(begin|end)\{([^}]*)\}|\\item(?![A-Za-z])|\\question(?![A-Za-z])/g;
   let m;
   while ((m = re.exec(text))) {
-    if (m[1]) { if (LIST_ENVS.has(m[2])) depth = Math.max(0, depth + (m[1] === 'begin' ? 1 : -1)); } else if (m[0].startsWith('\\item')) { if (depth === 1) n++; } else n++;
+    if (m[1]) { if (lists.has(m[2].replace(/\*$/, '')) || lists.has(m[2])) depth = Math.max(0, depth + (m[1] === 'begin' ? 1 : -1)); } else if (m[0].startsWith('\\item')) { if (depth === 1) n++; } else n++;
   }
   return n;
 }
@@ -127,10 +128,29 @@ function countQuestionItems(t, titleRe) {
   return n;
 }
 
+/* Items of the outermost environments named in `envs` (quizlist): the control questions. \\item at the first level of such an
+ * environment, nested lists are not counted; the star variants count too. `t` is text without comments. */
+function countEnvItems(t, envs) {
+  const names = new Set((envs || []).map(String).filter(Boolean));
+  if (!names.size) return 0;
+  const re = /\\(begin|end)\{([^}]*)\}/g;
+  let depth = 0;
+  let start = 0;
+  let n = 0;
+  let m;
+  while ((m = re.exec(t))) {
+    if (!names.has(m[2].replace(/\*$/, ''))) continue;
+    if (m[1] === 'begin') { if (depth++ === 0) start = re.lastIndex; } else if (depth > 0 && --depth === 0) n += countListItems('\\begin{itemize}' + t.slice(start, m.index) + '\\end{itemize}', names);
+  }
+  return n;
+}
+
 const envsRe = (envs) => new RegExp('\\\\begin\\{(?:' + envs.map(escRe).join('|') + ')\\*?\\}', 'g');
 
 /* The counters that need no setting: { 'Задач': fn, 'Контр. запитань': fn }, each fn takes text without comments.
- * opts: { problemEnvs: ['problem'], questionTitle: regex source (case-insensitive, unicode) } */
+ * opts: { problemEnvs: ['problem'], questionEnvs: ['quizlist'], questionTitle: regex source (case-insensitive, unicode) }
+ * Control questions: the items of the questionEnvs environments; only when questionEnvs is empty, the lists of the section whose
+ * title matches questionTitle. */
 function builtinCounters(opts) {
   const o = opts || {};
   const envs = (Array.isArray(o.problemEnvs) ? o.problemEnvs : ['problem']).map(String).filter(Boolean);
@@ -138,8 +158,40 @@ function builtinCounters(opts) {
   try { titleRe = new RegExp(String(o.questionTitle || DEFAULT_QUESTION_TITLE), 'iu'); } catch (e) { titleRe = new RegExp(DEFAULT_QUESTION_TITLE, 'iu'); }
   const out = {};
   if (envs.length) { const re = envsRe(envs); out['Задач'] = (t) => countRe(t, re); }
-  out['Контр. запитань'] = (t) => countQuestionItems(t, titleRe);
+  const qEnvs = (Array.isArray(o.questionEnvs) ? o.questionEnvs : ['quizlist']).map(String).filter(Boolean);
+  out['Контр. запитань'] = qEnvs.length ? (t) => countEnvItems(t, qEnvs) : (t) => countQuestionItems(t, titleRe);
   return out;
+}
+
+/* Is the file (the path from the project root) left out of the statistics? patterns: names of files and folders, like in .gitignore:
+ * a name without / matches at any depth (a folder: everything inside; a file: with or without .tex), a pattern with / inside or in front is counted from
+ * the root of the project; * and ** and ? work; a closing / means a folder only. */
+function excludedPath(rel, patterns) {
+  const segs = String(rel).replace(/\\/g, '/').replace(/^\.?\//, '').split('/').filter(Boolean);
+  if (!segs.length) return false;
+  const toRe = (g) => new RegExp('^' + g.split('**').map((part) => part.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')).join('.*') + '$', 'i');
+  for (const raw of Array.isArray(patterns) ? patterns : []) {
+    let pat = String(raw == null ? '' : raw).trim().replace(/\\/g, '/');
+    const rooted = /^\.?\//.test(pat); // /dir or ./dir: from the root only
+    pat = pat.replace(/^\.?\//, '');
+    const folderOnly = /\/$/.test(pat);
+    pat = pat.replace(/\/+$/, '');
+    if (!pat) continue;
+    let re;
+    try { re = toRe(pat); } catch (e) { continue; }
+    const last = segs.length - 1;
+    if (rooted || pat.includes('/')) {
+      for (let k = 0; k <= last; k++) {
+        const head = segs.slice(0, k + 1).join('/');
+        if ((re.test(head) || (k === last && re.test(head.replace(/\.tex$/i, '')))) && !(folderOnly && k === last)) return true;
+      }
+    } else {
+      for (let k = 0; k <= last; k++) {
+        if ((re.test(segs[k]) || (k === last && re.test(segs[k].replace(/\.tex$/i, '')))) && !(folderOnly && k === last)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 // counters of a piece of text; extra: { name: regexSource }; fns: { name: (textWithoutComments) => number } (builtinCounters)
@@ -418,7 +470,7 @@ function applyTypoFixes(lines, opts) {
 }
 
 module.exports = {
-  parseAux, auxInputs, countWords, textStats, fileStats, addStats, emptyStats, scanTodos,
+  parseAux, auxInputs, countWords, countEnvItems, excludedPath, textStats, fileStats, addStats, emptyStats, scanTodos,
   countListItems, countQuestionItems, builtinCounters, DEFAULT_QUESTION_TITLE,
   typographyChecks, typoFixPlan, applyTypoFixes, fixHomoglyphs, numberedEquations, starEquation, stripComments
 };

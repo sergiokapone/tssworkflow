@@ -35,14 +35,14 @@ eq(q('\\section{Контрольні запитання}\n\\subsection{Пита�
 eq(q(''), 0);
 
 // built-in counters
-const b = X.builtinCounters({});
+const b = X.builtinCounters({ questionEnvs: [] }); // the title mode; the quizlist mode is tested below
 eq(Object.keys(b), ['Задач', 'Контр. запитань']);
 const t = X.stripComments('\\begin{problem}a\\end{problem}\n% \\begin{problem}hidden\\end{problem}\n\\begin{problem*}b\\end{problem*}\n\\begin{problems}no\\end{problems}');
 eq(b['Задач'](t), 2, 'comments and problems are not problem');
 eq(Object.keys(X.builtinCounters({ problemEnvs: [] })), ['Контр. запитань'], 'no problem environments: no column');
 eq(X.builtinCounters({ problemEnvs: ['exercise', 'task'] })['Задач']('\\begin{exercise}\\end{exercise}\\begin{task}\\end{task}\\begin{problem}\\end{problem}'), 2);
-eq(X.builtinCounters({ questionTitle: '(' })['Контр. запитань']('\\section{Контрольні запитання}\n' + list), 3, 'a broken regex falls back to the default');
-eq(X.builtinCounters({ questionTitle: 'тест' })['Контр. запитань']('\\section{Тест}\n' + list + '\\section{Контрольні запитання}\n' + list), 3, 'own title');
+eq(X.builtinCounters({ questionEnvs: [], questionTitle: '(' })['Контр. запитань']('\\section{Контрольні запитання}\n' + list), 3, 'a broken regex falls back to the default');
+eq(X.builtinCounters({ questionEnvs: [], questionTitle: 'тест' })['Контр. запитань']('\\section{Тест}\n' + list + '\\section{Контрольні запитання}\n' + list), 3, 'own title');
 
 // in file statistics: per section, in the total, and the old call is unchanged
 const file = '\\chapter{Поле}\n\\section{Теорія}\n\\begin{problem}A\\end{problem}\n% \\begin{problem}hidden\\end{problem}\n\\begin{problem}B\\end{problem}\n\\section{Контрольні запитання}\n' + list + '\\section{Інше}\nслово';
@@ -55,5 +55,52 @@ eq(X.textStats('\\begin{problem}\\end{problem}', { 'Свої': '\\\\begin\\{prob
 const sum = X.addStats(fs.rows[1].st, fs.rows[2].st);
 eq(sum.extra, { 'Задач': 2, 'Контр. запитань': 3 });
 eq(X.addStats(X.emptyStats(), fs.total).extra, fs.total.extra);
+
+// 0.16.1: the control questions are the items of quizlist (stats.questionEnvs); the section title is the fallback of an empty list
+const QL = '\\begin{quizlist}\n\\item a\n\\item b \\begin{enumerate}\\item x\\item y\\end{enumerate}\n\\item c\n\\end{quizlist}\n';
+eq(X.countEnvItems(QL, ['quizlist']), 3, 'items of quizlist, nested ones are not counted');
+eq(X.countEnvItems(QL + QL, ['quizlist']), 6, 'two environments');
+eq(X.countEnvItems('\\begin{quizlist*}\\item a\\end{quizlist*}', ['quizlist']), 1, 'the star variant');
+eq(X.countEnvItems('\\begin{quizlist}\\item a\\begin{quizlist}\\item inner\\end{quizlist}\\item b\\end{quizlist}', ['quizlist']), 2, 'quizlist inside quizlist: the outer one');
+eq(X.countEnvItems(QL, ['exam']), 0, 'another environment');
+eq(X.countEnvItems(QL, []), 0, 'no environments');
+eq(X.countEnvItems('\\begin{quizlist}\\item a', ['quizlist']), 0, 'not closed');
+eq(X.countEnvItems('\\begin{enumerate}\\item a\\end{enumerate}', ['quizlist']), 0, 'a plain list is not a quiz');
+{
+  const c = X.builtinCounters({})['Контр. запитань'];
+  eq(c('\\section{Контрольні запитання}\n' + QL), 3, 'quizlist in the default: its items');
+  eq(c('\\section{Контрольні запитання}\n' + list), 0, 'a plain list under the title is not counted now: the questions are in quizlist');
+  eq(c('\\section{Теорія}\n' + QL), 3, 'quizlist anywhere, the title does not matter');
+  eq(X.builtinCounters({ questionEnvs: ['exam', 'quizlist'] })['Контр. запитань']('\\begin{exam}\\item a\\end{exam}' + QL), 4, 'several environments');
+  eq(X.builtinCounters({ questionEnvs: [] })['Контр. запитань']('\\section{Контрольні запитання}\n' + list), 3, 'empty list: the title again');
+  const fq = X.fileStats('\\chapter{A}\n\\section{Теорія}\ntext\n\\section{Контрольні запитання}\n' + QL, {}, X.builtinCounters({}));
+  eq(fq.total.extra['Контр. запитань'], 3, 'in the statistics of a file');
+  eq(fq.rows.find((r) => r.title === 'Контрольні запитання').st.extra['Контр. запитань'], 3, 'and in its section');
+}
+// stats.exclude: files and folders that are not in the statistics
+const E = X.excludedPath;
+eq(E('Preface/Preface.tex', ['Preface']), true, 'a folder: everything inside');
+eq(E('Book/Preface/x.tex', ['Preface']), true, 'a name without a slash: at any depth');
+eq(E('Book/Preface/x.tex', ['/Preface']), false, 'a leading slash: from the root only');
+eq(E('Preface/x.tex', ['/Preface', './x']), true);
+eq(E('Preface.tex', ['Preface']), true, 'a file without .tex');
+eq(E('Preface.tex', ['Preface.tex']), true, 'a file with .tex');
+eq(E('Preface.tex', ['Preface/']), false, 'a closing slash: a folder only');
+eq(E('Preface/x.tex', ['Preface/']), true);
+eq(E('a/b/c.tex', ['a/b/c.tex']), true, 'a path from the root');
+eq(E('x/a/b/c.tex', ['a/b/c.tex']), false, 'with a slash inside: from the root');
+eq(E('a/b/c.tex', ['a/*/c.tex']), true, '*');
+eq(E('a/b/d/c.tex', ['a/*/c.tex']), false, '* does not cross folders');
+eq(E('a/b/d/c.tex', ['a/**/c.tex']), true, '**');
+eq(E('x/y/test1.tex', ['test?']), true, '?');
+eq(E('CHARGES/x.tex', ['charges']), true, 'the case does not matter');
+eq(E('a\\b\\c.tex', ['a/b']), true, 'Windows separators');
+eq(E('Ch/Ch.tex', ['Appendix', '']), false, 'nothing matches; an empty pattern is ignored');
+eq(E('Ch/Ch.tex', ['(', '[']), false, 'a strange pattern does not break');
+eq(E('Ch/Ch.tex', undefined), false, 'no patterns');
+eq(E('', ['a']), false, 'no path');
+eq(E('Ch/Ch.tex', ['Ch']), true, 'a chapter whose folder has the name of the file');
+eq(E('Chapter2/Ch.tex', ['Ch']), true, 'the file Ch.tex without the extension');
+eq(E('Chapter2/Chap.tex', ['Ch']), false, 'but not a longer name');
 
 console.log('projectStats: ' + n + ' checks passed');
