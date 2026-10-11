@@ -52,7 +52,7 @@ t('buildProjectSettings: mainFile, jobname, macroFiles, texlogsieve are conditio
   assert.strictEqual(a['tssworkflow.mainFile'], 'MagFieldVacuum.tex');
   assert.strictEqual(a['tssworkflow.jobname'], 'MagFieldVacuum');
   assert.ok(!('tssworkflow.macroFiles' in a) && !('tssworkflow.logParser' in a) && !('tssworkflow.texlogsieveTerminal' in a));
-  assert.strictEqual(a['tssworkflow.singlePass'], false);
+  assert.ok(!('tssworkflow.singlePass' in a), 'the number of runs has its own defaults now (compilePasses.*): nothing to write');
   assert.strictEqual(a['tssworkflow.quoteStyle'], 'enquote');
   assert.strictEqual(a['files.exclude']['**/.vscode'], false);
   assert.strictEqual(a['files.exclude']['**/*.aux'], true);

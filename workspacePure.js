@@ -185,8 +185,7 @@ function buildProjectSettings(o) {
     'tssworkflow.normalizeTypography': true,
     'tssworkflow.displayMathToEquation': true,
     'tssworkflow.normalizeBlankLines': true,
-    'tssworkflow.quoteStyle': 'enquote',
-    'tssworkflow.singlePass': false
+    'tssworkflow.quoteStyle': 'enquote'
   });
   if (opt.texlogsieve) {
     s['tssworkflow.logParser'] = 'texlogsieve';
@@ -310,6 +309,58 @@ function hasDocumentClass(text) {
   return false;
 }
 
+/* ------------------- the number of LaTeX runs ---------------------------- */
+// tssworkflow.compilePasses.main / .separate / .chapter (a chapter or a figure): how many times the engine runs. 0: latexmk decides.
+// The old settings singlePass / passes still count for a chapter, if compilePasses.chapter was not set by the user.
+const PASS_DEFAULTS = { main: 4, separate: 2, chapter: 1 };
+function resolvePasses(kind, o) {
+  const clamp = (v) => Math.max(0, Math.min(9, Math.floor(Number(v)) || 0));
+  const x = o || {};
+  if (x.explicit !== undefined && x.explicit !== null && x.explicit !== '') return clamp(x.explicit);
+  if (kind === 'chapter' && x.singlePass === false && clamp(x.passes) > 0) return clamp(x.passes);
+  return PASS_DEFAULTS[kind] === undefined ? 1 : PASS_DEFAULTS[kind];
+}
+
+// the arguments of a plain TeX engine run from the arguments of a latexmk run: no -g, no engine flag (it gives the program)
+function plainFromLatexmk(args, defaultExe) {
+  const eng = { '-lualatex': 'lualatex', '-pdf': 'pdflatex', '-xelatex': 'xelatex' };
+  let exe = defaultExe || 'lualatex';
+  const rest = [];
+  for (const a of args) {
+    if (a === '-g') continue;
+    if (Object.prototype.hasOwnProperty.call(eng, a)) { exe = eng[a]; continue; }
+    rest.push(a);
+  }
+  return { exe, args: rest };
+}
+
+// the steps of a build with exactly n runs of the engine; with tools, the bibliography is made between the first and the second run
+// (biber when <job>.bcf exists, bibtex when there is no .bcf but the .aux asks for a database): a step has { exe, args, tex, when }
+function buildSteps(o) {
+  const n = Math.max(1, Math.min(9, Math.floor(Number(o.n)) || 1));
+  const run = { exe: o.exe, args: o.args, tex: true };
+  const steps = [run];
+  if (n > 1 && o.tools && o.job) {
+    steps.push({ exe: o.biber || 'biber', args: [o.job], tex: false, when: { exists: o.job + '.bcf' } });
+    steps.push({ exe: o.bibtex || 'bibtex', args: [o.job], tex: false, when: { missing: o.job + '.bcf', fileHas: { file: o.job + '.aux', text: '\\bibdata' } } });
+  }
+  for (let i = 1; i < n; i++) steps.push(run);
+  return steps;
+}
+// does the step run now? io = { exists(name), read(name) } relative to the folder of the build
+function stepApplies(step, io) {
+  const w = step && step.when;
+  if (!w) return true;
+  if (w.exists && !io.exists(w.exists)) return false;
+  if (w.missing && io.exists(w.missing)) return false;
+  if (w.fileHas) {
+    let t = '';
+    try { t = String(io.read(w.fileHas.file) || ''); } catch (e) { t = ''; }
+    if (!t.includes(w.fileHas.text)) return false;
+  }
+  return true;
+}
+
 /* ------------------- the compile button in the status bar --------------- */
 // what the button compiles for the active file: 'figure' (.tikz), 'separate' (a file with its own \documentclass that is not
 // the main file: it is built on its own), 'main' (the main file, the driver or any other .tex in the project root: the whole
@@ -358,6 +409,10 @@ module.exports = {
   formatFileSize,
   hasDocumentClass,
   statusKind,
+  resolvePasses,
+  plainFromLatexmk,
+  buildSteps,
+  stepApplies,
   standalonePlan,
   imagePreviewPlan,
   isPackageFile,

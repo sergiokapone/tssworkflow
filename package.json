@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.15.8",
+  "version": "0.16.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -889,10 +889,41 @@
           "default": "main",
           "description": "Output name (jobname) for standalone builds. Empty = name of the open file. \"main\" makes SyncTeX work with % !TeX root = ../main.tex"
         },
+        "tssworkflow.compilePasses.main": {
+          "type": "integer",
+          "default": 4,
+          "minimum": 0,
+          "maximum": 9,
+          "description": "How many times the whole document (Shift+F5, the main file, tssworkflow.mainFile) is run through the engine. Exactly N runs of plain lualatex in a row; biber (when <job>.bcf exists) or bibtex (when the .aux asks for a database) runs between the first and the second run. The status bar shows the exact run number, e.g. 2/4. 0: latexmk decides how many runs are needed (the total is then the number of runs of the previous build)."
+        },
+        "tssworkflow.compilePasses.separate": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 9,
+          "description": "The same for a file built on its own (a document with its own \\documentclass, button ▷ Separate): exactly N runs of the engine of tssworkflow.compileCurrent.engine in the folder of the build, with biber / bibtex after the first run. 0: latexmk decides."
+        },
+        "tssworkflow.compilePasses.chapter": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 0,
+          "maximum": 9,
+          "description": "The same for a chapter or a figure (button ▷ Chapter / Figure, F5, Auto): exactly N runs of plain lualatex through the driver (tssworkflow.driver); biber / makeindex are not run, references come from the existing <jobname>.aux. 0: latexmk decides."
+        },
+        "tssworkflow.biber": {
+          "type": "string",
+          "default": "biber",
+          "description": "biber executable run between the first and the second LaTeX run of the whole document and of a separate file, when <job>.bcf exists (tssworkflow.compilePasses.main / .separate > 1)."
+        },
+        "tssworkflow.bibtex": {
+          "type": "string",
+          "default": "bibtex",
+          "description": "bibtex executable run between the first and the second LaTeX run of the whole document and of a separate file, when there is no <job>.bcf but <job>.aux contains \\bibdata (tssworkflow.compilePasses.main / .separate > 1)."
+        },
         "tssworkflow.singlePass": {
           "type": "boolean",
           "default": true,
-          "description": "Chapter / figure builds (button, F5, Auto) run plain lualatex once instead of latexmk, so there are no reruns. The whole-document build (Shift+F5) still uses latexmk. References are taken from the existing <jobname>.aux and lag one build behind; biber/makeindex are not run."
+          "description": "Superseded by tssworkflow.compilePasses.chapter (default 1: one run of plain lualatex). Kept for old settings: it only matters when singlePass = false and passes > 0, and only while compilePasses.chapter is not set."
         },
         "tssworkflow.buildSeconds": {
           "type": "boolean",
@@ -904,17 +935,17 @@
           "default": 0,
           "minimum": 0,
           "maximum": 9,
-          "description": "Used only when singlePass = false (chapter / figure builds). 0: latexmk decides how many runs are needed. N (1-9): plain lualatex is run exactly N times in a row (latexmk cannot be told to run exactly N times); biber/makeindex are not run, the status bar shows the exact run number, e.g. 2/3. The whole-document build (Shift+F5) always uses latexmk"
+          "description": "Superseded by tssworkflow.compilePasses.chapter. Kept for old settings: with singlePass = false, N (1-9) is the number of runs of a chapter / figure build, while compilePasses.chapter is not set. 0 no longer means latexmk: set compilePasses.chapter = 0 for that."
         },
         "tssworkflow.showPasses": {
           "type": "boolean",
           "default": true,
-          "description": "In latexmk builds (singlePass = false, or the whole document with Shift+F5) show the number of the LaTeX run in the status bar, e.g. 2/4. The total is the number of runs of the previous build of the same file (unknown on the first one). Detected from changes of <job>.log; does not apply to single-pass builds"
+          "description": "Show the number of the LaTeX run in the status bar. With a fixed number of runs (tssworkflow.compilePasses.*) it is exact, e.g. 2/4; in latexmk builds (compilePasses = 0) it is detected from changes of <job>.log, and the total is the number of runs of the previous build of the same file (unknown on the first one). For one run (a chapter) the 1/1 is shown only if this is on."
         },
         "tssworkflow.lualatex": {
           "type": "string",
           "default": "lualatex",
-          "description": "lualatex executable used when tssworkflow.singlePass is on"
+          "description": "lualatex executable used for the builds with a fixed number of runs (tssworkflow.compilePasses.*)"
         },
         "tssworkflow.forceRebuild": {
           "type": "boolean",

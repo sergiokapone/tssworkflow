@@ -46,4 +46,38 @@ eq(W.hasDocumentClass('\\begin{verbatim}\n\\documentclass{x}\n\\end{verbatim}'),
 eq(W.isPackageFile('Book.cls'), true);
 eq(W.isPackageFile('lab.tex'), false);
 
+// 0.16.0: the number of LaTeX runs (compilePasses.*), plain runs and the steps of a build
+eq([W.resolvePasses('main', {}), W.resolvePasses('separate', {}), W.resolvePasses('chapter', {})], [4, 2, 1], 'the defaults: 4 / 2 / 1');
+eq([W.resolvePasses('main', { explicit: 6 }), W.resolvePasses('separate', { explicit: 1 }), W.resolvePasses('chapter', { explicit: 3 })], [6, 1, 3], 'set by the user');
+eq([W.resolvePasses('main', { explicit: 0 }), W.resolvePasses('chapter', { explicit: 0 })], [0, 0], '0: latexmk decides');
+eq([W.resolvePasses('main', { explicit: 99 }), W.resolvePasses('main', { explicit: -4 }), W.resolvePasses('main', { explicit: 'x' })], [9, 0, 0], 'out of range or not a number is brought into 0..9');
+eq(W.resolvePasses('chapter', { singlePass: false, passes: 3 }), 3, 'the old singlePass = false, passes = 3 still works for a chapter');
+eq(W.resolvePasses('chapter', { singlePass: false, passes: 0 }), 1, 'the old passes = 0 is the default now');
+eq(W.resolvePasses('chapter', { singlePass: true, passes: 5 }), 1, 'singlePass = true: one run');
+eq(W.resolvePasses('chapter', { explicit: 2, singlePass: false, passes: 5 }), 2, 'the new key wins');
+eq(W.resolvePasses('main', { singlePass: false, passes: 5 }), 4, 'the old keys do not touch the main file');
+eq(W.plainFromLatexmk(['-g', '-lualatex', '-interaction=nonstopmode', 'a.tex']), { exe: 'lualatex', args: ['-interaction=nonstopmode', 'a.tex'] }, 'latexmk -> lualatex');
+eq(W.plainFromLatexmk(['-pdf', 'a.tex']), { exe: 'pdflatex', args: ['a.tex'] }, 'the engine flag gives the program');
+eq(W.plainFromLatexmk(['-xelatex', 'a.tex']).exe, 'xelatex');
+eq(W.plainFromLatexmk(['a.tex'], 'lualatex5').exe, 'lualatex5', 'no flag: the given program');
+const lt = W.buildSteps({ exe: 'lualatex', args: ['a.tex'], n: 4, tools: true, job: 'a' });
+eq(lt.map((x) => x.exe + (x.tex ? '*' : '')), ['lualatex*', 'biber', 'bibtex', 'lualatex*', 'lualatex*', 'lualatex*'], 'four runs and the tools after the first');
+eq(W.buildSteps({ exe: 'l', args: [], n: 3, tools: false }).length, 3, 'a chapter: only runs');
+eq(W.buildSteps({ exe: 'l', args: [], n: 1, tools: true, job: 'a' }).length, 1, 'one run: no tools');
+eq(W.buildSteps({ exe: 'l', args: [], n: 99, tools: false }).length, 9, 'at most 9');
+eq(W.buildSteps({ exe: 'l', args: ['x'], n: 2, tools: true, job: 'a', biber: '/x/biber', bibtex: 'bib' }).map((x) => x.exe), ['l', '/x/biber', 'bib', 'l'], 'the programs of the tools');
+{
+  const files = {};
+  const io = { exists: (f) => f in files, read: (f) => files[f] };
+  const [, biber, bibtex] = lt;
+  eq([W.stepApplies(biber, io), W.stepApplies(bibtex, io)], [false, false], 'no .bcf, no .aux: no tools');
+  files['a.bcf'] = 'x';
+  eq([W.stepApplies(biber, io), W.stepApplies(bibtex, io)], [true, false], '.bcf: biber, not bibtex');
+  delete files['a.bcf']; files['a.aux'] = '\\relax\n\\bibdata{lit}\n';
+  eq([W.stepApplies(biber, io), W.stepApplies(bibtex, io)], [false, true], 'the .aux has \\bibdata: bibtex');
+  files['a.aux'] = '\\relax\n';
+  eq(W.stepApplies(bibtex, io), false, 'an .aux without \\bibdata');
+  eq(W.stepApplies(lt[0], io), true, 'a run of the engine has no condition');
+}
+
 console.log('standalone: ' + n + ' checks passed');

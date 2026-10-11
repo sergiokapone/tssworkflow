@@ -126,7 +126,7 @@ function renderBuild() {
   const fixed = !!building.fixedPasses;
   const tip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.' +
     (pass ? (fixed
-      ? '\nПрохід LaTeX ' + pass + ' із ' + last + ' (tssworkflow.passes)'
+      ? '\nПрохід LaTeX ' + pass + ' із ' + last + ' (tssworkflow.compilePasses.*)'
       : '\nПрохід LaTeX ' + pass + (last ? ' із ' + last + ' (стільки було минулого разу; повне число наперед невідоме)' : ' (число проходів ще невідоме: це перша збірка)')) : '');
   // the spinner item is written ONCE per build and never touched again: every property write (even a tooltip with the same
   // value) re-sends the whole entry to the status bar and may rebuild the icon, which restarts its rotation
@@ -417,7 +417,7 @@ async function openInLatexWorkshop(pdf) {
 
 // runs latexmk and, when it finishes, parses the log and (optionally) opens the PDF
 let buildSeq = 0;
-async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, done, exe, repeat }) {
+async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, done, exe, repeat, steps }) {
   if (building) { busyWarning(); if (done) done(); return; }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const cwd = cwdOverride || folder.uri.fsPath; // folder: the workspace folder of the task (or TaskScope.Workspace); cwd: where the build runs and writes
@@ -426,14 +426,19 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
   const id = ++buildSeq;
   // from here on and until the process ends no other build can start (set before the first await)
   building = { id, job, label, started: Date.now(), execution: null, abort: null };
-  // tssworkflow.passes = N: the same command is run exactly N times in a row (a pass number that is known, not guessed from the log)
-  const total = Math.max(1, Math.min(9, Math.floor(Number(repeat) || 1)));
-  let run = 0;
-  if (total > 1) {
+  // tssworkflow.compilePasses.*: the engine is run exactly N times in a row, with the bibliography tools between the first and the
+  // second run when the build has them (a pass number that is known, not guessed from the log); without steps: one command, repeat times
+  const stepList = steps && steps.length ? steps : Array.from({ length: Math.max(1, Math.min(9, Math.floor(Number(repeat) || 1))) }, () => ({ exe, args, tex: true }));
+  const total = stepList.filter((s) => s.tex).length;
+  let idx = -1; // the step that runs now
+  let run = 0; // the runs of the engine that have started
+  if (total > 1 || (steps && steps.length && cfg.get('showPasses', true))) {
     building.fixedPasses = true;
     building.lastPasses = total;
     building.counter = { pass: 0 };
   }
+  const stepIO = { exists: (n) => fs.existsSync(path.join(cwd, n)), read: (n) => fs.readFileSync(path.join(cwd, n), 'utf8') };
+  const nextStep = (from) => { for (let k = from; k < stepList.length; k++) if (P.stepApplies(stepList[k], stepIO)) return k; return -1; };
   // latexmk reruns LaTeX: show the number of the run, with the number of runs of the previous build as the total
   if (!exe && total === 1 && cfg.get('showPasses', true)) {
     const b = building;
@@ -464,7 +469,12 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
     if (!ev.execution || !ev.execution.task || ev.execution.task.definition.id !== id) return;
     // a build stopped by the user may end with any exit code
     const stopped = !!(building && building.id === id && building.stopping) || ev.exitCode === undefined;
-    if (!stopped && ev.exitCode === 0 && run < total) { startTask(); return; } // the next of N runs
+    // the next step: after a run of the engine only if it succeeded; a failed bibliography tool does not stop the runs (latexmk goes on too)
+    const cur = stepList[idx];
+    if (!stopped && (ev.exitCode === 0 || (cur && !cur.tex))) {
+      const nx = nextStep(idx + 1);
+      if (nx >= 0) { startTask(nx); return; }
+    }
     sub.dispose();
     try { Promise.resolve(features.onBuildFinished(cwd, job)).catch(() => {}); } catch (err) { /* log parsing is best effort */ }
     finish(stopped ? { stopped: true } : ev.exitCode === 0 ? { ok: true } : { ok: false, code: ev.exitCode });
@@ -494,19 +504,21 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
       vscode.window.showWarningMessage('Компіляція ' + job + ' завершилась з помилками (код ' + ev.exitCode + '). Дивись вкладку Problems.');
     }
   });
-  const startTask = async () => {
+  const startTask = async (at) => {
     try {
-      run++;
-      if (building && building.id === id && building.counter && building.fixedPasses) {
+      idx = at === undefined ? nextStep(0) : at;
+      const step = stepList[idx];
+      if (step.tex) run++;
+      if (step.tex && building && building.id === id && building.counter && building.fixedPasses) {
         building.counter.pass = run;
         renderBuild();
       }
-      const cmd = exe || cfg.get('latexmk', 'latexmk');
-      const exec = new vscode.ProcessExecution(cmd, args, { cwd, env });
+      const cmd = step.exe || cfg.get('latexmk', 'latexmk');
+      const exec = new vscode.ProcessExecution(cmd, step.args, { cwd, env });
       const task = new vscode.Task(
         { type: 'tssworkflow', job, id },
         folder,
-        label,
+        step.tex ? label : label + ' · ' + path.basename(String(step.exe)),
         'tssworkflow',
         exec,
         ['pplatex', 'texlogsieve'].includes(cfg.get('logParser', 'builtin')) ? [] : '$tssworkflow-latex'
@@ -521,12 +533,28 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
       if (building && building.id === id) building.execution = execution;
     } catch (err) {
       sub.dispose();
-      vscode.window.showErrorMessage('Не вдалося запустити ' + (exe || cfg.get('latexmk', 'latexmk')) + ': ' + (err && err.message ? err.message : err));
+      vscode.window.showErrorMessage('Не вдалося запустити ' + ((stepList[idx] && stepList[idx].exe) || exe || cfg.get('latexmk', 'latexmk')) + ': ' + (err && err.message ? err.message : err));
       finish({ ok: false, code: 'запуск' });
     }
   };
   await startTask();
 }
+
+// how many times the engine runs for this kind of build: 'main' (4), 'separate' (2), 'chapter' = a chapter or a figure (1);
+// 0: latexmk decides. A value the user did not set yields the default (the old singlePass / passes count for a chapter only if passes > 0)
+function passesFor(kind) {
+  const cfg = vscode.workspace.getConfiguration('tssworkflow');
+  const key = { main: 'compilePasses.main', separate: 'compilePasses.separate', chapter: 'compilePasses.chapter' }[kind];
+  let explicit;
+  try {
+    const ins = cfg.inspect(key);
+    if (ins && [ins.globalValue, ins.workspaceValue, ins.workspaceFolderValue].some((v) => v !== undefined)) explicit = cfg.get(key);
+  } catch (e) { /* the default */ }
+  return P.resolvePasses(kind, { explicit, singlePass: cfg.get('singlePass', true), passes: cfg.get('passes', 0) });
+}
+
+// the program of a plain run: the engine of the build; lualatex may have its own path (tssworkflow.lualatex)
+const engineExe = (name) => (name === 'lualatex' ? vscode.workspace.getConfiguration('tssworkflow').get('lualatex', 'lualatex') : name);
 
 // whole document: latexmk on the main file (tssworkflow.mainFile, default main.tex)
 async function compileMain(openPdf, done, fileOverride) {
@@ -550,7 +578,13 @@ async function compileMain(openPdf, done, fileOverride) {
     '-lualatex', '-interaction=nonstopmode', '-synctex=1', '-file-line-error', '-shell-escape',
     mainFile
   ];
-  await runBuild({ folder, args, job, label: 'Compile ' + mainFile, openPdf, done });
+  const n = passesFor('main');
+  if (n === 0) return runBuild({ folder, args, job, label: 'Compile ' + mainFile, openPdf, done }); // latexmk decides
+  // exactly n runs of the engine, biber / bibtex between the first and the second one
+  const plain = P.plainFromLatexmk(args);
+  const exe = engineExe(plain.exe);
+  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex') });
+  await runBuild({ folder, args: plain.args, exe, steps, job, label: 'Compile ' + mainFile, openPdf, done });
 }
 
 // a chapter / figure file with \documentclass is a whole document: it cannot be put into the driver (alone.tex).
@@ -595,23 +629,15 @@ async function compile(openPdf, done) {
   const t = target();
   if (!t) { if (done) done(); return; }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
-  const single = cfg.get('singlePass', true);
-  // singlePass = false and passes = N > 0: exactly N runs of plain lualatex (latexmk cannot be told "run exactly N times");
-  // passes = 0: latexmk decides how many runs are needed
-  const passes = single ? 1 : Math.max(0, Math.min(9, Math.floor(Number(cfg.get('passes', 0)) || 0)));
-  const fixed = !single && passes > 0;
-  await runBuild({
-    folder: t.folder,
-    exe: single || fixed ? cfg.get('lualatex', 'lualatex') : undefined,
-    args: single || fixed
-      ? singlePassArgs(t, cfg.get('driver', 'alone.tex'))
-      : latexArgs(t, cfg.get('driver', 'alone.tex'), cfg.get('forceRebuild', true)),
-    job: t.job,
-    label: 'Compile ' + t.job,
-    openPdf,
-    done,
-    repeat: fixed ? passes : 1
-  });
+  // exactly N runs of plain lualatex (latexmk cannot be told "run exactly N times"); 0: latexmk decides how many runs are needed
+  const n = passesFor('chapter');
+  if (n === 0) {
+    await runBuild({ folder: t.folder, args: latexArgs(t, cfg.get('driver', 'alone.tex'), cfg.get('forceRebuild', true)), job: t.job, label: 'Compile ' + t.job, openPdf, done });
+    return;
+  }
+  const exe = cfg.get('lualatex', 'lualatex');
+  const args = singlePassArgs(t, cfg.get('driver', 'alone.tex'));
+  await runBuild({ folder: t.folder, exe, args, steps: P.buildSteps({ exe, args, n, tools: false, job: t.job }), job: t.job, label: 'Compile ' + t.job, openPdf, done });
 }
 
 /* The file in the active editor on its own, with its own preamble (a document with \documentclass that is not the project's
@@ -644,7 +670,14 @@ async function compileCurrent(openPdf, done) {
   const { cwd, args, job } = P.standalonePlan(file, fo ? fo.uri.fsPath : null, {
     workDir: cfg.get('compileCurrent.workDir', 'file'), engine: cfg.get('compileCurrent.engine', 'lualatex'), force: cfg.get('forceRebuild', true)
   });
-  await runBuild({ folder: fo || vscode.TaskScope.Workspace, cwd, args, job, label: 'Compile ' + path.basename(file) + ' (окремо)', openPdf, done });
+  const label = 'Compile ' + path.basename(file) + ' (окремо)';
+  const folderArg = fo || vscode.TaskScope.Workspace;
+  const n = passesFor('separate');
+  if (n === 0) return runBuild({ folder: folderArg, cwd, args, job, label, openPdf, done }); // latexmk decides
+  const plain = P.plainFromLatexmk(args);
+  const exe = engineExe(plain.exe);
+  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex') });
+  await runBuild({ folder: folderArg, cwd, args: plain.args, exe, steps, job, label, openPdf, done });
 }
 
 function clean(withPdf) {
