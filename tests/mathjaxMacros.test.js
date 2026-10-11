@@ -80,6 +80,17 @@ try {
     fs.writeFileSync(f, '\\newcommand{\\grad}{g}\n'); fs.utimesSync(f, later, later);
     ok(MJ.stamp(doc) !== s1, 'the stamp changes when the file is saved');
   });
+  // 0.15.8: the commands of the file are known to the text of the panel too (a copy \let, a body)
+  fs.writeFileSync(f, '\\let\\emphx\\emph\n\\newcommand{\\Ukr}{Україна}\n\\DeclareMathOperator{\\rot}{rot}\n');
+  lookup(tmp, [tmp], {}, (MJ, doc) => {
+    const tm = MJ.textMacros(doc);
+    eq([...tm.keys()].sort(), ['Ukr', 'emphx', 'rot'], 'the commands of the file: ' + [...tm.keys()]);
+    eq(tm.get('emphx').alias, 'emph', 'a copy is a copy');
+    const PP = require(path.join(EXT, 'selectionPreviewPure.js'));
+    eq(PP.render('Слово \\emphx{трохоїдою} з \\Ukr', { macros: tm }).html, '<p>Слово <em>трохоїдою</em> з Україна</p>', 'the panel draws them');
+    eq(MJ.textMacros({ uri: { fsPath: path.join(tmp, 'zzz', 'a.tex') } }).size, 3, 'also from another folder of the project');
+  });
+  fs.writeFileSync(f, '\\newcommand{\\grad}{\\nabla}\n');
   // the name from tssworkflow.mathjaxMacrosFile, a sub folder, and an absolute path from latex-workshop; no duplicates
   fs.mkdirSync(path.join(tmp, 'tex'));
   fs.writeFileSync(path.join(tmp, 'tex', 'm.tex'), '\\newcommand{\\mine}{1}\n');

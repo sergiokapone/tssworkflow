@@ -94,6 +94,8 @@ async function katexMacros(doc) {
   let macros = {};
   let cmds = new Map();
   try { cmds = (await M._allMacros(doc)).cmds || new Map(); macros = MP.toKatexMacros([...cmds.values()]); } catch (e) { /* none */ }
+  // the commands of that file are known to the text of the panel too (\let, \newcommand); the file wins, as for formulas
+  try { for (const [k, v] of MJ.textMacros(doc)) cmds.set(k, v); } catch (e) { /* none */ }
   // what the macros file of the formula preview defines is added (and wins): the same commands as in the LaTeX Workshop hover
   let fromFile = {};
   try { fromFile = MJ.macros(doc); } catch (e) { /* none */ }

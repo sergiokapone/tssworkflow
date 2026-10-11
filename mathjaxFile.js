@@ -46,4 +46,14 @@ function macros(doc) {
   return out;
 }
 
-module.exports = { files, stamp, macros };
+// the same files as definitions of commands for the TEXT of the panel (a copy \let, \newcommand with a body): name -> entry of
+// macrosPure.scanMacros; the later file wins. A command that only the formula preview knew was drawn as unknown in a text.
+function textMacros(doc) {
+  const out = new Map();
+  for (const f of files(doc)) {
+    try { for (const e of MP.scanMacros(fs.readFileSync(f, 'utf8'))) if (e.kind === 'cmd') out.set(e.name, Object.assign(e, { file: f })); } catch (e) { /* unreadable: skipped */ }
+  }
+  return out;
+}
+
+module.exports = { files, stamp, macros, textMacros };
