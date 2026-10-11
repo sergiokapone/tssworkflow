@@ -222,9 +222,20 @@ eq(html('\\href{http://a.b}{текст}'), '<p><span class="a" title="http://a.b
   eq(M('\\emphx{\\Ukr}').html, '<p><b><em>Україна</em></b></p>', 'macros inside arguments');
   eq(M('\\emphx').notes, ['\\emphx'], 'no argument: as an unknown command');
   eq(M('\\bad{q}').notes, ['\\bad'], 'a conditional is not drawn');
-  eq(M('\\op \\al').notes.sort(), ['\\al', '\\op'], 'an operator and a copy of a command are not drawn');
+  eq(M('\\op \\al').notes, ['\\op'], 'an operator is not drawn; a copy of a command is (0.15.7)');
+  ok(M('\\al').html.includes('Україна'), 'the copy \\al is drawn as \\Ukr');
   r = M('\\loop{a}');
   ok(r.html.length < 5000, 'a macro that calls itself ends: ' + r.html.length);
+  // a copy of a command: \let\emphx\emph, \let\emphy\emphx
+  const AL = (alias) => E(0, '\\' + alias, { alias });
+  const cp = new Map([['emphx', AL('emph')], ['emphy', AL('emphx')], ['ping', AL('pong')], ['pong', AL('ping')], ['gone', AL('nosuchcmd')]]);
+  const C = (s) => R(s, { macros: cp });
+  eq(C('Слово \\emphx{трохоїдою}. Ще \\emphx{друге}.').html, '<p>Слово <em>трохоїдою</em>. Ще <em>друге</em>.</p>', '\\let\\emphx\\emph: drawn as \\emph');
+  eq(C('\\emphx{a}').notes, [], 'and not reported');
+  eq(C('\\emphy{a}').html, '<p><em>a</em></p>', 'a copy of a copy');
+  eq(C('\\textbf{\\emphx{у групі}} кінець').html, '<p><b><em>у групі</em></b> кінець</p>', 'inside a group');
+  ok(C('x \\ping y').html.length < 3000, 'a cycle ends');
+  eq(C('\\gone{q}').notes, ['\\nosuchcmd'], 'a copy of an unknown command: the original is named');
   ok(html('\\emphx{a}').includes('class="unk"') && R('\\emphx{a}', {}).notes.includes('\\emphx'), 'without the macros of the project: as before');
 }
 

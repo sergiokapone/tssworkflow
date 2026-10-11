@@ -173,7 +173,7 @@ function inline(text, ctx) {
     let out = '';
     const closers = []; // declarations (\bfseries ...) stay open until the end of this group
     let i = 0;
-    const n = text.length;
+    let n = text.length;
     while (i < n) {
       const c = text[i];
       if (c === '$') {
@@ -336,6 +336,14 @@ function inline(text, ctx) {
       }
       // a simple text macro of the project (\newcommand{\emphx}[1]{\textbf{\emph{#1}}}): its body is drawn with the arguments put in
       const mac = ctx.macros && ctx.macros.get ? ctx.macros.get(name) : null;
+      // a copy of a command (\\let\\emphx\\emph): the text goes on as if the original name stood here (its arguments follow as they are)
+      if (mac && mac.kind === 'cmd' && mac.alias && /^[A-Za-z@]+$/.test(String(mac.alias)) && ctx.exp < 1000) {
+        ctx.exp++;
+        text = '\\' + mac.alias + text.slice(i);
+        n = text.length;
+        i = 0;
+        continue;
+      }
       if (mac && ctx.exp < 1000 && expandable(mac)) {
         let j = i; const args = []; let ok = true;
         if (mac.optDefault !== null && mac.optDefault !== undefined) { const o = readOpt(text, j); if (o) { args.push(o.text); j = o.end; } else args.push(String(mac.optDefault)); }

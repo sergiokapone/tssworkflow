@@ -17,7 +17,8 @@ let sourcesCache = null; // { at, files: [fsPath] }
 const fileCache = new Map(); // fsPath -> { key, macros }
 const SOURCES_TTL = 30000;
 
-function invalidate() { sourcesCache = null; fileCache.clear(); }
+let version = 0; // grows whenever the sources of macros change: a copy of the index kept elsewhere is outdated then
+function invalidate() { version++; sourcesCache = null; fileCache.clear(); }
 
 function openDoc(fsPath) { return vscode.workspace.textDocuments.find((d) => d.uri.fsPath === fsPath); }
 
@@ -401,11 +402,12 @@ function register(context, api) {
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.{cls,sty}');
   subs.push(
     watcher,
-    watcher.onDidCreate(invalidate), watcher.onDidDelete(invalidate), watcher.onDidChange(() => fileCache.clear()),
+    watcher.onDidCreate(invalidate), watcher.onDidDelete(invalidate), watcher.onDidChange(() => { version++; fileCache.clear(); }),
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow')) invalidate(); }),
     vscode.workspace.onDidSaveTextDocument((d) => {
       const f = d.uri.fsPath.toLowerCase();
       if (/\.(cls|sty)$/.test(f) || path.basename(f) === String(cfg().get('mainFile', 'main.tex')).toLowerCase()) {
+        version++;
         sourcesCache = null;
         if (/\.(cls|sty)$/.test(f)) autoMathJax();
       }
@@ -420,4 +422,4 @@ function register(context, api) {
   );
 }
 
-module.exports = { register, _allMacros: allMacros, _getSourceFiles: getSourceFiles };
+module.exports = { register, _allMacros: allMacros, _getSourceFiles: getSourceFiles, _version: () => version };
