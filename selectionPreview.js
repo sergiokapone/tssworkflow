@@ -193,6 +193,51 @@ function fragment(ed) {
   return { text: lines.join('\n'), what: 'Абзац біля курсора', from: a + 1, to: b + 1 };
 }
 
+// the tooltip of a link \\ref: the number of the formula / section from the last compilation (main.aux), if there is one
+function refInfoFor(doc) {
+  let aux = null;
+  try { aux = require('./projectInfo').auxInfo; } catch (e) { return null; }
+  return (name) => { try { const a = aux(doc.uri, name); return a && a.num ? '№ ' + a.num : ''; } catch (e) { return ''; } };
+}
+
+// the place of \\label{name}: the open file first, then the other .tex/.tikz files of the project (the same folder first)
+function findLabelPos(text, name, base) {
+  const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp('\\\\label\\{' + (base && name === base ? '(?:' + esc + '|\\\\currfilebase)' : esc) + '\\}');
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const m = re.exec(lines[i]);
+    if (m && !lines[i].slice(0, m.index).replace(/\\./g, '').includes('%')) return { line: i, col: m.index, len: m[0].length };
+  }
+  return null;
+}
+async function openRef(m) {
+  const doc = last && last.doc;
+  if (!doc || !m || typeof m.name !== 'string') return;
+  const name = m.name.trim();
+  if (!name || /[\s{}\\$%#&^~]/.test(name)) return;
+  let uri = null;
+  let pos = findLabelPos(doc.getText(), name, path.basename(doc.uri.fsPath, path.extname(doc.uri.fsPath)));
+  if (pos) uri = doc.uri;
+  else {
+    const dir = path.dirname(doc.uri.fsPath);
+    let files = [];
+    try { files = await vscode.workspace.findFiles('**/*.{tex,tikz}', '{**/build/**,**/.archive/**,**/node_modules/**}', 1000); } catch (e) { /* none */ }
+    files.sort((a, b) => Number(b.fsPath.startsWith(dir)) - Number(a.fsPath.startsWith(dir)));
+    for (const f of files) {
+      if (f.fsPath === doc.uri.fsPath) continue;
+      let txt;
+      try { txt = fs.readFileSync(f.fsPath, 'utf8'); } catch (e) { continue; }
+      pos = findLabelPos(txt, name, path.basename(f.fsPath, path.extname(f.fsPath)));
+      if (pos) { uri = f; break; }
+    }
+  }
+  if (!pos || !uri) { vscode.window.showWarningMessage('Мітку не знайдено: ' + name.slice(0, 200)); return; }
+  const range = new vscode.Range(new vscode.Position(pos.line, pos.col), new vscode.Position(pos.line, pos.col + pos.len));
+  const ed = await vscode.window.showTextDocument(uri, { viewColumn: (last && last.column) || vscode.ViewColumn.One, preserveFocus: false, selection: range });
+  try { if (ed && ed.revealRange) ed.revealRange(range, vscode.TextEditorRevealType ? vscode.TextEditorRevealType.InCenterIfOutsideViewport : undefined); } catch (e) { /* the selection is already there */ }
+}
+
 // draws the fragment now with what is known of the colours and macros; searches the rest in the background
 async function update() {
   if (!panel || !ready) return;
@@ -207,7 +252,7 @@ async function update() {
   const where = path.basename(doc.uri.fsPath) + (fr.from ? ':' + fr.from + (fr.to !== fr.from ? '–' + fr.to : '') : '');
   const send = () => {
     if (!panel || mine !== seq) return;
-    const r = P.render(fr.text, { colors: TE.colorsNow(), image: pictureResolver(doc) });
+    const r = P.render(fr.text, { colors: TE.colorsNow(), image: pictureResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
     panel.webview.postMessage({ type: 'render', html: r.html, notes: r.notes, what: fr.what, where, macros: TE.macrosNow(doc) });
   };
   send();
@@ -236,7 +281,7 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
   ready = false;
   panel.webview.html = html(panel.webview, context.extensionUri);
-  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); }, null, context.subscriptions);
+  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); }, null, context.subscriptions);
   panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, context.subscriptions);
   panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; }, null, context.subscriptions);
 }
@@ -255,4 +300,4 @@ function register(context) {
 }
 
 exports.register = register;
-exports._t = { resolveTikz, pictureAround };
+exports._t = { resolveTikz, pictureAround, findLabelPos };

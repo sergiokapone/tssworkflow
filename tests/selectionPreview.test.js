@@ -66,7 +66,7 @@ has('\\begin{tikzpicture}\\draw (0,0);\\end{tikzpicture}', 'tikzpicture: рис�
 has('\\begin{verbatim}\n% not a comment <b>\n\\end{verbatim}', '<pre class="raw">% not a comment &lt;b&gt;\n</pre>');
 has('t\\footnote{note}.', '<sup class="fn" title="note">1</sup>');
 ok(/<div class="fns"><div><sup>1<\/sup> note<\/div><\/div>/.test(html('t\\footnote{note}.')), 'the footnote text is listed');
-has('\\cite{a,b} \\ref{x} \\eqref{y}', '<span class="ref">[a,b]</span> <span class="ref">x</span> <span class="ref">(y)</span>');
+has('\\cite{a,b} \\ref{x} \\eqref{y}', '<span class="ref">[a,b]</span> <a class="ref" href="#" data-ref="x" title="До \\label{x} у коді">x</a> (<a class="ref" href="#" data-ref="y" title="До \\label{y} у коді">y</a>)');
 has('\\label{x}text', '<p>text</p>');
 has('\\hspace{1cm}a\\vspace{2pt}b', '<p>ab</p>');
 
@@ -88,7 +88,7 @@ ok(r.html.includes('<span class="tag">myenv</span>') && r.notes.includes('myenv'
 
 // safety: only tags and attributes of the converter can be in the result, no matter what the source holds
 const TAGS = new Set(['a', 'p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'img', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
-const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt', 'href', 'data-open', 'data-via']);
+const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt', 'href', 'data-open', 'data-via', 'data-ref']);
 function assertSafe(h, what) {
   const text = h.replace(/<[^>]*>/g, '');
   assert.ok(!/[<>]/.test(text), 'a raw < or > in text: ' + what + ' -> ' + h);
@@ -198,6 +198,34 @@ ok(html('$\\ce{SO4^2-}$').includes('data-tex="\\ce{SO4^2-}"'), 'a \\ce inside a 
     const h = katex.renderToString(t, { throwOnError: true, strict: 'ignore', output: 'html' });
     ok(h.includes('katex') && !h.includes('katex-error'), 'KaTeX with mhchem draws ' + t);
   }
+}
+
+// 0.15.5: labels are links; \href has its text again; the macros of the project are drawn by their bodies
+r = R('Див. \\eqref{eq:a}, \\cref{a,b} і \\ref{sec:x}.', { refInfo: (n) => (n === 'sec:x' ? '№ 2.5' : '') });
+ok(r.html.includes('(<a class="ref" href="#" data-ref="eq:a" title="До \\label{eq:a} у коді">eq:a</a>)'), 'eqref: the brackets outside, the label is a link: ' + r.html);
+ok(r.html.includes('data-ref="a"') && r.html.includes('data-ref="b"'), 'cref{a,b}: a link for each label');
+ok(r.html.includes('title="До \\label{sec:x} у коді · № 2.5"'), 'the number from the aux file is in the tooltip');
+ok(html('\\ref{a"b} \\ref{x y} \\ref{\\foo}').split('<a ').length === 1, 'a strange name is not a link');
+assertSafe(r.html, 'refs');
+ok(html('\\ref{<img src=x>}').indexOf('<img') < 0, 'no markup from a label');
+eq(html('\\href{http://a.b}{текст}'), '<p><span class="a" title="http://a.b">текст</span></p>', '\\href is a text with a tooltip again, not a label');
+{
+  const E = (nargs, body, extra) => Object.assign({ kind: 'cmd', op: false, alias: null, nargs, optDefault: null, body }, extra || {});
+  const macros = new Map([
+    ['emphx', E(1, '\\textbf{\\emph{#1}}')], ['Ukr', E(0, 'Україна')], ['opt', E(2, '[#1|#2]', { optDefault: 'x' })],
+    ['loop', E(1, '\\loop{#1}')], ['bad', E(1, '\\ifx a b #1\\fi')], ['op', E(0, '\\sin', { op: true })], ['al', E(0, '\\Ukr', { alias: 'Ukr' })]
+  ]);
+  const M = (s) => R(s, { macros });
+  eq(M('\\emphx{трохоїдою}').html, '<p><b><em>трохоїдою</em></b></p>', 'a simple macro is drawn by its body');
+  eq(M('\\emphx{трохоїдою}').notes, [], 'and is not reported');
+  eq(M('\\Ukr і \\opt{z} \\opt[y]{z}').html, '<p>Україна і [x|z] [y|z]</p>', 'no arguments; an optional one with a default');
+  eq(M('\\emphx{\\Ukr}').html, '<p><b><em>Україна</em></b></p>', 'macros inside arguments');
+  eq(M('\\emphx').notes, ['\\emphx'], 'no argument: as an unknown command');
+  eq(M('\\bad{q}').notes, ['\\bad'], 'a conditional is not drawn');
+  eq(M('\\op \\al').notes.sort(), ['\\al', '\\op'], 'an operator and a copy of a command are not drawn');
+  r = M('\\loop{a}');
+  ok(r.html.length < 5000, 'a macro that calls itself ends: ' + r.html.length);
+  ok(html('\\emphx{a}').includes('class="unk"') && R('\\emphx{a}', {}).notes.includes('\\emphx'), 'without the macros of the project: as before');
 }
 
 console.log('selectionPreview: ' + n + ' checks passed');

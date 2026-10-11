@@ -32,6 +32,8 @@ window.addEventListener('message', function (e) {
 
 // a frame of a tikz file (\\localinput, \\input): a click asks the extension to open the file
 document.addEventListener('click', function (e) {
+  const r = e.target && e.target.closest ? e.target.closest('a[data-ref]') : null;
+  if (r) { e.preventDefault(); vscode.postMessage({ type: 'ref', name: r.getAttribute('data-ref') || '' }); return; }
   const a = e.target && e.target.closest ? e.target.closest('a[data-open]') : null;
   if (!a) return;
   e.preventDefault();

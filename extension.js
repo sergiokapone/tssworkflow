@@ -284,8 +284,21 @@ function openPdfExternal(sync) {
       const job = isMain
         ? path.basename(mainFile, path.extname(mainFile))
         : cfg.get('jobname', 'main') || path.basename(file, path.extname(file));
+      // a file with its own \\documentclass (not the main file) is built on its own: its PDF is named after the file and
+      // stands next to it (or in the project folder), see compileCurrent, not main.pdf
+      if (!isMain && /\.(?:tex|ltx)$/i.test(file) && P.hasDocumentClass(ed.document.getText()) && !P.isPackageFile(file)) {
+        try {
+          const plan = P.standalonePlan(file, cwd, { workDir: cfg.get('compileCurrent.workDir', 'file'), engine: cfg.get('compileCurrent.engine', 'lualatex'), force: cfg.get('forceRebuild', true) });
+          const own = path.join(plan.cwd, plan.job + '.pdf');
+          if (fs.existsSync(own)) pdf = own;
+          else {
+            vscode.window.showWarningMessage('PDF цього файла (' + path.basename(own) + ') ще немає. Збери його кнопкою ▶ («Зібрати цей файл окремо»); main.pdf не відкриваю, бо це інший документ.');
+            return;
+          }
+        } catch (e) { /* the usual way below */ }
+      }
       const cand = path.join(cwd, job + '.pdf');
-      if (fs.existsSync(cand)) pdf = cand;
+      if (!pdf && fs.existsSync(cand)) pdf = cand;
     }
   }
   if (!pdf && lastPdf && fs.existsSync(lastPdf)) pdf = lastPdf;
@@ -1106,6 +1119,12 @@ function activate(context) {
   mainItem.tooltip = 'Build the whole document + open PDF';
   mainItem.command = 'tssworkflow.compileMainPdf';
   mainItem.text = '$(run-all) Main';
+  const STATUS_LOOK = {
+    chapter: { text: 'Chapter', tip: 'Compile this chapter + open PDF', command: 'tssworkflow.compilePdf' },
+    figure: { text: 'Figure', tip: 'Compile this figure + open PDF', command: 'tssworkflow.compilePdf' },
+    separate: { text: 'Separate', tip: 'Compile this file on its own (own preamble) + open PDF', command: 'tssworkflow.compileCurrent' },
+    main: { text: 'Main', tip: 'Build the whole document + open PDF', command: 'tssworkflow.compilePdf' }
+  };
   const refresh = () => {
     const ed = vscode.window.activeTextEditor;
     if (!ed) { item.hide(); mainItem.hide(); return; }
@@ -1113,9 +1132,16 @@ function activate(context) {
     const file = ed.document.uri.fsPath;
     const isTikz = file.toLowerCase().endsWith('.tikz');
     if (id === 'latex' || id === 'tex' || isTikz) {
-      item.text = '$(play) ' + (isTikz ? 'Figure' : 'Chapter');
+      const cfg = vscode.workspace.getConfiguration('tssworkflow');
+      const fo = vscode.workspace.getWorkspaceFolder(ed.document.uri);
+      const kind = P.statusKind({ file, text: ed.document.getText(), folder: fo ? fo.uri.fsPath : '', mainFile: cfg.get('mainFile', 'main.tex'), driver: cfg.get('driver', 'alone.tex') });
+      const look = STATUS_LOOK[kind] || STATUS_LOOK.chapter;
+      item.text = '$(play) ' + look.text;
+      item.tooltip = look.tip;
+      item.command = look.command;
       item.show();
-      if (vscode.workspace.getConfiguration('tssworkflow').get('statusBarMain', false)) mainItem.show(); else mainItem.hide();
+      // the second button builds the whole document: not needed beside the button that does it already
+      if (cfg.get('statusBarMain', false) && kind !== 'main') mainItem.show(); else mainItem.hide();
     } else {
       item.hide();
       mainItem.hide();
@@ -1134,6 +1160,7 @@ function activate(context) {
     if (on === docClassLast) return;
     docClassLast = on;
     vscode.commands.executeCommand('setContext', 'tssworkflow.hasDocumentClass', on);
+    refresh(); // the label of the compile button depends on it: Separate / Chapter
   };
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(updateDocClass),

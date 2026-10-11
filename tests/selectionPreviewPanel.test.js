@@ -272,6 +272,34 @@ async function scenario(text, selections, cfgValues, act, extra) {
     await a.sleep(500);
     eq(a.st.panel.webview.options.localResourceRoots.length, roots.length, 'not added twice');
   }, { dir: empty, folders: [empty] });
+  // 0.15.5: a click on a label goes to its \label in the code (the open file, then the others); the tooltip has the number from aux
+  const rf = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-ref-'));
+  fs.mkdirSync(path.join(rf, 'B'), { recursive: true });
+  fs.writeFileSync(path.join(rf, 'B', 'B.tex'), '\\section{b}\n\\begin{equation}\\label{eq:far} x\\end{equation}\n');
+  const REFTXT = 'Див. \\eqref{eq:near} і \\eqref{eq:far}, \\ref{eq:none} та \\vect{слово}.\n\\begin{equation}\\label{eq:near}\n y\n\\end{equation}';
+  await scenario(REFTXT, [[0, 0, 1, 10]], {}, async (a) => {
+    const shown = [];
+    a.vs.window.showTextDocument = async (uri, o) => { shown.push([uri.fsPath, o]); return { revealRange() {} }; };
+    a.vs.window.showWarningMessage = (m) => { shown.push(['warn', m]); };
+    a.vs.workspace.findFiles = async () => [{ fsPath: path.join(rf, 'B', 'B.tex') }];
+    a.ed.viewColumn = 2;
+    await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+    const h = a.renders().pop().html;
+    ok(h.includes('data-ref="eq:near"') && h.includes('data-ref="eq:far"'), 'links in the panel: ' + h);
+    ok(!h.includes('title="\\vect"') && h.includes('слово'), 'the macro of the project is drawn by its body, not reported as unknown: ' + h);
+    a.message({ type: 'ref', name: 'eq:near' }); await a.sleep(100);
+    eq(shown[0][0], a.doc.uri.fsPath, 'a label of the open file: in it');
+    eq([shown[0][1].selection.start.line, shown[0][1].selection.start.character], [1, 16], 'the \\label is selected: ' + JSON.stringify(shown[0][1].selection));
+    eq(shown[0][1].viewColumn, 2, 'in the column of the .tex editor');
+    a.message({ type: 'ref', name: 'eq:far' }); await a.sleep(100);
+    eq(shown[1][0], path.join(rf, 'B', 'B.tex'), 'a label of another file: in that file');
+    eq(shown[1][1].selection.start.line, 1, 'on its line');
+    a.message({ type: 'ref', name: 'eq:none' }); await a.sleep(100);
+    eq(shown[2][0], 'warn', 'no such label: a warning');
+    a.message({ type: 'ref', name: 'a b' }); a.message({ type: 'ref', name: '\\x' }); a.message({ type: 'ref', name: 5 }); await a.sleep(100);
+    eq(shown.length, 3, 'strange names are ignored');
+  });
+  fs.rmSync(rf, { recursive: true, force: true });
   // 0.15.4: the page loads mhchem after KaTeX (\ce)
   await scenario('x', [[0, 0, 0, 1]], {}, async (a) => {
     await a.command();

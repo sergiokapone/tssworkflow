@@ -58,9 +58,26 @@ function textHtml(t) {
 }
 function fmt(raw) {
   const s = raw.replace(/\\\$/g, '\u0001');
-  const re = /\$\$([\s\S]+?)\$\$|\$([^$]+)\$|\\\(([\s\S]+?)\\\)/g;
+  // also \ce{...} and \pu{...} (mhchem) outside $ ... $: KaTeX draws them as formulas; the braces are balanced by hand (\ce{\^{238}U})
+  const re = /\$\$([\s\S]+?)\$\$|\$([^$]+)\$|\\\(([\s\S]+?)\\\)|\\(ce|pu)\s*\{/g;
   let out = '', last = 0, m;
-  while ((m = re.exec(s))) { out += textHtml(s.slice(last, m.index)) + mathHtml(m[1] || m[2] || m[3]); last = re.lastIndex; }
+  while ((m = re.exec(s))) {
+    let tex = m[1] || m[2] || m[3];
+    if (m[4]) {
+      const open = re.lastIndex - 1;
+      let d = 0, k = open;
+      for (; k < s.length; k++) {
+        const ch = s[k];
+        if (ch === '\\') { k++; continue; }
+        if (ch === '{') d++; else if (ch === '}' && --d === 0) break;
+      }
+      if (k >= s.length) continue; // not closed: it stays a text
+      tex = '\\' + m[4] + s.slice(open, k + 1).replace(/\u0001/g, '\\$');
+      re.lastIndex = k + 1;
+    }
+    out += textHtml(s.slice(last, m.index)) + mathHtml(tex);
+    last = re.lastIndex;
+  }
   return out + textHtml(s.slice(last));
 }
 // spreadtab: "@ text" is a text cell, anything else with letters (sum(c2:[0,-1])) is a formula

@@ -310,6 +310,25 @@ function hasDocumentClass(text) {
   return false;
 }
 
+/* ------------------- the compile button in the status bar --------------- */
+// what the button compiles for the active file: 'figure' (.tikz), 'separate' (a file with its own \documentclass that is not
+// the main file: it is built on its own), 'main' (the main file, the driver or any other .tex in the project root: the whole
+// document), 'chapter' (everything else: a chapter through the driver)
+function statusKind(o) {
+  const nodePath = require('path');
+  const file = String((o && o.file) || '');
+  if (/\.tikz$/i.test(file)) return 'figure';
+  if (!/\.(?:tex|ltx)$/i.test(file)) return 'chapter';
+  const folder = o.folder ? nodePath.resolve(String(o.folder)) : '';
+  const same = (a, b) => (process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const abs = nodePath.resolve(file);
+  const atRoot = !!folder && same(nodePath.dirname(abs), folder);
+  const isMain = !!folder && [o.mainFile || 'main.tex', o.driver || 'alone.tex'].some((n) => same(nodePath.resolve(folder, String(n)), abs));
+  if (isMain) return 'main';
+  if (hasDocumentClass((o && o.text) || '') && !isPackageFile(file)) return 'separate';
+  return atRoot ? 'main' : 'chapter';
+}
+
 /* ------------------- image preview in the hover ------------------------- */
 // 91 KB -> "91 КБ", 2.4 MB -> "2,4 МБ"
 function formatFileSize(n) {
@@ -338,6 +357,7 @@ module.exports = {
   formatEnvReport,
   formatFileSize,
   hasDocumentClass,
+  statusKind,
   standalonePlan,
   imagePreviewPlan,
   isPackageFile,

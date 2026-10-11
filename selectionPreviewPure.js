@@ -97,7 +97,7 @@ const mathEnv = (name, body) => {
 
 /* --------------------------------- the converter --------------------------------- */
 function makeCtx(opts) {
-  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, depth: 0, fig: 0 };
+  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, refInfo: opts && typeof opts.refInfo === 'function' ? opts.refInfo : null, macros: opts && opts.macros ? opts.macros : null, depth: 0, fig: 0, exp: 0 };
 }
 
 // \includegraphics[opt]{name}: the picture itself when the panel found the file (opts.image(name) -> { src } or
@@ -124,6 +124,19 @@ function graphic(opt, name, ctx, block) {
   return '<' + tag + ' class="img">🖼 ' + esc(base) + why + '</' + tag + '>';
 }
 const note = (ctx, s) => ctx.notes.add(s);
+
+// \ref{a,b}, \eqref{a}: every label is a link (a click on it goes to the \label in the code, the panel does that);
+// opts.refInfo(name) may add to the tooltip (the number of the formula from the last compilation)
+function refHtml(raw, open, close, ctx) {
+  const names = String(raw).split(',').map((x) => x.trim());
+  if (!names.length || names.some((n) => !/^[^\s{}\\$%#&^~"<>]+$/.test(n))) return '<span class="ref">' + open + esc(raw) + close + '</span>';
+  const link = (n) => {
+    let extra = '';
+    try { extra = ctx.refInfo ? String(ctx.refInfo(n) || '') : ''; } catch (e) { extra = ''; }
+    return '<a class="ref" href="#" data-ref="' + esc(n) + '" title="До \\label{' + esc(n) + '} у коді' + (extra ? ' · ' + esc(extra) : '') + '">' + esc(n) + '</a>';
+  };
+  return open + names.map(link).join(', ') + close;
+}
 
 // \\localinput{x.tikz} / \\input{x.tikz}: a frame with the name of the file in the middle; a click opens the file (the panel resolves the name)
 function tikzFrame(name, via) {
@@ -260,10 +273,10 @@ function inline(text, ctx) {
         if (g) { i = g.end; out += '<span class="ref">[' + esc(g.text.replace(/\s+/g, ' ')) + ']</span>'; }
         continue;
       }
-      if (name === 'eqref') { const g = readGroup(text, i); if (g) { i = g.end; out += '<span class="ref">(' + esc(g.text) + ')</span>'; } continue; }
-      if (/^(?:[a-z]*ref|autoref|cref|Cref|pageref|nameref|vref|labelcref)$/i.test(name)) {
+      if (name === 'eqref') { const g = readGroup(text, i); if (g) { i = g.end; out += refHtml(g.text, '(', ')', ctx); } continue; }
+      if (name !== 'href' && /^(?:[a-z]*ref|autoref|cref|Cref|pageref|nameref|vref|labelcref)$/i.test(name)) {
         const g = readGroup(text, i);
-        if (g) { i = g.end; out += '<span class="ref">' + esc(g.text) + '</span>'; }
+        if (g) { i = g.end; out += refHtml(g.text, '', '', ctx); }
         continue;
       }
       if (name === 'href') {
@@ -321,6 +334,19 @@ function inline(text, ctx) {
         while (skip-- > 0) { const o = readOpt(text, i); if (o) i = o.end; const g = readGroup(text, i); if (g) i = g.end; }
         continue;
       }
+      // a simple text macro of the project (\newcommand{\emphx}[1]{\textbf{\emph{#1}}}): its body is drawn with the arguments put in
+      const mac = ctx.macros && ctx.macros.get ? ctx.macros.get(name) : null;
+      if (mac && ctx.exp < 1000 && expandable(mac)) {
+        let j = i; const args = []; let ok = true;
+        if (mac.optDefault !== null && mac.optDefault !== undefined) { const o = readOpt(text, j); if (o) { args.push(o.text); j = o.end; } else args.push(String(mac.optDefault)); }
+        while (args.length < mac.nargs) { const g = readGroup(text, j); if (!g) { ok = false; break; } args.push(g.text); j = g.end; }
+        if (ok) {
+          ctx.exp++;
+          i = j;
+          out += inline(String(mac.body).replace(/##|#(\d)/g, (m, d) => (d ? (args[d - 1] === undefined ? '' : args[d - 1]) : '#')), ctx);
+          continue;
+        }
+      }
       // unknown: a command of the project or of a package; its arguments are shown, the name is reported
       note(ctx, '\\' + name);
       const parts = [];
@@ -339,6 +365,10 @@ function inline(text, ctx) {
     return out;
   } finally { ctx.depth--; }
 }
+
+// which macros are drawn by their body: a plain definition of a command (not a counter, a conditional, a redefinition, a copy of another command)
+const EXPAND_BAD = /\\(?:if[A-Za-z]*|else|fi|csname|expandafter|noexpand|def|edef|gdef|xdef|let|futurelet|global|newcommand|renewcommand|providecommand|NewDocumentCommand|setcounter|addtocounter|stepcounter|refstepcounter|the[A-Za-z]+|value|numexpr|dimexpr|pgf[A-Za-z]*|tikz[A-Za-z]*|draw|node|begin|end|@[A-Za-z@]*)(?![A-Za-z])/;
+const expandable = (m) => m.kind === 'cmd' && !m.op && !m.alias && Number.isInteger(m.nargs) && m.nargs >= 0 && m.nargs <= 9 && typeof m.body === 'string' && m.body.trim() !== '' && m.body.length < 600 && !EXPAND_BAD.test(m.body);
 
 // a paragraph that starts with a TikZ command is a piece of the code of a picture (the selection is inside \\begin{tikzpicture}): one frame, not the code
 const TIKZ_CODE = /^\\(?:draw|node|path|fill|filldraw|shade|shadedraw|coordinate|clip|foreach|pgf[A-Za-z]*|tikzset|tikzstyle|useasboundingbox|matrix|addplot|begin\{scope\}|end\{scope\}|end\{(?:tikzpicture|circuitikz|axis)\})/;

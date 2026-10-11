@@ -83,19 +83,20 @@ async function current() {
 function lineOf(doc, env) { return doc.positionAt(env.start).line + 1; }
 
 // the macros of the project's classes / packages for KaTeX in the grid (kept for a minute: the index itself is cached too)
-let macrosCache = { key: '', at: 0, stamp: '', macros: {} };
+let macrosCache = { key: '', at: 0, stamp: '', macros: {}, cmds: new Map() };
 // fresh for a minute, and only while the macros file (mathjax-macros.tex) is the same
 const macrosFresh = (doc) => macrosCache.key === doc.uri.toString() && Date.now() - macrosCache.at < 60000 && macrosCache.stamp === MJ.stamp(doc);
 async function katexMacros(doc) {
   if (macrosFresh(doc)) return macrosCache.macros;
   const t0 = Date.now();
   let macros = {};
-  try { macros = MP.toKatexMacros([...(await M._allMacros(doc)).cmds.values()]); } catch (e) { /* none */ }
+  let cmds = new Map();
+  try { cmds = (await M._allMacros(doc)).cmds || new Map(); macros = MP.toKatexMacros([...cmds.values()]); } catch (e) { /* none */ }
   // what the macros file of the formula preview defines is added (and wins): the same commands as in the LaTeX Workshop hover
   let fromFile = {};
   try { fromFile = MJ.macros(doc); } catch (e) { /* none */ }
   macros = Object.assign({}, macros, fromFile);
-  macrosCache = { key: doc.uri.toString(), at: Date.now(), stamp: MJ.stamp(doc), macros };
+  macrosCache = { key: doc.uri.toString(), at: Date.now(), stamp: MJ.stamp(doc), macros, cmds };
   log('[таблиця] макроси проєкту: ' + Object.keys(macros).length + ' (з файла макросів ' + Object.keys(fromFile).length + ') за ' + ms(t0) + ' мс');
   return macros;
 }
@@ -331,3 +332,5 @@ exports.colorsNow = () => defsCache.defs;
 exports.katexMacros = katexMacros;
 exports.macrosFresh = macrosFresh;
 exports.macrosNow = (doc) => (macrosCache.key === doc.uri.toString() ? macrosCache.macros : {});
+// the commands of the project (name -> entry) for the text of the panel: its simple macros are drawn by their bodies
+exports.textMacrosNow = (doc) => (macrosCache.key === doc.uri.toString() ? macrosCache.cmds : new Map());
