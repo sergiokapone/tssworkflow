@@ -56,4 +56,17 @@ function textMacros(doc) {
   return out;
 }
 
-module.exports = { files, stamp, macros, textMacros };
+// the commands of the files whose first argument is optional (macrosPure.parseKatexOptMacros); a plain definition of the
+// same name in a later file wins, as it does in the formula preview
+function optMacros(doc) {
+  const out = {};
+  for (const f of files(doc)) {
+    let text = '';
+    try { text = fs.readFileSync(f, 'utf8'); } catch (e) { continue; }
+    for (const k of Object.keys(MP.parseKatexMacros(text))) delete out[k];
+    Object.assign(out, MP.parseKatexOptMacros(text));
+  }
+  return out;
+}
+
+module.exports = { files, stamp, macros, optMacros, textMacros };

@@ -556,8 +556,14 @@ function passesFor(kind) {
 // the program of a plain run: the engine of the build; lualatex may have its own path (tssworkflow.lualatex)
 const engineExe = (name) => (name === 'lualatex' ? vscode.workspace.getConfiguration('tssworkflow').get('lualatex', 'lualatex') : name);
 
+// does a build of this kind open the PDF when it has finished: the command asked for it and it is not switched off for the kind
+// (tssworkflow.openPdf.main / .separate / .chapter, all on by default; the chapter setting covers figures too)
+const OPEN_PDF_KEY = { main: 'openPdf.main', separate: 'openPdf.separate', chapter: 'openPdf.chapter' };
+const openPdfFor = (kind, requested) => requested !== false && !!vscode.workspace.getConfiguration('tssworkflow').get(OPEN_PDF_KEY[kind], true);
+
 // whole document: latexmk on the main file (tssworkflow.mainFile, default main.tex)
 async function compileMain(openPdf, done, fileOverride) {
+  openPdf = openPdfFor('main', openPdf);
   const ed = vscode.window.activeTextEditor;
   const folder = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
   if (!folder) {
@@ -628,6 +634,7 @@ async function compile(openPdf, done) {
   }
   const t = target();
   if (!t) { if (done) done(); return; }
+  openPdf = openPdfFor('chapter', openPdf);
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   // exactly N runs of plain lualatex (latexmk cannot be told "run exactly N times"); 0: latexmk decides how many runs are needed
   const n = passesFor('chapter');
@@ -665,6 +672,7 @@ async function compileCurrent(openPdf, done) {
     return finish();
   }
   if (doc.isDirty && !(await doc.save())) { vscode.window.showWarningMessage('Не вдалося зберегти файл перед збіркою.'); return finish(); }
+  openPdf = openPdfFor('separate', openPdf);
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const fo = vscode.workspace.getWorkspaceFolder(doc.uri);
   const { cwd, args, job } = P.standalonePlan(file, fo ? fo.uri.fsPath : null, {
@@ -678,6 +686,21 @@ async function compileCurrent(openPdf, done) {
   const exe = engineExe(plain.exe);
   const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex') });
   await runBuild({ folder: folderArg, cwd, args: plain.args, exe, steps, job, label, openPdf, done });
+}
+
+/* The one build command (F5, the button of the tab bar): it does what the button of the status bar does for the same file.
+ * A document with its own preamble (Separate) is built on its own; a chapter / figure goes through the driver (alone.tex);
+ * the main file, the driver and the other .tex of the project root build the whole document. The PDF is opened as the
+ * settings tssworkflow.openPdf.<kind> say. */
+async function compileSmart(openPdf, done) {
+  const ed = vscode.window.activeTextEditor;
+  if (ed && /\.(?:tex|ltx)$/i.test(ed.document.uri.fsPath)) {
+    const cfg = vscode.workspace.getConfiguration('tssworkflow');
+    const fo = vscode.workspace.getWorkspaceFolder(ed.document.uri);
+    const kind = P.statusKind({ file: ed.document.uri.fsPath, text: ed.document.getText(), folder: fo ? fo.uri.fsPath : '', mainFile: cfg.get('mainFile', 'main.tex'), driver: cfg.get('driver', 'alone.tex') });
+    if (kind === 'separate') return compileCurrent(openPdf, done);
+  }
+  return compile(openPdf, done);
 }
 
 function clean(withPdf) {
@@ -1092,11 +1115,9 @@ function activate(context) {
 
   context.subscriptions.push(
     vscode.languages.registerDocumentLinkProvider([{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }], provider),
-    vscode.commands.registerCommand('tssworkflow.compilePdf', () => compile(true)),
-    vscode.commands.registerCommand('tssworkflow.compile', () => compile(false)),
+    vscode.commands.registerCommand('tssworkflow.compilePdf', () => compileSmart(true)),
     vscode.commands.registerCommand('tssworkflow.compileCurrent', () => compileCurrent(true)),
     vscode.commands.registerCommand('tssworkflow.compileMainPdf', () => compileMain(true)),
-    vscode.commands.registerCommand('tssworkflow.compileMain', () => compileMain(false)),
     // 0.5.0: a copy of the main file with only some \part's (see projectRefactor.js); not in the palette
     vscode.commands.registerCommand('tssworkflow._compileFile', (a) => compileMain(!a || a.openPdf !== false, undefined, a && a.file)),
     vscode.commands.registerCommand('tssworkflow.clean', () => clean(true)),

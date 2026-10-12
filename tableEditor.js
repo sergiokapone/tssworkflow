@@ -99,9 +99,14 @@ async function katexMacros(doc) {
   // what the macros file of the formula preview defines is added (and wins): the same commands as in the LaTeX Workshop hover
   let fromFile = {};
   try { fromFile = MJ.macros(doc); } catch (e) { /* none */ }
-  macros = Object.assign({}, macros, fromFile);
+  // commands with an optional first argument (\newcommand{\E}[1][E]{...}) are sent as descriptions: the page makes functions of them
+  let opt = {};
+  let fileOpt = {};
+  try { opt = MP.toKatexOptMacros([...cmds.values()]); } catch (e) { /* none */ }
+  try { fileOpt = MJ.optMacros(doc); } catch (e) { /* none */ }
+  macros = Object.assign({}, macros, opt, fromFile, fileOpt);
   macrosCache = { key: doc.uri.toString(), at: Date.now(), stamp: MJ.stamp(doc), ver, macros, cmds };
-  log('[таблиця] макроси проєкту: ' + Object.keys(macros).length + ' (з файла макросів ' + Object.keys(fromFile).length + ') за ' + ms(t0) + ' мс');
+  log('[таблиця] макроси проєкту: ' + Object.keys(macros).length + ' (з файла макросів ' + (Object.keys(fromFile).length + Object.keys(fileOpt).length) + ', з необов\'язковим аргументом ' + (Object.keys(opt).length + Object.keys(fileOpt).length) + ') за ' + ms(t0) + ' мс');
   return macros;
 }
 
@@ -239,7 +244,7 @@ function html(webview, extUri) {
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + kx('katex.min.css') + '"><link rel="stylesheet" href="' + own('webview.css') + '"></head><body>' +
     '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div>' +
     '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+Z: скасувати зміну у файлі</div>' +
-    '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
+    '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + kx('optmacros.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
 }
 
 function ensurePanel(context) {

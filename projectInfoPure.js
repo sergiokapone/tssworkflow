@@ -169,7 +169,20 @@ function builtinCounters(opts) {
 function excludedPath(rel, patterns) {
   const segs = String(rel).replace(/\\/g, '/').replace(/^\.?\//, '').split('/').filter(Boolean);
   if (!segs.length) return false;
-  const toRe = (g) => new RegExp('^' + g.split('**').map((part) => part.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')).join('.*') + '$', 'i');
+  // * and ? stay inside one name; ** is any run of characters, and **/ is zero or more folders, as in .gitignore:
+  // **/draft*.tex also leaves out draft1.tex in the project root, a/**/b.tex also a/b.tex
+  const toRe = (g) => {
+    let re = '';
+    for (let i = 0; i < g.length; i++) {
+      const c = g[i];
+      if (c === '*' && g[i + 1] === '*') {
+        if (g[i + 2] === '/') { re += '(?:.*/)?'; i += 2; } else { re += '.*'; i += 1; }
+      } else if (c === '*') re += '[^/]*';
+      else if (c === '?') re += '[^/]';
+      else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    }
+    return new RegExp('^' + re + '$', 'i');
+  };
   for (const raw of Array.isArray(patterns) ? patterns : []) {
     let pat = String(raw == null ? '' : raw).trim().replace(/\\/g, '/');
     const rooted = /^\.?\//.test(pat); // /dir or ./dir: from the root only

@@ -103,4 +103,13 @@ eq(E('Ch/Ch.tex', ['Ch']), true, 'a chapter whose folder has the name of the fil
 eq(E('Chapter2/Ch.tex', ['Ch']), true, 'the file Ch.tex without the extension');
 eq(E('Chapter2/Chap.tex', ['Ch']), false, 'but not a longer name');
 
+// **/ is zero or more folders, as in .gitignore (0.17.0): the root is a folder level too
+eq(E('draft1.tex', ['**/draft*.tex']), true, '**/ also matches in the project root');
+eq(E('a/b/draftX.tex', ['**/draft*.tex']), true, '**/ at any depth');
+eq(E('a/mydraft.tex', ['**/draft*.tex']), false, 'the name itself still has to start with draft');
+eq([E('a/b.tex', ['a/**/b.tex']), E('a/x/b.tex', ['a/**/b.tex']), E('a/x/y/b.tex', ['a/**/b.tex']), E('b.tex', ['a/**/b.tex'])], [true, true, true, false], 'a/**/b.tex: zero or more folders between');
+eq([E('Ch/a.tex', ['Ch/**']), E('Ch/x/a.tex', ['Ch/**']), E('Other/a.tex', ['Ch/**'])], [true, true, false], 'Ch/** leaves out everything inside');
+eq([E('Tests/t.tex', ['**/Tests/']), E('a/Tests/t.tex', ['**/Tests/'])], [true, true], '**/Tests/ at any depth, also in the root');
+eq(E('draft1xtex', ['draft1.tex']), false, 'a dot in a pattern is a dot');
+
 console.log('projectStats: ' + n + ' checks passed');

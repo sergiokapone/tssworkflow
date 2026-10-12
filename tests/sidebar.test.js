@@ -12,9 +12,9 @@ t('every command of package.json is in the tree exactly once', () => {
   assert.deepStrictEqual(r, { missing: [], duplicates: [], unknown: [] });
 });
 t('coverage notices a missing, a duplicate and an unknown command', () => {
-  const r = S.coverage(pk.contributes.commands.map((c) => c.command).filter((c) => c !== 'tssworkflow.compile').concat('tssworkflow.brandNew'));
+  const r = S.coverage(pk.contributes.commands.map((c) => c.command).filter((c) => c !== 'tssworkflow.stopBuild').concat('tssworkflow.brandNew'));
   assert.deepStrictEqual(r.missing, ['brandNew']);
-  assert.deepStrictEqual(r.unknown, ['compile']);
+  assert.deepStrictEqual(r.unknown, ['stopBuild']);
 });
 t('formatKey / keyMap', () => {
   assert.strictEqual(S.formatKey('ctrl+alt+t'), 'Ctrl+Alt+T');

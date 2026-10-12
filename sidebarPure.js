@@ -5,10 +5,8 @@ const P = 'tssworkflow.';
 // one entry: [command id without the prefix, label, codicon]; `raw: true` is a command of VS Code itself
 const GROUPS = [
   { id: 'build', en: 'Build & PDF', label: 'Збірка й PDF', icon: 'play', expanded: true, items: [
-    ['compilePdf', 'Зібрати розділ і відкрити PDF', 'play'],
-    ['compile', 'Зібрати розділ (без PDF)', 'play-circle'],
+    ['compilePdf', 'Зібрати відкритий файл (розділ, рисунок, окремий) і відкрити PDF', 'play'],
     ['compileMainPdf', 'Зібрати весь документ і відкрити PDF', 'run-all'],
-    ['compileMain', 'Зібрати весь документ (без PDF)', 'debug-start'],
     ['compileCurrent', 'Зібрати цей файл окремо (своя преамбула) і відкрити PDF', 'play-circle'],
     ['stopBuild', 'Зупинити збірку', 'debug-stop'],
     ['toggleCompileOnSave', 'Збірка при збереженні (вкл./викл.)', 'save'],

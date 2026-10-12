@@ -427,7 +427,7 @@ function refreshStale() {
   staleItem.text = '$(history) refs застарілі';
   staleItem.tooltip = 'Посилання (\\ref), зміст і номери беруться з ' + job + '.aux, оновленого о ' + hhmm +
     ', а файли змінено пізніше. Клік: зібрати весь документ.';
-  staleItem.command = 'tssworkflow.compileMain';
+  staleItem.command = 'tssworkflow.compileMainPdf';
   staleItem.show();
 }
 

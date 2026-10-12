@@ -62,13 +62,15 @@ const tick = () => new Promise((r) => setTimeout(r, 20));
 const endRun = async (code) => { const l = endListeners.slice(); for (const x of l) x.fn({ execution: { task: started[started.length - 1] }, exitCode: code }); await tick(); };
 (async () => {
   try { await X.activate(ctx); } catch (e) { console.error('activate failed (stub too thin?)', e); process.exit(1); }
-  assert.ok(cmds['tssworkflow.compile'], 'compile registered');
+  assert.ok(cmds['tssworkflow.compilePdf'] && cmds['tssworkflow.compileMainPdf'], 'compile registered');
+  assert.ok(!cmds['tssworkflow.compile'] && !cmds['tssworkflow.compileMain'], 'the commands without a PDF are gone (0.17.0): the PDF is switched off by tssworkflow.openPdf.*');
+  cfgv['openPdf.chapter'] = false; cfgv['openPdf.main'] = false; cfgv['openPdf.separate'] = false; // these builds are watched here, not viewed
   const buildItem = items.find((i) => i.priority === 101), spin = items.find((i) => i.priority === 102);
   assert.ok(buildItem && spin, 'two status bar items');
 
   // passes = 3, singlePass = false: three runs of plain lualatex, one after another
   cfgv.singlePass = false; cfgv.passes = 3; cfgv.lualatex = 'lualatex';
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   assert.strictEqual(started.length, 1);
   assert.strictEqual(started[0].execution.process, 'lualatex');
   assert.ok(started[0].execution.args.some((a) => /\\input\{alone\.tex\}/.test(a)));
@@ -83,29 +85,29 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
 
   // a failure in the 2nd run stops the chain
   started.length = 0;
-  await cmds['tssworkflow.compile'](); await tick(); await endRun(0); assert.strictEqual(started.length, 2);
+  await cmds['tssworkflow.compilePdf'](); await tick(); await endRun(0); assert.strictEqual(started.length, 2);
   await endRun(1); assert.strictEqual(started.length, 2, 'chain stops on error');
   assert.ok(/помилки/.test(buildItem.text), buildItem.text);
 
   // the old passes = 0 (latexmk decides) is the default now: one run of lualatex; latexmk is asked for with compilePasses.chapter = 0
   started.length = 0; cfgv.passes = 0;
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   assert.strictEqual(started.length, 1); assert.strictEqual(started[0].execution.process, 'lualatex', 'singlePass = false and passes = 0: the default of one run');
   await endRun(0);
   started.length = 0; cfgv['compilePasses.chapter'] = 0;
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   assert.strictEqual(started.length, 1); assert.strictEqual(started[0].execution.process, 'latexmk', 'compilePasses.chapter = 0: latexmk');
   await endRun(0); assert.strictEqual(started.length, 1);
   delete cfgv['compilePasses.chapter'];
 
   // singlePass = true ignores passes
   started.length = 0; cfgv.singlePass = true; cfgv.passes = 5;
-  await cmds['tssworkflow.compile'](); await tick(); await endRun(0);
+  await cmds['tssworkflow.compilePdf'](); await tick(); await endRun(0);
   assert.strictEqual(started.length, 1); assert.strictEqual(started[0].execution.process, 'lualatex');
   // the spinner item is never written after it is shown, however long the build runs; with buildSeconds = false the text item is static too
   started.length = 0; cfgv.singlePass = true; cfgv.buildSeconds = true;
   spin.writes = 0; spin.texts.length = 0; buildItem.texts.length = 0;
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   const w0 = spin.writes;
   await new Promise((r) => setTimeout(r, 2300));
   assert.strictEqual(spin.writes, w0, 'no property writes to the spinner item while the build runs');
@@ -113,7 +115,7 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
   assert.ok(buildItem.texts.length >= 3, 'seconds tick in the text item: ' + buildItem.texts.join('|'));
   await endRun(0);
   cfgv.buildSeconds = false; buildItem.texts.length = 0;
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   await new Promise((r) => setTimeout(r, 2300));
   assert.ok(buildItem.texts.length <= 2, 'text item is static with buildSeconds = false: ' + buildItem.texts.join('|'));
   assert.ok(!/ с$/.test(buildItem.texts[0] || ''), buildItem.texts[0]);
@@ -126,28 +128,28 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
   const runAll = async (n, hook) => { for (let i = 1; i <= n; i++) { if (hook) hook(i); await endRun(0); } };
   // a chapter: one run, and the spinner says 1/1
   started.length = 0;
-  await cmds['tssworkflow.compile'](); await tick();
+  await cmds['tssworkflow.compilePdf'](); await tick();
   assert.strictEqual(started.length, 1); assert.ok(/ · 1\/1 · /.test(spinTxt()), 'a chapter: ' + spinTxt());
   await endRun(0); assert.strictEqual(started.length, 1, 'one run of a chapter');
   // the whole document: 4 runs of lualatex by default, no latexmk, no -g
   started.length = 0;
-  await cmds['tssworkflow.compileMain'](); await tick();
+  await cmds['tssworkflow.compileMainPdf'](); await tick();
   assert.strictEqual(exeOf(started[0]), 'lualatex'); assert.ok(!started[0].execution.args.includes('-g') && !started[0].execution.args.includes('-lualatex'), JSON.stringify(started[0].execution.args));
   assert.strictEqual(started[0].execution.args[started[0].execution.args.length - 1], 'main.tex');
   for (let i = 1; i <= 4; i++) { assert.ok(new RegExp(' · ' + i + '/4 · ').test(spinTxt()), i + ': ' + spinTxt()); assert.strictEqual(started.length, i); await endRun(0); }
   assert.strictEqual(started.length, 4, 'four runs, not five'); assert.ok(/готово/.test(buildItem.text) && /4 прохо/.test(buildItem.text), buildItem.text);
   // the number is set: 3 (and 9 is the largest)
   started.length = 0; cfgv['compilePasses.main'] = 3;
-  await cmds['tssworkflow.compileMain'](); await tick(); await runAll(3);
+  await cmds['tssworkflow.compileMainPdf'](); await tick(); await runAll(3);
   assert.strictEqual(started.length, 3, 'compilePasses.main = 3'); delete cfgv['compilePasses.main'];
   // 0: latexmk decides
   started.length = 0; cfgv['compilePasses.main'] = 0;
-  await cmds['tssworkflow.compileMain'](); await tick();
+  await cmds['tssworkflow.compileMainPdf'](); await tick();
   assert.strictEqual(exeOf(started[0]), 'latexmk'); assert.ok(started[0].execution.args.includes('-lualatex')); await endRun(0); assert.strictEqual(started.length, 1);
   delete cfgv['compilePasses.main'];
   // biber between the first and the second run when main.bcf exists; a failed biber does not stop the runs
   started.length = 0;
-  await cmds['tssworkflow.compileMain'](); await tick();
+  await cmds['tssworkflow.compileMainPdf'](); await tick();
   fs.writeFileSync(path.join(tmp, 'main.bcf'), 'x');
   await endRun(0);
   assert.strictEqual(exeOf(started[1]), 'biber'); assert.deepStrictEqual(started[1].execution.args, ['main']);
@@ -158,18 +160,18 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
   fs.unlinkSync(path.join(tmp, 'main.bcf'));
   // bibtex when there is no .bcf but the .aux asks for a database
   started.length = 0;
-  await cmds['tssworkflow.compileMain'](); await tick();
+  await cmds['tssworkflow.compileMainPdf'](); await tick();
   fs.writeFileSync(path.join(tmp, 'main.aux'), '\\bibdata{lit}\n');
   await endRun(0); assert.strictEqual(exeOf(started[1]), 'bibtex');
   await runAll(4); assert.strictEqual(started.length, 5);
   fs.unlinkSync(path.join(tmp, 'main.aux'));
   // no bibliography: no tool, 4 runs
   started.length = 0;
-  await cmds['tssworkflow.compileMain'](); await tick(); await runAll(4);
+  await cmds['tssworkflow.compileMainPdf'](); await tick(); await runAll(4);
   assert.strictEqual(started.length, 4); assert.ok(started.every((t) => exeOf(t) === 'lualatex'));
   // a failed run of the engine stops the chain
   started.length = 0;
-  await cmds['tssworkflow.compileMain'](); await tick(); await endRun(0); await endRun(1);
+  await cmds['tssworkflow.compileMainPdf'](); await tick(); await endRun(0); await endRun(1);
   assert.strictEqual(started.length, 2, 'the failure of a run of the engine stops the chain'); assert.ok(/помилки/.test(buildItem.text), buildItem.text);
   // a file with its own preamble: 2 runs by default, in its own folder
   const noteDoc = { uri: { fsPath: path.join(tmp, 'Note', 'note.tex') }, getText: () => '\\documentclass{article}\n', languageId: 'latex', fileName: path.join(tmp, 'Note', 'note.tex'), isDirty: false };
@@ -188,7 +190,7 @@ const endRun = async (code) => { const l = endListeners.slice(); for (const x of
   stub.window.activeTextEditor = prevEd;
   // a chapter with its own number
   cfgv['compilePasses.chapter'] = 2; started.length = 0;
-  await cmds['tssworkflow.compile'](); await tick(); assert.ok(/ · 1\/2 · /.test(spinTxt()), spinTxt()); await runAll(2); assert.strictEqual(started.length, 2); delete cfgv['compilePasses.chapter'];
+  await cmds['tssworkflow.compilePdf'](); await tick(); assert.ok(/ · 1\/2 · /.test(spinTxt()), spinTxt()); await runAll(2); assert.strictEqual(started.length, 2); delete cfgv['compilePasses.chapter'];
   console.log('passes + spinner: all ok');
   fs.rmSync(tmp, { recursive: true, force: true });
   process.exit(0);

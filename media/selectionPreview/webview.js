@@ -8,7 +8,7 @@ function draw(el) {
   const display = el.getAttribute('data-d') === '1';
   try {
     if (!window.katex) throw new Error('no katex');
-    window.katex.render(tex, el, { displayMode: display, throwOnError: false, strict: 'ignore', output: 'html', trust: false, macros: Object.assign({}, macros) });
+    window.katex.render(tex, el, { displayMode: display, throwOnError: false, strict: 'ignore', output: 'html', trust: false, macros: (window.tssKatexMacros || ((m) => Object.assign({}, m)))(macros) });
   } catch (e) {
     el.textContent = tex;
     el.classList.add('err');

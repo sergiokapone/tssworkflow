@@ -574,11 +574,9 @@ function parseKatexMacros(text) {
     const n = readName(i);
     if (!n) continue;
     let k = skipWs(s, n.end);
-    let nargs = 0;
     let hasDefault = false;
-    let g = readGroup(s, k, '[', ']');
+    const g = readGroup(s, k, '[', ']');
     if (g && /^\s*[0-9]\s*$/.test(g.text)) {
-      nargs = +g.text;
       k = skipWs(s, g.end);
       const d = readGroup(s, k, '[', ']');
       if (d) { hasDefault = true; k = skipWs(s, d.end); }
@@ -593,4 +591,52 @@ function parseKatexMacros(text) {
   return out;
 }
 
-module.exports = { parseKatexMacros, toKatexMacros, toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };
+/* Commands whose FIRST argument is optional with a default: \newcommand{\E}[1][E]{\mathbf{#1}}, \newcommand{\diff}[2][]{...}.
+ * A plain KaTeX macro (a string) cannot say that, so they are described: { '\\E': { n: 1, def: 'E', body: '\mathbf{#1}' } };
+ * the page (media/katex/optmacros.js) makes a function macro of each. toKatexMacros / parseKatexMacros leave them out as before.
+ * A later plain redefinition of the same name removes the description. */
+function parseKatexOptMacros(text) {
+  const s = stripComments(String(text || ''));
+  const out = {};
+  const re = /\\(newcommand|renewcommand|providecommand|def|gdef|DeclareMathOperator)(?![A-Za-z@])/g;
+  const readName = (i) => {
+    i = skipWs(s, i);
+    const braced = s[i] === '{';
+    if (braced) i = skipWs(s, i + 1);
+    const m = /^\\([A-Za-z]+)/.exec(s.slice(i, i + 80));
+    if (!m) return null;
+    i += m[0].length;
+    if (braced) { i = skipWs(s, i); if (s[i] !== '}') return null; i++; }
+    return { key: '\\' + m[1], end: i };
+  };
+  let m;
+  while ((m = re.exec(s))) {
+    const kind = m[1];
+    let i = m.index + m[0].length;
+    if (s[i] === '*') i++;
+    const n = readName(i);
+    if (!n) continue;
+    if (kind !== 'newcommand' && kind !== 'renewcommand' && kind !== 'providecommand') { delete out[n.key]; continue; } // another kind of definition: the older description is gone
+    let k = skipWs(s, n.end);
+    let nargs = 0;
+    let def = null;
+    const g = readGroup(s, k, '[', ']');
+    if (g && /^\s*[1-9]\s*$/.test(g.text)) {
+      nargs = +g.text;
+      k = skipWs(s, g.end);
+      const d = readGroup(s, k, '[', ']');
+      if (d) { def = d.text.trim(); k = skipWs(s, d.end); }
+    }
+    const body = readGroup(s, k, '{', '}');
+    if (!body) continue;
+    re.lastIndex = body.end;
+    if (def === null) { if (kind !== 'providecommand') delete out[n.key]; continue; } // a plain definition replaces the older one
+    if (kind === 'providecommand' && Object.prototype.hasOwnProperty.call(out, n.key)) continue;
+    out[n.key] = { n: nargs, def, body: body.text.replace(/\s*\n\s*/g, ' ').trim() };
+  }
+  return out;
+}
+// the same for the macros of the .cls/.sty files (through the form they have in the MathJax file)
+const toKatexOptMacros = (entries) => parseKatexOptMacros(toMathJaxMacros(entries).text);
+
+module.exports = { parseKatexOptMacros, toKatexOptMacros, parseKatexMacros, toKatexMacros, toMathJaxMacros, toMathJaxBody, scanMacros, signature, signatureParts, mandatoryTokens, readCall, expand, callContext, parseXparseSpec, stripComments, readGroup };

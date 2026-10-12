@@ -31,7 +31,7 @@ function btn(label, title, fn, cls, disabled) {
 /* ----------------------------- how a cell looks ----------------------------- */
 let mathErr = ''; // the first KaTeX error while one cell is being drawn
 function mathHtml(src) {
-  const opts = { output: 'html', strict: 'ignore', macros: Object.assign({}, macros) };
+  const opts = { output: 'html', strict: 'ignore', macros: (window.tssKatexMacros || ((m) => Object.assign({}, m)))(macros) };
   try {
     if (window.katex) {
       try { return window.katex.renderToString(src, Object.assign({ throwOnError: true }, opts)); }

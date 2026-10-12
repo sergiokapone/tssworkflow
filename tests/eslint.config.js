@@ -10,6 +10,6 @@ const rules = {
 };
 module.exports = [
   { ignores: ['media/katex/**', 'node_modules/**'] },
-  { files: ['**/*.js'], ignores: ['media/tableEditor/**'], languageOptions: { sourceType: 'commonjs', ecmaVersion: 2022, globals: NODE }, rules },
-  { files: ['media/tableEditor/**/*.js'], languageOptions: { sourceType: 'script', ecmaVersion: 2022, globals: BROWSER }, rules },
+  { files: ['**/*.js'], ignores: ['media/tableEditor/**', 'media/selectionPreview/**'], languageOptions: { sourceType: 'commonjs', ecmaVersion: 2022, globals: NODE }, rules },
+  { files: ['media/tableEditor/**/*.js', 'media/selectionPreview/**/*.js'], languageOptions: { sourceType: 'script', ecmaVersion: 2022, globals: BROWSER }, rules },
 ];

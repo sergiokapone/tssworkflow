@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.16.1",
+  "version": "0.17.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -35,11 +35,6 @@
         "command": "tssworkflow.compilePdf",
         "title": "TSS Workflow: Compile + open PDF",
         "icon": "$(play)"
-      },
-      {
-        "command": "tssworkflow.compile",
-        "title": "TSS Workflow: Compile (no PDF)",
-        "icon": "$(play-circle)"
       },
       {
         "command": "tssworkflow.clean",
@@ -169,10 +164,6 @@
         "command": "tssworkflow.compileMainPdf",
         "title": "TSS Workflow: Compile whole document (main) + open PDF",
         "icon": "$(run-all)"
-      },
-      {
-        "command": "tssworkflow.compileMain",
-        "title": "TSS Workflow: Compile whole document (main), no PDF"
       },
       {
         "command": "tssworkflow.normalizeOptions",
@@ -433,16 +424,6 @@
           "group": "navigation@1"
         },
         {
-          "command": "tssworkflow.compile",
-          "when": "(resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz) && !tssworkflow.building && resourceExtname != .cls && resourceExtname != .sty && resourceExtname != .clo && resourceExtname != .def && resourceExtname != .cfg",
-          "group": "navigation@2"
-        },
-        {
-          "command": "tssworkflow.compileMainPdf",
-          "when": "(resourceLangId == latex || resourceLangId == tex) && !tssworkflow.building",
-          "group": "navigation@3"
-        },
-        {
           "command": "tssworkflow.openPdfExternal",
           "when": "resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz",
           "group": "navigation@4"
@@ -466,11 +447,6 @@
           "submenu": "tssworkflow.submenu.build",
           "when": "resourceLangId == latex || resourceLangId == tex || resourceExtname == .tikz",
           "group": "navigation@8"
-        },
-        {
-          "command": "tssworkflow.compileCurrent",
-          "group": "navigation@9",
-          "when": "(resourceLangId == latex || resourceLangId == tex) && tssworkflow.hasDocumentClass && !tssworkflow.building"
         },
         {
           "command": "tssworkflow.stopBuild",
@@ -694,7 +670,7 @@
       ],
       "tssworkflow.submenu.build": [
         {
-          "command": "tssworkflow.compileMain",
+          "command": "tssworkflow.compileMainPdf",
           "group": "1_build@1"
         },
         {
@@ -909,6 +885,21 @@
           "minimum": 0,
           "maximum": 9,
           "description": "The same for a chapter or a figure (button ▷ Chapter / Figure, F5, Auto): exactly N runs of plain lualatex through the driver (tssworkflow.driver); biber / makeindex are not run, references come from the existing <jobname>.aux. 0: latexmk decides."
+        },
+        "tssworkflow.openPdf.main": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the PDF when the build of the whole document (Shift+F5, the main file) has finished. Off: the build runs and the PDF is only rewritten."
+        },
+        "tssworkflow.openPdf.separate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the PDF when the build of a file with its own \\documentclass (Ctrl+F5) has finished. Off: the build runs and the PDF is only rewritten."
+        },
+        "tssworkflow.openPdf.chapter": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the PDF when the build of a chapter or a figure (F5) has finished. Off: the build runs and the PDF is only rewritten."
         },
         "tssworkflow.biber": {
           "type": "string",
