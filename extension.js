@@ -400,6 +400,16 @@ function pdfDiag(stage) {
 async function openInLatexWorkshop(pdf) {
   const ed = vscode.window.activeTextEditor;
   const col = ed && ed.viewColumn;
+  // LW takes the PDF of its own root, found from the active file. A file it cannot find the root of (a .tikz: no \\documentclass,
+  // no `% !TeX root`) leaves the viewer on the previous PDF, e.g. the standalone one: then the PDF that was just built is opened
+  // by its path, the way the external viewer does it
+  if (ed && !P.lwRootResolvable(ed.document.getText())) {
+    LOG.appendLine('PDF: LaTeX Workshop не знайде корінь для ' + path.basename(ed.document.uri.fsPath) + ' (немає \\documentclass і % !TeX root): відкриваю ' + pdf + ' за шляхом');
+    checkPdfAssociation();
+    const beside = vscode.workspace.getConfiguration('tssworkflow').get('pdfBeside', true);
+    vscode.commands.executeCommand('vscode.open', vscode.Uri.file(pdf), beside ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false } : { preview: false });
+    return;
+  }
   try {
     const cmds = await vscode.commands.getCommands(true);
     // 'latex-workshop.tab' opens the viewer tab regardless of latex-workshop.view.pdf.viewer (which may be 'external' in the

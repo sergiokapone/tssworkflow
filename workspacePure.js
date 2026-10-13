@@ -285,6 +285,17 @@ function standalonePlan(file, wsFolder, opts) {
   };
 }
 
+// Can LaTeX Workshop find the root of the active file by itself? It can when the file has its own \\documentclass or a magic
+// comment `% !TeX root = ...` near the top. A .tikz file (or any file with neither) gives it nothing to go by, so it keeps showing
+// the PDF of the previous root; then the extension has to say which PDF it built.
+function lwRootResolvable(text) {
+  const t = String(text || '');
+  if (hasDocumentClass(t)) return true;
+  const head = t.split(/\r?\n/).slice(0, 30);
+  if (head.some((l) => /^\s*%\s*!\s*(?:TeX|TEX|tex|LaTeX)\s+root\s*=/.test(l))) return true;
+  return false;
+}
+
 function hasDocumentClass(text) {
   const BEGIN = /\\begin\{(verbatim\*?|Verbatim\*?|lstlisting|minted|comment|tcblisting)\}/;
   const INLINE = /\\(?:verb\*?|lstinline(?:\[[^\]]*\])?)(.)(.*?)\1/g;
@@ -408,6 +419,7 @@ module.exports = {
   formatEnvReport,
   formatFileSize,
   hasDocumentClass,
+  lwRootResolvable,
   statusKind,
   resolvePasses,
   plainFromLatexmk,
