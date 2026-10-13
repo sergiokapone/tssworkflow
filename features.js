@@ -24,6 +24,9 @@ function register(context, api) {
   require('./wrapEnv').register(context);
   require('./wrapCmd').register(context);
   require('./selectionPreview').register(context);
+  require('./macroGallery').register(context);
+  require('./formulaOverview').register(context);
+  require('./formulaCopy').register(context);
   require('./projectInfo').register(context, {
     texFiles, textOf, buildIndex, EXCLUDE, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });

@@ -1,0 +1,16 @@
+body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-editor-background);padding:8px 16px 40px;margin:0}
+#top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}#top h1{font-size:1.25em;margin:.3em 0}#stat{opacity:.8}
+#top button{font:inherit;padding:1px 10px;border:1px solid var(--vscode-button-border,var(--vscode-editorWidget-border,#888));border-radius:3px;background:var(--vscode-button-secondaryBackground,transparent);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));cursor:pointer}
+#bar{position:sticky;top:0;z-index:2;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:6px 0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-editorWidget-border,#888)}
+#bar input[type=search]{font:inherit;min-width:20em;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-editorWidget-border,#888));padding:2px 6px;border-radius:3px}
+h2{font-size:1em;margin:1.2em 0 .4em;opacity:.8;font-family:var(--vscode-editor-font-family)}
+.it{margin:.4em 0;padding:.3em .8em;border:1px solid var(--vscode-editorWidget-border,#888);border-radius:4px}
+.ih{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;font-size:.9em}.num{font-weight:700;min-width:3.5em}.env{opacity:.6}code{font-family:var(--vscode-editor-font-family)}
+code.lab{cursor:copy;background:var(--vscode-textCodeBlock-background);padding:0 5px;border-radius:3px}code.lab:hover{outline:1px solid var(--vscode-focusBorder)}
+a.go{margin-left:auto;color:var(--vscode-textLink-foreground);text-decoration:none;font-family:var(--vscode-editor-font-family)}a.go:hover{text-decoration:underline}
+.badge{font-size:.78em;padding:0 7px;border-radius:9px;border:1px solid transparent}.badge.bad{background:var(--vscode-editorWarning-foreground,#c80);color:#000}.badge.muted{border-color:var(--vscode-editorWidget-border,#888);opacity:.8}
+.fx{overflow-x:auto}.dm{position:relative;text-align:center;margin:.3em 0;overflow-x:auto}.katex{font-size:1.1em}.m.err{color:var(--vscode-errorForeground)}
+.cpb{position:absolute;right:2px;top:2px;display:none;gap:4px}.dm:hover>.cpb{display:flex}
+.cpb button{font:inherit;font-size:.8em;padding:0 7px;border:1px solid var(--vscode-button-border,var(--vscode-editorWidget-border,#888));border-radius:3px;background:var(--vscode-button-secondaryBackground,transparent);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));cursor:pointer}
+[hidden]{display:none!important}.empty{opacity:.7}
+#toast{position:fixed;right:14px;bottom:12px;padding:3px 10px;border-radius:4px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);opacity:0;pointer-events:none;transition:opacity .2s}#toast.on{opacity:1}

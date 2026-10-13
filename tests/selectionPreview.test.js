@@ -88,7 +88,7 @@ ok(r.html.includes('<span class="tag">myenv</span>') && r.notes.includes('myenv'
 
 // safety: only tags and attributes of the converter can be in the result, no matter what the source holds
 const TAGS = new Set(['a', 'p', 'b', 'i', 'em', 'u', 's', 'code', 'span', 'div', 'sup', 'sub', 'pre', 'table', 'tr', 'td', 'ul', 'ol', 'li', 'dl', 'dt', 'dd', 'figure', 'img', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br']);
-const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt', 'href', 'data-open', 'data-via', 'data-ref']);
+const ATTRS = new Set(['class', 'style', 'title', 'data-d', 'data-tex', 'data-l', 'colspan', 'rowspan', 'src', 'alt', 'href', 'data-open', 'data-via', 'data-ref', 'data-plain', 'data-steps', 'data-n']);
 function assertSafe(h, what) {
   const text = h.replace(/<[^>]*>/g, '');
   assert.ok(!/[<>]/.test(text), 'a raw < or > in text: ' + what + ' -> ' + h);
@@ -237,6 +237,24 @@ eq(html('\\href{http://a.b}{текст}'), '<p><span class="a" title="http://a.b
   ok(C('x \\ping y').html.length < 3000, 'a cycle ends');
   eq(C('\\gone{q}').notes, ['\\nosuchcmd'], 'a copy of an unknown command: the original is named');
   ok(html('\\emphx{a}').includes('class="unk"') && R('\\emphx{a}', {}).notes.includes('\\emphx'), 'without the macros of the project: as before');
+}
+
+// derivations (0.18.0): without opts.steps nothing changes; with it the rows are compared and the result stays inside the whitelist
+{
+  const al = '\\begin{align} a&=b+c \\\\ &=b+d \\\\ &=e \\end{align}';
+  eq(R(al).html, R(al, { steps: false }).html, 'steps off: the formula is as before');
+  ok(!R(al).html.includes('data-steps'), 'steps off: no step data');
+  const on = R(al, { steps: true }).html;
+  ok(on.startsWith('<div class="dm stp"><span class="m" data-d="1" data-tex="'), on);
+  ok(on.includes('\\color{#e8590c}d\\color{currentcolor}') && on.includes('data-n="3"'), 'the changed part is coloured, three rows: ' + on);
+  const st = JSON.parse(/data-steps="([^"]*)"/.exec(on)[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+  eq(st.length, 3, 'a variant for every row');
+  assertSafe(on, 'steps');
+  ok(!R('\\begin{align} a&=b \\end{align}', { steps: true }).html.includes('stp'), 'one row: an ordinary formula');
+  ok(R('\\[\\begin{aligned} a&=b \\\\ &=c \\end{aligned}\\]', { steps: true }).html.includes('class="dm stp"'), 'aligned inside \\[ \\]');
+  ok(R('\\begin{equation} \\begin{split} a&=b \\\\ &=c \\end{split} \\end{equation}', { steps: true }).html.includes('class="dm stp"'), 'split inside equation');
+  ok(!R('\\begin{equation} a=b \\end{equation}', { steps: true }).html.includes('stp'), 'a plain equation is not a derivation');
+  for (const evil of ['\\begin{align} a"onload="x&=<b> \\\\ &="><img src=x> \\end{align}', '\\begin{align} \\textcolor{red"x}{a} \\\\ \\href{javascript:1}{b} \\end{align}']) assertSafe(R(evil, { steps: true }).html, evil);
 }
 
 console.log('selectionPreview: ' + n + ' checks passed');

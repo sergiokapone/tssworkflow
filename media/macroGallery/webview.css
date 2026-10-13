@@ -1,0 +1,20 @@
+body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);color:var(--vscode-foreground);background:var(--vscode-editor-background);padding:8px 16px 40px;margin:0}
+#top{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}#top h1{font-size:1.25em;margin:.3em 0}#stat{opacity:.8}
+#top button{font:inherit;padding:1px 10px;border:1px solid var(--vscode-button-border,var(--vscode-editorWidget-border,#888));border-radius:3px;background:var(--vscode-button-secondaryBackground,transparent);color:var(--vscode-button-secondaryForeground,var(--vscode-foreground));cursor:pointer}
+#bar{position:sticky;top:0;z-index:2;display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:6px 0;background:var(--vscode-editor-background);border-bottom:1px solid var(--vscode-editorWidget-border,#888)}
+#bar input[type=search],#bar select{font:inherit;color:var(--vscode-input-foreground);background:var(--vscode-input-background);border:1px solid var(--vscode-input-border,var(--vscode-editorWidget-border,#888));padding:2px 6px;border-radius:3px}#bar input[type=search]{min-width:18em}
+h2{font-size:1em;margin:1.2em 0 .4em;opacity:.8;font-family:var(--vscode-editor-font-family)}
+.mc{margin:.5em 0;padding:.5em .8em;border:1px solid var(--vscode-editorWidget-border,#888);border-radius:4px}
+.mc header{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}code{font-family:var(--vscode-editor-font-family)}
+.nm{font-weight:700}.sig{opacity:.75}.doc{margin:.3em 0;opacity:.9}
+.badge{font-size:.78em;padding:0 7px;border-radius:9px;border:1px solid transparent}
+.badge.ok{background:var(--vscode-testing-iconPassed,#3a3);color:#fff}.badge.bad{background:var(--vscode-editorWarning-foreground,#c80);color:#000}.badge.warn{background:var(--vscode-editorInfo-foreground,#38c);color:#fff}.badge.muted{border-color:var(--vscode-editorWidget-border,#888);opacity:.8}
+.exrow{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;margin:.25em 0}.call{background:var(--vscode-textCodeBlock-background);padding:0 5px;border-radius:3px}.note{opacity:.7;font-size:.85em}
+.res{min-width:6em}.res.nr{color:var(--vscode-errorForeground);opacity:.8;font-size:.9em}.txt p{margin:.1em 0}.txt .th,.txt .env{margin:.2em 0}
+.katex{font-size:1.1em}.m.err{color:var(--vscode-errorForeground)}
+details{margin:.3em 0}summary{cursor:pointer;opacity:.8}pre{white-space:pre-wrap;font-family:var(--vscode-editor-font-family);background:var(--vscode-textCodeBlock-background);padding:.4em .7em;border-radius:3px;margin:.3em 0}
+a.go{font-size:.85em;color:var(--vscode-textLink-foreground);text-decoration:none;font-family:var(--vscode-editor-font-family)}a.go:hover{text-decoration:underline}
+[hidden]{display:none!important}.empty{opacity:.7}
+#toast{position:fixed;right:14px;bottom:12px;padding:3px 10px;border-radius:4px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);opacity:0;pointer-events:none;transition:opacity .2s}#toast.on{opacity:1}
+.th{margin:.4em 0;padding:.2em .8em;border-left:3px solid var(--vscode-focusBorder)}.env{margin:.4em 0;padding:.2em .8em;border-left:3px dashed var(--vscode-editorWarning-foreground)}.env .tag{font-size:.8em;padding:0 6px;border-radius:8px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}
+.dm{text-align:center;margin:.3em 0;overflow-x:auto}

@@ -117,7 +117,14 @@ for (const [mod, pageJs] of [['tableEditor.js', path.join('media', 'tableEditor'
   const a = src.indexOf('optmacros.js');
   ok(a > 0 && a < src.indexOf('webview.js'), mod + ': optmacros.js is loaded before the script of the page');
   ok(a > src.indexOf('katex.min.js'), mod + ': and after KaTeX');
-  ok(/window\.tssKatexMacros/.test(rd(pageJs)), pageJs + ' uses window.tssKatexMacros');
+  // since 0.18.0 the preview page draws through media/common/kit.js (shared with the macro gallery and the overview of formulas)
+  ok(/window\.tssKatexMacros|window\.tssKit/.test(rd(pageJs)), pageJs + ' uses window.tssKatexMacros (directly or through kit.js)');
+}
+ok(/window\.tssKatexMacros/.test(rd('media', 'common', 'kit.js')), 'media/common/kit.js hands the macros to KaTeX through window.tssKatexMacros');
+for (const mod of ['selectionPreview.js', 'webviewKit.js']) {
+  const src = rd(mod);
+  const a = src.indexOf('optmacros.js');
+  ok(a > src.indexOf('katex.min.js') && src.lastIndexOf('kit.js') > a, mod + ': kit.js is loaded after KaTeX and optmacros.js');
 }
 
 // ---- all the way: tableEditor.katexMacros (what both pages receive) with a class and a macros file

@@ -422,4 +422,4 @@ function register(context, api) {
   );
 }
 
-module.exports = { register, _allMacros: allMacros, _getSourceFiles: getSourceFiles, _version: () => version };
+module.exports = { register, _allMacros: allMacros, _getSourceFiles: getSourceFiles, _version: () => version, _invalidate: invalidate };

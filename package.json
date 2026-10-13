@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -105,6 +105,10 @@
         "title": "TSS Workflow: Preview selection (rendered, the focus stays in the editor)"
       },
       {
+        "command": "tssworkflow.copyFormula",
+        "title": "TSS Workflow: Copy formula as MathML (for Word)"
+      },
+      {
         "command": "tssworkflow.pictures",
         "title": "TSS Workflow: Pictures browser",
         "icon": "$(file-media)"
@@ -178,6 +182,10 @@
       {
         "command": "tssworkflow.pickMacro",
         "title": "TSS Workflow: Go to macro (from project .cls/.sty)"
+      },
+      {
+        "command": "tssworkflow.macroGallery",
+        "title": "TSS Workflow: Macro gallery (rendered commands of the class)"
       },
       {
         "command": "tssworkflow.reloadMacros",
@@ -399,6 +407,10 @@
         "title": "TSS Workflow: List of all numbered equations"
       },
       {
+        "command": "tssworkflow.formulaOverview",
+        "title": "TSS Workflow: Formulas of the project (rendered, with search)"
+      },
+      {
         "command": "tssworkflow.savePdfCopy",
         "title": "TSS Workflow: Save PDF copy with a date"
       },
@@ -534,6 +546,11 @@
           "command": "tssworkflow.editTable",
           "when": "resourceLangId == latex",
           "group": "tssworkflow@1"
+        },
+        {
+          "command": "tssworkflow.copyFormula",
+          "when": "(resourceLangId == latex || resourceLangId == tex)",
+          "group": "1_modification"
         }
       ],
       "tssworkflow.submenu.text": [
@@ -620,6 +637,10 @@
         {
           "command": "tssworkflow.extractTikzAll",
           "group": "3_structure@6"
+        },
+        {
+          "command": "tssworkflow.copyFormula",
+          "group": "3_structure@7"
         }
       ],
       "tssworkflow.submenu.nav": [
@@ -666,6 +687,14 @@
         {
           "command": "tssworkflow.todoList",
           "group": "3_info@2"
+        },
+        {
+          "command": "tssworkflow.formulaOverview",
+          "group": "1_go@4"
+        },
+        {
+          "command": "tssworkflow.macroGallery",
+          "group": "1_go@5"
         }
       ],
       "tssworkflow.submenu.build": [
@@ -1952,6 +1981,26 @@
           },
           "default": [],
           "markdownDescription": "Own entries of the list in `Wrap selection in command` (`Ctrl+Alt+K`). Each is a command name, optionally with the arguments that stand before the wrapped one: `\"vect\"`, `\"textcolor{red}\"`, `\"href{https://example.org}\"`."
+        },
+        "tssworkflow.selectionPreview.steps": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preview selection: show a derivation (align, gather, aligned in equation) with the changes between neighbouring rows coloured and the buttons ◀ ▶ to go through the rows one by one."
+        },
+        "tssworkflow.copyFormula.format": {
+          "type": "string",
+          "enum": [
+            "mathml",
+            "latex",
+            "ask"
+          ],
+          "enumDescriptions": [
+            "Copy the formula as MathML (Word, PowerPoint, LibreOffice take it as an equation).",
+            "Copy the TeX code of the formula.",
+            "Ask each time."
+          ],
+          "default": "mathml",
+          "description": "Copy formula: what goes into the clipboard."
         }
       }
     },
@@ -2077,6 +2126,11 @@
       {
         "command": "tssworkflow.unicodeToLatex",
         "key": "ctrl+alt+l",
+        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
+      },
+      {
+        "command": "tssworkflow.copyFormula",
+        "key": "ctrl+alt+c",
         "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
       }
     ],

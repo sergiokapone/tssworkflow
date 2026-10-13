@@ -42,6 +42,7 @@ const GROUPS = [
     ['wrapCmd', 'Обгорнути виділене в команду', 'symbol-namespace'],
     ['formatSelection', 'Оформити виділене (напівжирний, курсив, підкреслення…)', 'bold'],
     ['previewSelection', 'Показати виділене відрендереним (фокус лишається в редакторі)', 'open-preview'],
+    ['copyFormula', 'Копіювати формулу як MathML (для Word)', 'copy'],
     ['displayToEquation', '\\[ … \\] → equation*', 'symbol-numeric'],
     ['frameSections', 'Обрамити заголовки й формули', 'symbol-boolean'],
     ['reframeSections', 'Переобрамити заголовки й формули', 'refresh'],
@@ -64,6 +65,8 @@ const GROUPS = [
     ['projectWordCount', 'Слова проєкту (за розділами й файлами)', 'pencil'],
     ['listEquations', 'Список усіх формул проєкту', 'symbol-numeric'],
     ['pickMacro', 'Перейти до макроса з .cls/.sty', 'symbol-method'],
+    ['macroGallery', 'Галерея макросів класу (відрендерені, з прапорцями KaTeX/MathJax)', 'extensions'],
+    ['formulaOverview', 'Формули проєкту відрендерені (пошук, не використовуються)', 'symbol-ruler'],
     ['macroInfo', 'Де визначено макрос (діагностика)', 'question']
   ] },
   { id: 'checks', en: 'Checks', label: 'Перевірки', icon: 'checklist', items: [

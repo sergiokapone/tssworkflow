@@ -904,6 +904,9 @@ function register(context, helpers) {
 
 exports.register = register;
 exports.legacySub = legacySub;
+exports.projectFiles = projectFiles;
+exports.chapterOrder = chapterOrder;
+exports.byChapter = byChapter;
 exports.includeStyle = includeStyle;
 exports.missingFromLog = missingFromLog;
 exports._t = { deepWords, onMovedTex, chapterOrder, onRenamed, filesIssues, localinputDefined, LabelsProvider };

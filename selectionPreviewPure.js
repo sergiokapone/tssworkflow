@@ -10,6 +10,7 @@
  * the only exact rendering. */
 
 const X = require('./tableEditorPure');
+const D = require('./derivationPure');
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -95,9 +96,22 @@ const mathEnv = (name, body) => {
   return b;
 };
 
+// a derivation (align, gather, aligned in equation) of two rows or more: the rows are compared with each other, what changed is
+// coloured, and the page can show the rows one by one (derivationPure.js). Without opts.steps, or for one row: an ordinary formula.
+function displayMath(name, body, ctx) {
+  if (ctx && ctx.steps) {
+    let st = null;
+    try { st = D.stepsFor(name, cleanMath(body)); } catch (e) { st = null; }
+    if (st) {
+      return '<div class="dm stp"><span class="m" data-d="1" data-tex="' + esc(st.full) + '" data-plain="' + esc(st.plain) + '" data-steps="' + esc(JSON.stringify(st.steps)) + '" data-n="' + st.count + '"></span></div>';
+    }
+  }
+  return '<div class="dm">' + math(mathEnv(name, body), true) + '</div>';
+}
+
 /* --------------------------------- the converter --------------------------------- */
 function makeCtx(opts) {
-  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, refInfo: opts && typeof opts.refInfo === 'function' ? opts.refInfo : null, macros: opts && opts.macros ? opts.macros : null, depth: 0, fig: 0, exp: 0 };
+  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, refInfo: opts && typeof opts.refInfo === 'function' ? opts.refInfo : null, macros: opts && opts.macros ? opts.macros : null, steps: !!(opts && opts.steps), depth: 0, fig: 0, exp: 0 };
 }
 
 // \includegraphics[opt]{name}: the picture itself when the panel found the file (opts.image(name) -> { src } or
@@ -483,7 +497,7 @@ function blocks(text, ctx) {
       if (c === '$') {
         if (text[i + 1] === '$') {
           const e = text.indexOf('$$', i + 2);
-          if (e >= 0) { flush(); out.push('<div class="dm">' + math(text.slice(i + 2, e), true) + '</div>'); i = e + 2; continue; }
+          if (e >= 0) { flush(); out.push(displayMath('equation', text.slice(i + 2, e), ctx)); i = e + 2; continue; }
         }
         // an inline formula goes to the paragraph as it is (it may contain \begin ... \end)
         let k = i + 1;
@@ -504,7 +518,7 @@ function blocks(text, ctx) {
       let m;
       if (rest.startsWith('\\[')) {
         const e = text.indexOf('\\]', i + 2);
-        if (e >= 0) { flush(); out.push('<div class="dm">' + math(text.slice(i + 2, e), true) + '</div>'); i = e + 2; continue; }
+        if (e >= 0) { flush(); out.push(displayMath('equation', text.slice(i + 2, e), ctx)); i = e + 2; continue; }
       }
       if (rest.startsWith('\\(')) {
         const e = text.indexOf('\\)', i + 2);
@@ -574,7 +588,7 @@ function splitCaption(body) {
 
 function envHtml(name, body, whole, ctx) {
   const base = name.replace(/\*$/, '');
-  if (MATH_ENVS.has(name) || MATH_ENVS.has(base)) return '<div class="dm">' + math(mathEnv(name, body), true) + '</div>';
+  if (MATH_ENVS.has(name) || MATH_ENVS.has(base)) return displayMath(name, body, ctx);
   if (name === 'document' || name === 'subequations') return blocks(body, ctx);
   if (LIST_ENVS.has(name)) return listHtml(name, body, ctx);
   if (TABLE_ENVS.has(name)) return tableHtml(whole, ctx);
@@ -622,4 +636,4 @@ function render(src, opts) {
   return { html, notes: [...ctx.notes].filter(Boolean) };
 }
 
-module.exports = { render, esc, stripComments, splitItems, groupEnd, matchEnd, PICTURE_ENVS };
+module.exports = { render, esc, stripComments, splitItems, groupEnd, matchEnd, PICTURE_ENVS, mathEnv, cleanMath, MATH_ENVS };

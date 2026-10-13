@@ -27,8 +27,8 @@ function html(webview, extUri) {
   const csp = "default-src 'none'; style-src " + webview.cspSource + " 'unsafe-inline'; script-src 'nonce-" + n + "' " + webview.cspSource + '; font-src ' + webview.cspSource + '; img-src ' + webview.cspSource + ' data:;';
   return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + asset('katex', 'katex.min.css') + '"><link rel="stylesheet" href="' + asset('selectionPreview', 'webview.css') + '"></head><body>' +
-    '<div id="bar"><span id="what"></span><span id="where"></span></div><div id="notes"></div><div id="wrap"><div id="out"></div></div>' +
-    '<script nonce="' + n + '" src="' + asset('katex', 'katex.min.js') + '"></script><script nonce="' + n + '" src="' + asset('katex', 'mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + asset('katex', 'optmacros.js') + '"></script><script nonce="' + n + '" src="' + asset('selectionPreview', 'webview.js') + '"></script></body></html>';
+    '<div id="bar"><span id="what"></span><span id="where"></span></div><div id="notes"></div><div id="wrap"><div id="out"></div></div><div id="toast"></div>' +
+    '<script nonce="' + n + '" src="' + asset('katex', 'katex.min.js') + '"></script><script nonce="' + n + '" src="' + asset('katex', 'mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + asset('katex', 'optmacros.js') + '"></script><script nonce="' + n + '" src="' + asset('common', 'kit.js') + '"></script><script nonce="' + n + '" src="' + asset('selectionPreview', 'webview.js') + '"></script></body></html>';
 }
 
 /* ------------------------------ pictures ------------------------------ */
@@ -252,13 +252,19 @@ async function update() {
   const where = path.basename(doc.uri.fsPath) + (fr.from ? ':' + fr.from + (fr.to !== fr.from ? '–' + fr.to : '') : '');
   const send = () => {
     if (!panel || mine !== seq) return;
-    const r = P.render(fr.text, { colors: TE.colorsNow(), image: pictureResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
+    const r = P.render(fr.text, { colors: TE.colorsNow(), steps: cfg().get('selectionPreview.steps', true) !== false, image: pictureResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
     panel.webview.postMessage({ type: 'render', html: r.html, notes: r.notes, what: fr.what, where, macros: TE.macrosNow(doc) });
   };
   send();
   if (TE.colorsFresh() && TE.macrosFresh(doc)) return;
   try { await Promise.all([TE.projectColors(), TE.katexMacros(doc)]); } catch (e) { return; }
   send(); // the second picture: with the colours and macros of the project
+}
+
+// the page could not use the clipboard itself: the text goes through the extension
+function copyText(m) {
+  if (!m || typeof m.text !== 'string' || m.text.length > 2000000) return;
+  Promise.resolve(vscode.env.clipboard.writeText(m.text)).then(() => { if (panel) panel.webview.postMessage({ type: 'copied', what: String(m.what || '').slice(0, 40) }); }, () => {});
 }
 
 function schedule(delay) {
@@ -281,7 +287,7 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
   ready = false;
   panel.webview.html = html(panel.webview, context.extensionUri);
-  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); }, null, context.subscriptions);
+  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); else if (m && m.type === 'copy') copyText(m); }, null, context.subscriptions);
   panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, context.subscriptions);
   panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; }, null, context.subscriptions);
 }
