@@ -5,6 +5,7 @@ const cp = require('child_process');
 const P = require('./corePure');
 const features = require('./features');
 const { PIC_EXTS } = require('./util');
+const SY = require('./synctex');
 
 /* ------------------------------------------------------------------ *
  * 1. Clickable file names
@@ -104,6 +105,7 @@ function singlePassArgs(t, driver) {
 const openedJobs = new Set();
 // the one build that may run at a time: { id, job, label, started, execution, abort }
 let building = null;
+let lastOutcome = null; // the result of the build that ended last: { ok } / { ok: false, code } / { stopped } (read by the build tasks, buildTasks.js)
 let pendingDoc = null; // a chapter saved while a build was running: it is built when that one ends
 let buildItem = null;
 let spinItem = null; // constant '$(sync~spin)': a codicon restarts its rotation whenever the text of ITS item changes, so it must not share an item with the ticking seconds
@@ -180,6 +182,7 @@ function endBuild(id, outcome) {
   if (!building || building.id !== id) return;
   const b = building;
   building = null;
+  lastOutcome = outcome;
   clearInterval(buildTimer);
   clearInterval(b.passTimer);
   if (!outcome.stopped && b.counter && b.counter.pass && extCtx) {
@@ -265,9 +268,8 @@ function launchExternal(pdf, ctx, argsKey) {
   }
 }
 
-// the button: PDF of the active file (or the last built one) in the external viewer;
-// `sync` (command tssworkflow.externalForwardSearch): jump to the cursor line with SyncTeX (tssworkflow.externalSyncArgs)
-function openPdfExternal(sync) {
+// the PDF that belongs to the active file (or the last built one): { pdf, ctx: { file, line } } or { warn } when its own PDF is not built yet
+function activePdf() {
   const ed = vscode.window.activeTextEditor;
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   let pdf = null;
@@ -292,8 +294,7 @@ function openPdfExternal(sync) {
           const own = path.join(plan.cwd, plan.job + '.pdf');
           if (fs.existsSync(own)) pdf = own;
           else {
-            vscode.window.showWarningMessage('PDF цього файла (' + path.basename(own) + ') ще немає. Збери його кнопкою ▶ («Зібрати цей файл окремо»); main.pdf не відкриваю, бо це інший документ.');
-            return;
+            return { warn: 'PDF цього файла (' + path.basename(own) + ') ще немає. Збери його кнопкою ▶ («Зібрати цей файл окремо»); main.pdf не відкриваю, бо це інший документ.' };
           }
         } catch (e) { /* the usual way below */ }
       }
@@ -302,11 +303,31 @@ function openPdfExternal(sync) {
     }
   }
   if (!pdf && lastPdf && fs.existsSync(lastPdf)) pdf = lastPdf;
-  if (!pdf) {
+  return { pdf, ctx };
+}
+
+// the button: PDF of the active file (or the last built one) in the external viewer;
+// `sync` (command tssworkflow.externalForwardSearch): jump to the cursor line with SyncTeX (tssworkflow.externalSyncArgs).
+// Before the jump the synctex file is read: a PDF that does not contain this file (it was built from another chapter) gets a warning
+// instead of a viewer that silently does nothing; a PDF that spells the path differently (case) is given the spelling of the PDF.
+async function openPdfExternal(sync) {
+  const r = activePdf();
+  if (r.warn) { vscode.window.showWarningMessage(r.warn); return; }
+  if (!r.pdf) {
     vscode.window.showWarningMessage('PDF не знайдено. Спершу збери документ кнопкою ▷.');
     return;
   }
-  launchExternal(pdf, ctx, sync === true ? 'externalSyncArgs' : undefined);
+  if (sync === true) {
+    let pre = {};
+    try { pre = SY.precheck(r.pdf, r.ctx); } catch (e) { pre = {}; } // the check is a help, never a reason not to open the viewer
+    if (pre.file) r.ctx.file = pre.file;
+    if (pre.warn) {
+      const pick = await vscode.window.showWarningMessage(pre.warn, ...pre.buttons);
+      if (pick === pre.buttons[1]) { vscode.commands.executeCommand('tssworkflow.synctexDiagnose'); return; }
+      if (pick !== pre.buttons[0]) return;
+    }
+  }
+  launchExternal(r.pdf, r.ctx, sync === true ? 'externalSyncArgs' : undefined);
 }
 
 // the PDF opened by vscode.open needs LW's viewer bound to *.pdf (workbench.editorAssociations); without it VS Code
@@ -1248,6 +1269,18 @@ function activate(context) {
   require('./filesAndLabels').register(context, { applyWithPreview: features.applyWithPreview });
   require('./tableEditor').register(context, { log: (m) => LOG && LOG.appendLine(m) });
   require('./start').register(context);
+  // 0.19.0: the jump to a line in the PDF is checked against the synctex file; the builds as VS Code tasks; LaTeX Workshop settings that get in the way
+  SY.register(context, { activePdf });
+  require('./buildTasks').register(context, {
+    run: (target, openPdf, done) => {
+      lastOutcome = null; // so that a build that never started (a warning, a build already running) is not mistaken for the previous one
+      const start = target === 'main' ? compileMain(openPdf, done) : compileSmart(openPdf, done);
+      Promise.resolve(start).catch(() => done());
+    },
+    outcome: () => lastOutcome,
+    stop: stopBuild
+  });
+  require('./lwCompat').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   setTimeout(() => offerProjectSettings(context).catch(() => {}), 3000);
 }

@@ -4,8 +4,9 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
-const { EXCLUDE, cfg, info, texFiles, textOf } = require('./util');
+const { EXCLUDE, cfg, findCached, info, texFiles, textOf } = require('./util');
 const { SEV } = require('./checksHovers');
+const PI = require('./projectIndex');
 
 /* ------------------- project .vscode/settings.json -------------------- */
 // Creates .vscode/settings.json from the template (P.PROJECT_SETTINGS_TEMPLATE or the file in tssworkflow.projectSettingsTemplate);
@@ -95,21 +96,23 @@ async function initProjectSettings(arg) {
 
 /* ------------------------------ citations ---------------------------- */
 const diagCites = vscode.languages.createDiagnosticCollection('tssworkflow-cites');
+const citeDiags = PI.diagSetter(diagCites);
 let bibKeyCache = [];
 const bibKeys = () => bibKeyCache; // for other modules
 
-// \cite keys against the .bib files of the workspace: undefined keys (in .tex), duplicate and unused entries (in .bib)
+// \cite keys against the .bib files of the workspace: undefined keys (in .tex), duplicate and unused entries (in .bib).
+// The scan of each file is cached until the file changes; Problems is rewritten only for the files whose diagnostics changed.
 async function checkCitations(showMessage) {
-  diagCites.clear();
-  if (!cfg().get('citationChecks', true)) return;
-  const bibs = await vscode.workspace.findFiles('**/*.bib', EXCLUDE, 200);
+  if (!cfg().get('citationChecks', true)) { citeDiags.clear(); return; }
+  const bibs = await findCached('**/*.bib', 200);
   if (!bibs.length) {
+    citeDiags.clear();
     if (showMessage) info('У проєкті немає .bib файлів: перевіряти нічого.');
     return;
   }
   const keys = new Map();
   for (const f of bibs) {
-    for (const k of P.parseBibKeys(textOf(f))) {
+    for (const k of PI.get('bibkeys', f.fsPath, (text) => P.parseBibKeys(text))) {
       if (!keys.has(k.name)) keys.set(k.name, []);
       keys.get(k.name).push({ file: f.fsPath, k });
     }
@@ -118,18 +121,17 @@ async function checkCitations(showMessage) {
   const byFile = new Map();
   const add = (file, x, message, sev, code) => {
     if (!byFile.has(file)) byFile.set(file, []);
-    const d = new vscode.Diagnostic(new vscode.Range(x.line, x.col, x.line, x.col + x.len), message, sev);
-    d.source = 'TSS Workflow';
-    d.code = code;
-    byFile.get(file).push(d);
+    byFile.get(file).push({ line: x.line, col: x.col, len: x.len, message, severity: sev, code });
   };
   const used = new Set();
   let nociteAll = false;
   let undef = 0;
   let dup = 0;
   let unused = 0;
-  for (const f of await texFiles()) {
-    const r = P.scanCites(textOf(f));
+  const texs = await texFiles();
+  const scans = PI.mapOver('cites', texs, (text) => P.scanCites(text));
+  for (const f of texs) {
+    const r = scans.get(f.fsPath);
     if (r.nociteAll) nociteAll = true;
     for (const c of r.cites) {
       used.add(c.name);
@@ -153,7 +155,7 @@ async function checkCitations(showMessage) {
       add(arr[0].file, arr[0].k, 'Запис «' + name + '» ніде не цитується', SEV[sevName], 'bib-unused');
     }
   }
-  for (const [file, ds] of byFile) diagCites.set(vscode.Uri.file(file), ds);
+  citeDiags.set(byFile);
   if (showMessage) {
     info('Цитування: невизначених ключів ' + undef + ', дублікатів у .bib ' + dup + ', нецитованих записів ' + unused +
       (nociteAll ? ' (є \\nocite{*}: нецитовані не рахуються)' : '') + ' (див. Problems).');

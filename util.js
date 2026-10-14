@@ -33,13 +33,18 @@ function projectRoot() {
 
 // the text of a file: the open (maybe unsaved) document if there is one, else the disk
 function textOfPath(abs) {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === abs);
+  const open = openDocByPath(abs);
   if (open) return open.getText();
   try { return fs.readFileSync(abs, 'utf8'); } catch (e) { return null; }
 }
 
 /* ------------------------------ helpers ------------------------------ */
 function docLines(doc) {
+  // one getText + split is much cheaper than lineCount calls of lineAt (VS Code splits on \r\n, \r and \n)
+  if (typeof doc.getText === 'function') {
+    const t = doc.getText();
+    if (typeof t === 'string') return t.split(/\r\n|\r|\n/);
+  }
   const a = [];
   for (let i = 0; i < doc.lineCount; i++) a.push(doc.lineAt(i).text);
   return a;
@@ -92,15 +97,77 @@ function listFiles(root, exts, depth, rel) {
 }
 
 function textOf(uri) {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === uri.fsPath);
+  const open = openDocByPath(uri.fsPath);
   if (open) return open.getText();
   try { return fs.readFileSync(uri.fsPath, 'utf8'); } catch (e) { return ''; }
 }
 const baseOf = (p) => path.basename(p, path.extname(p));
-const texFiles = () => vscode.workspace.findFiles('**/*.{tex,tikz}', EXCLUDE, 3000);
+
+/* ------------------------------ caches ------------------------------- *
+ * Enabled by initCaches(context) once the file watcher exists: then (1) the open documents are looked up in a Map
+ * instead of a linear search over workspace.textDocuments for every file, and (2) the lists of project files are
+ * kept until a .tex/.tikz/.cls/.sty/.bib file is created, deleted or renamed. Without initCaches (unit tests with a
+ * stub, a failed watcher) every call goes to VS Code and the disk exactly as before. */
+let caching = false;
+let docMap = null;
+const findCache = new Map(); // glob|limit -> { at, p: Promise<Uri[]> }
+const FIND_TTL = 300000;    // a safety net in case the watcher misses an event
+
+function openDocByPath(abs) {
+  if (!caching) return vscode.workspace.textDocuments.find((d) => d.uri.fsPath === abs);
+  if (!docMap) {
+    docMap = new Map();
+    // a diff view (git:, scheme other than file) shares the fsPath with the real file: the real one wins
+    for (const d of vscode.workspace.textDocuments) if (!docMap.has(d.uri.fsPath) || d.uri.scheme === 'file') docMap.set(d.uri.fsPath, d);
+  }
+  return docMap.get(abs);
+}
+
+// workspace.findFiles with EXCLUDE (or the given exclude), cached while the watcher is alive; always returns a fresh array (callers may push into it)
+function findCached(glob, limit, exclude) {
+  const ex = exclude === undefined ? EXCLUDE : exclude;
+  if (!caching) return Promise.resolve(vscode.workspace.findFiles(glob, ex, limit));
+  const key = glob + '|' + limit + '|' + ex;
+  const c = findCache.get(key);
+  if (c && Date.now() - c.at < FIND_TTL) return c.p.then((a) => a.slice());
+  const p = Promise.resolve(vscode.workspace.findFiles(glob, ex, limit));
+  findCache.set(key, { at: Date.now(), p });
+  p.catch(() => { if (findCache.get(key) && findCache.get(key).p === p) findCache.delete(key); });
+  return p.then((a) => a.slice());
+}
+
+const texFiles = () => findCached('**/*.{tex,tikz}', 3000);
+
+function initCaches(context) {
+  if (caching) return true;
+  let w = null;
+  try { w = vscode.workspace.createFileSystemWatcher('**/*.{tex,tikz,cls,sty,bib}'); } catch (e) { w = null; }
+  if (!w || typeof w.onDidCreate !== 'function') return false;
+  const subs = context.subscriptions;
+  const dropFiles = () => findCache.clear();
+  const dropDocs = () => { docMap = null; };
+  const on = (ev, fn) => { if (typeof ev === 'function') subs.push(ev(fn)); };
+  subs.push(w);
+  on(w.onDidCreate, dropFiles);
+  on(w.onDidDelete, dropFiles);
+  const ws = vscode.workspace;
+  on(ws.onDidOpenTextDocument, dropDocs);
+  on(ws.onDidCloseTextDocument, dropDocs);
+  on(ws.onDidChangeWorkspaceFolders, dropFiles);
+  on(ws.onDidCreateFiles, dropFiles);
+  on(ws.onDidDeleteFiles, dropFiles);
+  on(ws.onDidRenameFiles, dropFiles);
+  caching = true;
+  return true;
+}
+const cachingOn = () => caching;
 
 module.exports = {
   EXCLUDE,
+  cachingOn,
+  findCached,
+  initCaches,
+  openDocByPath,
   PIC_EXTS,
   REF_CTX,
   SEL,

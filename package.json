@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -137,6 +137,14 @@
       {
         "command": "tssworkflow.externalForwardSearch",
         "title": "TSS Workflow: Show cursor line in the external viewer (SyncTeX)"
+      },
+      {
+        "command": "tssworkflow.synctexDiagnose",
+        "title": "TSS Workflow: Diagnose SyncTeX (is this file in the PDF?)"
+      },
+      {
+        "command": "tssworkflow.checkLatexWorkshop",
+        "title": "TSS Workflow: Check compatibility with LaTeX Workshop"
       },
       {
         "command": "tssworkflow.toggleCompileOnSave",
@@ -1154,6 +1162,11 @@
           "default": true,
           "description": "When a folder with .tex files has no .vscode/settings.json, offer to create it from the template (can be silenced per folder)"
         },
+        "tssworkflow.lwCompat.notify": {
+          "type": "boolean",
+          "default": true,
+          "description": "At start, when the Auto build of this extension and the autoBuild of LaTeX Workshop are both on (two builds into the same files on every save), offer once per workspace to fix it. The command 'Check compatibility with LaTeX Workshop' works either way"
+        },
         "tssworkflow.citationChecks": {
           "type": "boolean",
           "default": true,
@@ -2163,6 +2176,19 @@
           "id": {
             "type": "string",
             "description": "Internal build id"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "current",
+              "main"
+            ],
+            "description": "current: the file of the editor (chapter, figure or standalone document); main: the whole document (tssworkflow.mainFile)"
+          },
+          "openPdf": {
+            "type": "boolean",
+            "default": true,
+            "description": "Open the PDF after a successful build (false: build only)"
           }
         }
       }

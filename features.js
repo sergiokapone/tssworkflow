@@ -5,9 +5,9 @@ const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
 const P = require('./corePure');
-const { EXCLUDE, REF_CTX, SEL, SEL_ANY, cfg, isTexDoc, texFiles, textOf } = require('./util');
+const { EXCLUDE, REF_CTX, SEL, SEL_ANY, cfg, initCaches, isTexDoc, texFiles, textOf } = require('./util');
 const { PREVIEW_SCHEME, applyWithPreview, convertEnv, displayToEquation, frameSectionsCmd, frameSettings, normalizeCmd, normalizeOptions, previewProvider, sentencesCmd, tableOps, typographyCmd, wrapParagraph } = require('./textCommands');
-const { buildIndex, checkLabels, diagLabels, markLabelsDirty, refCompletion, renameProvider } = require('./labels');
+const { buildIndex, checkLabels, diagLabels, refCompletion, renameProvider } = require('./labels');
 const { checkCitations, diagCites, initProjectSettings, ltexDictionary } = require('./settingsCitations');
 const { checkSyntax, diagSyntax, goToHeading, hoverProvider, imageHoverMd } = require('./checksHovers');
 const { diagLog, onBuildFinished, outLog } = require('./buildLog');
@@ -18,6 +18,7 @@ const { QF, quickFixes, symbolProvider } = require('./quickFixes');
 function register(context, api) {
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const subs = context.subscriptions;
+  initCaches(context); // open documents by a Map, lists of project files until the watcher reports a change (util.js, projectIndex.js)
   syncUserCode();
   require('./macros').register(context, { log: (m) => outLog.appendLine(m), exclude: EXCLUDE });
   require('./tikzExtract').register(context);
@@ -81,7 +82,9 @@ function register(context, api) {
   const later = (doc) => {
     const k = doc.uri.toString();
     clearTimeout(timers.get(k));
-    timers.set(k, setTimeout(() => checkSyntax(doc), 700));
+    // the checks scan the whole file: the longer the file, the longer the pause after the last keystroke (P.syntaxDelay)
+    const wait = P.syntaxDelay(doc.lineCount);
+    timers.set(k, setTimeout(() => checkSyntax(doc), wait));
   };
   let labelTimer = null;
   let citeTimer = null;
@@ -105,7 +108,6 @@ function register(context, api) {
         citeTimer = setTimeout(() => checkCitations(false), 800);
       }
       if (!isTexDoc(d)) return;
-      markLabelsDirty();
       checkSyntax(d);
       if (api && api.onSave && cfg().get('compileOnSave', false)) api.onSave(d);
       if (cfg().get('diagnostics', true)) {

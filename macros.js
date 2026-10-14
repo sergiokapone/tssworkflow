@@ -5,7 +5,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const M = require('./macrosPure');
-const { cfg } = require('./util');
+const { cfg, openDocByPath } = require('./util');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{tex,tikz,cls,sty,ltx}' }];
 
@@ -20,7 +20,7 @@ const SOURCES_TTL = 30000;
 let version = 0; // grows whenever the sources of macros change: a copy of the index kept elsewhere is outdated then
 function invalidate() { version++; sourcesCache = null; fileCache.clear(); }
 
-function openDoc(fsPath) { return vscode.workspace.textDocuments.find((d) => d.uri.fsPath === fsPath); }
+const openDoc = openDocByPath;
 
 function macrosOfFile(fsPath) {
   const od = openDoc(fsPath);

@@ -12,10 +12,12 @@ const GROUPS = [
     ['toggleCompileOnSave', 'Збірка при збереженні (вкл./викл.)', 'save'],
     ['openPdfExternal', 'PDF у зовнішній програмі', 'link-external'],
     ['externalForwardSearch', 'SyncTeX: показати рядок у PDF', 'go-to-file'],
+    ['synctexDiagnose', 'Діагностика SyncTeX (чи є цей файл у PDF)', 'debug-line-by-line'],
     ['cleanAux', 'Видалити допоміжні файли (PDF лишити)', 'trash'],
     ['clean', 'Видалити допоміжні файли й PDF', 'trash'],
     ['buildParts', 'Зібрати лише вибрані частини (\\part)', 'layers'],
-    ['showHooks', 'Хуки виводу сторінки (shipout)', 'debug-console']
+    ['showHooks', 'Хуки виводу сторінки (shipout)', 'debug-console'],
+    ['checkLatexWorkshop', 'Сумісність із LaTeX Workshop', 'shield']
   ] },
   { id: 'new', en: 'Templates & new files', label: 'Шаблони й нові файли', icon: 'new-file', expanded: true, items: [
     ['newFromTemplate', 'Новий документ із шаблона…', 'new-file'],

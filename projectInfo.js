@@ -9,6 +9,7 @@ const P = require('./corePure');
 const X = require('./projectInfoPure');
 const M = require('./macros');
 const { SEL_ANY, cfg, info } = require('./util');
+const PI = require('./projectIndex');
 
 let api = null;
 const QF = vscode.CodeActionKind.QuickFix;
@@ -166,8 +167,9 @@ const todoKeywords = () => cfg().get('todoKeywords', ['TODO', 'FIXME', 'XXX', 'H
 async function collectTodos() {
   const kws = todoKeywords();
   const res = [];
+  const kind = 'todos:' + kws.join('\u0001');
   for (const f of await api.texFiles()) {
-    const items = X.scanTodos(api.textOf(f), kws);
+    const items = PI.get(kind, f.fsPath, (text) => X.scanTodos(text, kws));
     if (items.length) res.push({ file: f, items });
   }
   res.sort((a, b) => a.file.fsPath.localeCompare(b.file.fsPath));

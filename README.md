@@ -6,7 +6,7 @@ A VS Code extension for large LaTeX projects (books, lecture notes) with many ch
 
 ## Features
 
-**Build.** `F5`: compile the current file (a chapter or a figure) standalone and open the PDF; `Shift+F5`: the whole document. Compile on save, stop, clean auxiliary files, SyncTeX in an external viewer, a "Chapters" panel with per-chapter builds or selected `\part`s.
+**Build.** `F5`: compile the current file (a chapter or a figure) standalone and open the PDF; `Shift+F5`: the whole document. Compile on save, stop, clean auxiliary files, SyncTeX in an external viewer (checked against the PDF before the jump, with a diagnosis command), builds as VS Code tasks (`Ctrl+Shift+B`), a check of the LaTeX Workshop settings that clash with this extension, a "Chapters" panel with per-chapter builds or selected `\part`s.
 
 **Navigation.** Clickable file names in `\input`, `\includegraphics`, `\localinput`; go to macros defined in `.cls`/`.sty`; go to any heading in the whole project; outline and panels in the Activity Bar.
 

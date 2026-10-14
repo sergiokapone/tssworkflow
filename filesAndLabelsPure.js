@@ -322,21 +322,34 @@ function renameLabelEdits(lines, oldName, newName) {
 
 const labelKind = (n) => { const m = /^([A-Za-z]+)[:.\-_]/.exec(n); return m ? m[1].toLowerCase() : ''; };
 
-// files: [{ path, lines }]. -> { groups: [{ path, labels: [{ name, line, col, uses, kind }] }], total, unused }
-function buildLabelIndex(files) {
+// What one file contributes to the label index: { labels: [{ name, line, col, len, ctx? }], refs: Map name -> uses }.
+// ctx (the caption, the section title...) is computed only with withCtx; the result depends on this file alone, so it can be cached.
+function labelFileData(lines, withCtx) {
+  const labels = scanLabels(lines);
+  if (withCtx) for (const l of labels) l.ctx = labelContext(lines, l.line);
+  return { labels, refs: scanRefs(lines) };
+}
+
+// items: [{ path, labels, refs }] (labelFileData of each file, in the order of the groups). The data of the items is not modified.
+function combineLabelIndex(items) {
   const refs = new Map();
-  for (const f of files) scanRefs(f.lines, refs);
+  for (const it of items) for (const [n, c] of it.refs) refs.set(n, (refs.get(n) || 0) + c);
   const groups = [];
   let total = 0;
   let unused = 0;
-  for (const f of files) {
-    const labels = scanLabels(f.lines).map((l) => Object.assign(l, { uses: refs.get(l.name) || 0, kind: labelKind(l.name) }));
-    if (!labels.length) continue;
+  for (const it of items) {
+    if (!it.labels.length) continue;
+    const labels = it.labels.map((l) => Object.assign({}, l, { uses: refs.get(l.name) || 0, kind: labelKind(l.name) }));
     total += labels.length;
     unused += labels.filter((l) => !l.uses).length;
-    groups.push({ path: f.path, labels });
+    groups.push({ path: it.path, labels });
   }
   return { groups, total, unused };
+}
+
+// files: [{ path, lines }]. -> { groups: [{ path, labels: [{ name, line, col, uses, kind }] }], total, unused }
+function buildLabelIndex(files) {
+  return combineLabelIndex(files.map((f) => Object.assign({ path: f.path }, labelFileData(f.lines, false))));
 }
 
 // \eqref for formula labels, \ref for the rest
@@ -984,7 +997,7 @@ module.exports = {
   renameSelfRefs, labelContext, renameLabelEdits, removePackageEdit, eqNumbers, mergeBibGroup,
   DEFAULT_FILE_MACROS, LEGACY_MACROS, DEFAULT_ROOT_MACROS, fileMacroTable, findFileRefs, resolveRef, checkFileRefs, basesFor, candidates,
   renameRefs, missingFilesFromLog, tlmgrCommands, TL_MAP,
-  scanLabels, scanRefs, buildLabelIndex, refText, labelKind,
+  scanLabels, scanRefs, buildLabelIndex, labelFileData, combineLabelIndex, refText, labelKind,
   countWords,
   parseBib, formatBib, bibDuplicates, bibKeyMap, renameCiteKeys, fieldValue, toAscii,
   parseCsv, detectDelimiter, readXlsx, unzip, buildTblr, texEscape,

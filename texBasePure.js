@@ -331,7 +331,15 @@ function wrapLines(lines, width, tab) {
   return out;
 }
 
+// pause (ms) after the last keystroke before the quick checks of a file run: 700 ms, and the longer the file is over 3000 lines
+// the longer the pause, up to 2000 ms (they scan the whole file)
+function syntaxDelay(lineCount) {
+  const n = Number(lineCount) || 0;
+  return n > 3000 ? 700 + Math.min(1300, Math.round((n - 3000) / 5)) : 700;
+}
+
 module.exports = {
+  syntaxDelay,
   alignLines,
   blankRanges,
   canJoin,

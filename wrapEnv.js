@@ -9,7 +9,8 @@ const path = require('path');
 const P = require('./wrapEnvPure');
 const MP = require('./macrosPure');
 const { pickTyped, sep } = require('./pickTyped');
-const { cfg, info, warn, texFiles, textOfPath } = require('./util');
+const { cfg, info, warn, texFiles } = require('./util');
+const PI = require('./projectIndex');
 
 const RECENT_KEY = 'tssworkflow.wrapEnv.recent';
 const RECENT_MAX = 8;
@@ -32,9 +33,8 @@ async function projectCounts() {
   const counts = new Map();
   try {
     for (const u of await texFiles()) {
-      const text = textOfPath(u.fsPath);
-      if (!text) continue;
-      for (const [n, c] of P.countEnvs(text)) counts.set(n, (counts.get(n) || 0) + c);
+      // the count of one file is cached until that file changes, so the list after a save rescans one file
+      for (const [n, c] of PI.get('envCounts', u.fsPath, (text) => P.countEnvs(text))) counts.set(n, (counts.get(n) || 0) + c);
     }
   } catch (e) { /* no workspace: only the open file counts */ }
   projectCache = { at: Date.now(), counts };

@@ -11,7 +11,7 @@ const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
-const { cfg, isTex } = require('./util');
+const { cfg, isTex, openDocByPath } = require('./util');
 
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
@@ -48,7 +48,7 @@ function projectColors() {
       const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}', 3000);
       const t1 = Date.now();
       const read = async (u, k) => {
-        const open = vscode.workspace.textDocuments.find((d) => d.uri.fsPath === u.fsPath);
+        const open = openDocByPath(u.fsPath);
         let t = null;
         try { t = open ? open.getText() : await fs.promises.readFile(u.fsPath, 'utf8'); } catch (e) { /* skip */ }
         if (t && DEF_RE.test(t)) { results[k] = t; files.add(u.fsPath); }

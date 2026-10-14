@@ -14,7 +14,8 @@ const path = require('path');
 const fs = require('fs');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { cfg, info, isTex, textOfPath, warn } = require('./util');
+const { cfg, docLines, findCached, info, isTex, textOfPath, warn } = require('./util');
+const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
 const isBib = (doc) => !!doc && (doc.languageId === 'bibtex' || doc.uri.fsPath.toLowerCase().endsWith('.bib'));
@@ -27,21 +28,29 @@ let api = {};
 const table = () => X.fileMacroTable(cfg().get('fileMacros'));
 const rootOf = (uri) => { const f = vscode.workspace.getWorkspaceFolder(uri) || (vscode.workspace.workspaceFolders || [])[0]; return f ? f.uri.fsPath : null; };
 const existsFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } };
-const docLines = (doc) => { const a = []; for (let i = 0; i < doc.lineCount; i++) a.push(doc.lineAt(i).text); return a; };
 
+
+// [{ path (relative, with /), abs }] sorted by path; the text is not read (the list of files is cached until the watcher reports a change)
+async function projectList(exts, root) {
+  const names = exts.map((e) => e.replace('.', ''));
+  const found = await findCached(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], 5000, EXCLUDE);
+  const out = [];
+  for (const u of found) {
+    const base = root || rootOf(u) || path.dirname(u.fsPath);
+    out.push({ path: X.posix(path.relative(base, u.fsPath)), abs: u.fsPath });
+  }
+  return out.sort((a, b) => (a.path < b.path ? -1 : 1));
+}
 
 // [{ path (relative, with /), abs, text }]
 async function projectFiles(exts, root) {
-  const names = exts.map((e) => e.replace('.', ''));
-  const found = await vscode.workspace.findFiles(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], EXCLUDE, 5000);
   const out = [];
-  for (const u of found) {
-    const text = textOfPath(u.fsPath);
+  for (const f of await projectList(exts, root)) {
+    const text = textOfPath(f.abs);
     if (text === null) continue;
-    const base = root || rootOf(u) || path.dirname(u.fsPath);
-    out.push({ path: X.posix(path.relative(base, u.fsPath)), abs: u.fsPath, text });
+    out.push({ path: f.path, abs: f.abs, text });
   }
-  return out.sort((a, b) => (a.path < b.path ? -1 : 1));
+  return out;
 }
 
 const ctxFor = (doc) => ({
@@ -361,17 +370,26 @@ class LabelsProvider {
     this.onlyUnused = false;
     this.timer = null;
     this.view = null;
+    this.stale = true; // the index is out of date (or not built yet): rebuilt when the panel is shown or a command needs it
   }
-  schedule(ms) { clearTimeout(this.timer); this.timer = setTimeout(() => this.refresh().catch(() => {}), ms === undefined ? 700 : ms); }
+  // a hidden panel is not rebuilt: it only remembers that it is stale (the index is built when it becomes visible)
+  get hidden() { return !!this.view && this.view.visible === false; }
+  schedule(ms) {
+    clearTimeout(this.timer);
+    this.stale = true;
+    if (this.hidden) return;
+    this.timer = setTimeout(() => this.refresh().catch(() => {}), ms === undefined ? 700 : ms);
+  }
+  // for commands that read this.index: rebuild only if it is stale or empty
+  async ensure() { if (this.stale || !this.index.total) await this.refresh(); }
   async refresh() {
-    const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty']);
-    const linesOf = new Map(files.map((f) => [f.path, f.text.split(/\r?\n/)]));
-    this.index = X.buildLabelIndex(files.map((f) => ({ path: f.path, abs: f.abs, lines: linesOf.get(f.path) })));
-    const abs = new Map(files.map((f) => [f.path, f.abs]));
-    for (const g of this.index.groups) {
-      g.abs = abs.get(g.path);
-      for (const l of g.labels) l.ctx = X.labelContext(linesOf.get(g.path), l.line);
-    }
+    this.stale = false;
+    const list = await projectList(['.tex', '.tikz', '.cls', '.sty']);
+    // what a file contributes (its labels with the context, its \ref counts) is computed once per change of that file
+    const data = PI.mapOver('labelPanel', list.map((f) => ({ fsPath: f.abs })), (text) => X.labelFileData(text.split(/\r?\n/), true));
+    this.index = X.combineLabelIndex(list.map((f) => Object.assign({ path: f.path }, data.get(f.abs))));
+    const abs = new Map(list.map((f) => [f.path, f.abs]));
+    for (const g of this.index.groups) g.abs = abs.get(g.path);
     this.index.groups.sort(byChapter(chapterOrder()));
     if (this.view) this.view.description = this.index.total + ' міток' + (this.index.unused ? ' · без \\ref: ' + this.index.unused : '');
     this._ev.fire();
@@ -418,7 +436,7 @@ function activeTexEditor() {
 
 const LABEL_OK = /^[^\s{},%\\]+$/;
 async function renameLabelCmd(arg) {
-  if (labelsProv && !labelsProv.index.total) await labelsProv.refresh();
+  if (labelsProv) await labelsProv.ensure();
   const all = [];
   if (labelsProv) for (const g of labelsProv.index.groups) for (const l of g.labels) all.push({ name: l.name, g, l });
   let old = arg && arg.tssLabel;
@@ -852,6 +870,10 @@ function register(context, helpers) {
   const labels = new LabelsProvider();
   labelsProv = labels;
   labels.view = vscode.window.createTreeView('tssworkflow.labelsView', { treeDataProvider: labels, showCollapseAll: true });
+  if (typeof labels.view.onDidChangeVisibility === 'function') {
+    context.subscriptions.push(labels.view.onDidChangeVisibility((e) => { if (e.visible && labels.stale) labels.schedule(0); }));
+  }
+  // the panel follows the saved files, not every keystroke; a hidden panel is rebuilt when it is shown
   const debounce = (doc) => { if (isTexLike(doc)) labels.schedule(); };
   const debouncedCheck = (() => { let t = null; return (doc) => { clearTimeout(t); t = setTimeout(() => checkFiles(doc), 400); }; })();
 
@@ -868,7 +890,7 @@ function register(context, helpers) {
     cmd('tssworkflow.labelsToggleFilter', () => labels.toggleFilter()),
     cmd('tssworkflow.insertRefFromLabel', (el) => { if (el && el.tssLabel) return insertRef(el.tssLabel); }),
     cmd('tssworkflow.pickRef', async () => {
-      if (!labels.index.total) await labels.refresh();
+      await labels.ensure();
       const items = [];
       for (const g of labels.index.groups) for (const l of g.labels) items.push({ label: l.name, description: g.path + ':' + (l.line + 1) + (l.uses ? ' · ×' + l.uses : ' · без \\ref'), name: l.name });
       if (!items.length) { info('У проєкті немає \\label.'); return; }
@@ -885,7 +907,7 @@ function register(context, helpers) {
     cmd('tssworkflow.listEquations', listEquationsCmd),
     cmd('tssworkflow.savePdfCopy', savePdfCopyCmd),
     vscode.workspace.onDidOpenTextDocument(checkFiles),
-    vscode.workspace.onDidChangeTextDocument((e) => { debouncedCheck(e.document); debounce(e.document); }),
+    vscode.workspace.onDidChangeTextDocument((e) => { debouncedCheck(e.document); }),
     vscode.workspace.onDidSaveTextDocument((d) => { checkFiles(d); debounce(d); }),
     vscode.workspace.onDidCloseTextDocument((d) => diagFiles.delete(d.uri)),
     vscode.workspace.onDidChangeConfiguration((e) => {

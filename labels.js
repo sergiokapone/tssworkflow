@@ -4,20 +4,14 @@ const vscode = require('vscode');
 const path = require('path');
 const P = require('./corePure');
 const { REF_CTX, baseOf, cfg, info, texFiles, textOf } = require('./util');
+const PI = require('./projectIndex');
 
 /* ------------------------------- labels ------------------------------ */
-let labelCache = null;
-let labelDirty = true;
-const markLabelsDirty = () => { labelDirty = true; }; // for other modules: a module-level let cannot be shared
-
-async function buildIndex(force) {
-  if (!labelCache || labelDirty || force) {
-    const m = new Map();
-    for (const f of await texFiles()) m.set(f.fsPath, P.scanLabelsAndRefs(textOf(f), baseOf(f.fsPath)));
-    labelCache = m;
-    labelDirty = false;
-  }
-  return labelCache;
+// Map fsPath -> { labels, refs } of every .tex/.tikz file. The scan of a file is cached until the file changes (the version
+// of an open document, the mtime of a closed file), so unsaved edits count at once and nothing is rescanned in vain.
+async function buildIndex() {
+  const files = await texFiles();
+  return PI.mapOver('labels', files, (text, abs) => P.scanLabelsAndRefs(text, baseOf(abs)));
 }
 
 const refCompletion = {
@@ -28,8 +22,9 @@ const refCompletion = {
     const typed = m[1].slice(m[1].lastIndexOf(',') + 1);
     const lead = typed.length - typed.trimStart().length;
     const range = new vscode.Range(pos.line, pos.character - typed.length + lead, pos.line, pos.character);
-    const idx = await buildIndex(false);
-    const here = P.scanLabelsAndRefs(doc.getText(), baseOf(doc.uri.fsPath));
+    const idx = await buildIndex();
+    // the current document is in the index already (its entry is as fresh as the text); rescan only if it is not a project file
+    const here = idx.get(doc.uri.fsPath) || P.scanLabelsAndRefs(doc.getText(), baseOf(doc.uri.fsPath));
     const items = [];
     const seen = new Set();
     const add = (l, file, rank) => {
@@ -63,7 +58,7 @@ const renameProvider = {
     const hit = P.labelAtPos(doc.lineAt(pos.line).text, pos.character);
     if (!hit) return undefined;
     if (!/^[^\s{},%\\]+$/.test(newName)) throw new Error('Назва мітки не може містити пробіли, {}, кому, % або \\.');
-    const idx0 = await buildIndex(false);
+    const idx0 = await buildIndex();
     for (const data of idx0.values()) {
       if (data.labels.some((l) => l.macro && l.name === hit.name)) throw new Error('Ця мітка задана макросом \\currfilebase: перейменуй файл, а не мітку.');
     }
@@ -77,15 +72,15 @@ const renameProvider = {
         edit.replace(f, new vscode.Range(p.line, p.col, p.line, p.col + p.len), newName);
       }
     }
-    labelDirty = true;
     return edit;
   }
 };
 
 const diagLabels = vscode.languages.createDiagnosticCollection('tssworkflow-labels');
+const labelDiags = PI.diagSetter(diagLabels);
 
 async function checkLabels(showMessage) {
-  const idx = await buildIndex(true);
+  const idx = await buildIndex();
   const defs = new Map();
   const used = new Set();
   for (const [file, data] of idx) {
@@ -96,12 +91,10 @@ async function checkLabels(showMessage) {
     for (const r of data.refs) used.add(r.name);
   }
   const byFile = new Map();
+  // plain entries: the Diagnostic objects are made only for the files whose set of problems changed (PI.diagSetter)
   const add = (file, l, message, sev, code) => {
     if (!byFile.has(file)) byFile.set(file, []);
-    const d = new vscode.Diagnostic(new vscode.Range(l.line, l.col, l.line, l.col + l.len), message, sev);
-    d.source = 'TSS Workflow';
-    d.code = code;
-    byFile.get(file).push(d);
+    byFile.get(file).push({ line: l.line, col: l.col, len: l.len, message, severity: sev, code });
   };
   let dup = 0;
   let undef = 0;
@@ -143,8 +136,7 @@ async function checkLabels(showMessage) {
       }
     }
   }
-  diagLabels.clear();
-  for (const [file, ds] of byFile) diagLabels.set(vscode.Uri.file(file), ds);
+  labelDiags.set(byFile);
   if (showMessage) {
     info('Мітки: дублікатів ' + dup + ', невизначених посилань ' + undef + ', без використання ' + unused + ', з неправильним префіксом ' + badPrefix + ' (див. Problems).');
   }
@@ -154,7 +146,6 @@ module.exports = {
   buildIndex,
   checkLabels,
   diagLabels,
-  markLabelsDirty,
   refCompletion,
   renameProvider,
 };
