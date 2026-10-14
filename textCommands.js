@@ -173,10 +173,14 @@ async function applyWithPreview(ed, s, e, newLines, title, summary) {
   const right = vscode.Uri.parse(PREVIEW_SCHEME + ':/' + encodeURIComponent(path.basename(doc.uri.fsPath)) + '?' + (++previewSeq));
   previewDocs.set(right.toString(), full.join(eol));
   const version = doc.version;
-  await vscode.commands.executeCommand('vscode.diff', doc.uri, right, title + ': перегляд змін (ліворуч поточний, праворуч новий текст)', { preview: true });
-  const pick = await vscode.window.showInformationMessage(summary, 'Застосувати', 'Скасувати');
-  await closePreview(right);
-  previewDocs.delete(right.toString());
+  let pick;
+  try {
+    await vscode.commands.executeCommand('vscode.diff', doc.uri, right, title + ': перегляд змін (ліворуч поточний, праворуч новий текст)', { preview: true });
+    pick = await vscode.window.showInformationMessage(summary, 'Застосувати', 'Скасувати');
+    await closePreview(right);
+  } finally {
+    previewDocs.delete(right.toString()); // also when the diff could not be opened: the new text must not stay in the Map
+  }
   if (pick !== 'Застосувати') return false;
   if (doc.version !== version) { info('Файл змінився під час перегляду, зміни не застосовано.'); return false; }
   const ed2 = await vscode.window.showTextDocument(doc, { viewColumn: ed.viewColumn, preserveFocus: false });

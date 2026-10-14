@@ -129,6 +129,22 @@ function cancelTimer(key) {
   return true;
 }
 const timerPending = (key) => timers.has(key);
+
+/* panelScope(panel, onGone): the listeners of ONE webview panel live exactly as long as the panel. The old code passed
+ * context.subscriptions as the `disposables` of panel.onDidReceiveMessage / onDidChangeViewState / onDidDispose: every opening
+ * of a panel then left three more disposables there until the extension was switched off, each holding the closed panel (its
+ * webview, emitters and closures). Use: const subs = panelScope(panel, () => { ...state reset... });
+ * panel.webview.onDidReceiveMessage(fn, null, subs); panel.onDidChangeViewState(fn, null, subs). onGone runs first, then the
+ * listeners are disposed and the list is emptied. */
+function panelScope(panel, onGone) {
+  const subs = [];
+  panel.onDidDispose(() => {
+    try { if (onGone) onGone(); } finally {
+      while (subs.length) { const d = subs.pop(); try { if (d && typeof d.dispose === 'function') d.dispose(); } catch (e) { /* already gone */ } }
+    }
+  }, null, subs);
+  return subs;
+}
 function disposeTimers() { for (const t of timers.values()) clearTimeout(t); timers.clear(); }
 
 /* ------------------------------ caches ------------------------------- *
@@ -206,6 +222,7 @@ module.exports = {
   cancelTimer,
   debounce,
   disposeTimers,
+  panelScope,
   timerPending,
   EXCLUDE_PDF_VERSIONS,
   excludeGlob,

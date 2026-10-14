@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.19.2",
+  "version": "0.20.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1166,6 +1166,21 @@
           "type": "boolean",
           "default": true,
           "description": "At start, when the Auto build of this extension and the autoBuild of LaTeX Workshop are both on (two builds into the same files on every save), offer once per workspace to fix it. The command 'Check compatibility with LaTeX Workshop' works either way"
+        },
+        "tssworkflow.lwGuard": {
+          "type": "string",
+          "enum": [
+            "job",
+            "project",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Do not start a build, an automatic build or a clean of this extension while LaTeX Workshop (or a latexmk in a terminal) is building the same document: the same <job>.aux, .log, .pdf",
+            "The same, but for a build of any file under the project folder",
+            "Never check: the build starts at once (two builds at the same time spoil each other's .aux and .pdf)"
+          ],
+          "default": "job",
+          "description": "Block the build of this extension while LaTeX Workshop is compiling the same document. LaTeX Workshop does not announce its builds, so the list of processes is read when a build is about to start (one reading, no timer); a build with a command line that cannot be read is never blocked. A command offers to wait, to stop the LaTeX Workshop build or to start anyway; the automatic build (Auto) is skipped with a line in the status bar. Only with LaTeX Workshop installed"
         },
         "tssworkflow.citationChecks": {
           "type": "boolean",

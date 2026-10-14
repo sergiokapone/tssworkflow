@@ -64,7 +64,7 @@ function pplatexLog(folder, job) {
     const cmd = String(cfg().get('pplatexCommand', 'ppluatex') || 'ppluatex').trim();
     const logPath = path.join(folder, job + '.log');
     if (!fs.existsSync(logPath)) { outLog.appendLine('[pplatex] немає ' + logPath + ': нічого розбирати'); resolve(); return; }
-    cp.execFile(cmd, ['-i', logPath], { cwd: folder, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
+    cp.execFile(cmd, ['-i', logPath], { cwd: folder, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8', timeout: 60000 }, (err, stdout) => {
       if (err && (err.code === 'ENOENT' || !stdout)) {
         if (!pplatexWarned) {
           pplatexWarned = true;
@@ -107,7 +107,7 @@ function texlogsieveLog(folder, job) {
     if (!Array.isArray(args)) args = ['${log}'];
     args = args.map((a) => String(a).replace(/\$\{log\}/g, logPath));
     if (!args.some((a) => a === logPath)) args.push(logPath);
-    cp.execFile(cmd, args, { cwd: folder, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
+    cp.execFile(cmd, args, { cwd: folder, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8', timeout: 60000 }, (err, stdout) => {
       if (err && (err.code === 'ENOENT' || !stdout)) {
         if (!texlogsieveWarned) {
           texlogsieveWarned = true;

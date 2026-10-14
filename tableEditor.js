@@ -11,7 +11,7 @@ const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
-const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, isTex, openDocByPath } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, isTex, openDocByPath, panelScope } = require('./util');
 
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
@@ -248,14 +248,14 @@ function ensurePanel(context) {
   if (panel) { panel.reveal(vscode.ViewColumn.Beside, true); return panel; }
   panel = vscode.window.createWebviewPanel('tssworkflow.tableEditor', 'Таблиця', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] });
   panel.webview.html = html(panel.webview, context.extensionUri);
+  const subs = panelScope(panel, () => { cancelTimer('tableEditor.follow'); cancelTimer('tableEditor.refresh'); clearFollow(); panel = null; target = null; followRow = null; });
   panel.webview.onDidReceiveMessage((m) => {
     if (m.type === 'ready') { if (openedAt) { log('[таблиця] сторінка вкладки завантажилась за ' + ms(openedAt) + ' мс'); openedAt = 0; } enqueue(() => push()); }
     else if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
     else if (m.type === 'follow') scheduleFollow(Number.isInteger(m.r) ? m.r : null);
     else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
-  }, null, context.subscriptions);
-  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); }, null, context.subscriptions);
-  panel.onDidDispose(() => { cancelTimer('tableEditor.follow'); cancelTimer('tableEditor.refresh'); clearFollow(); panel = null; target = null; followRow = null; }, null, context.subscriptions);
+  }, null, subs);
+  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); }, null, subs);
   return panel;
 }
 

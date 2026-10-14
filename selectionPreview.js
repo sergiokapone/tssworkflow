@@ -9,7 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
-const { EXCLUDE, cancelTimer, cfg, debounce, isTex } = require('./util');
+const { EXCLUDE, cancelTimer, cfg, debounce, isTex, panelScope } = require('./util');
 
 let panel = null;
 let ready = false;
@@ -285,9 +285,9 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
   ready = false;
   panel.webview.html = html(panel.webview, context.extensionUri);
-  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); else if (m && m.type === 'copy') copyText(m); }, null, context.subscriptions);
-  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, context.subscriptions);
-  panel.onDidDispose(() => { cancelTimer('selectionPreview.update'); panel = null; ready = false; seq++; }, null, context.subscriptions);
+  const subs = panelScope(panel, () => { cancelTimer('selectionPreview.update'); panel = null; ready = false; seq++; });
+  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); else if (m && m.type === 'copy') copyText(m); }, null, subs);
+  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, subs);
 }
 
 function register(context) {

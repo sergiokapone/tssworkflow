@@ -11,7 +11,7 @@ const O = require('./formulaOverviewPure');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
 const K = require('./webviewKit');
-const { cancelTimer, debounce, isTex } = require('./util');
+const { cancelTimer, debounce, isTex, panelScope } = require('./util');
 
 let panel = null;
 let ready = false;
@@ -71,11 +71,11 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')] });
   ready = false;
   panel.webview.html = K.shell(panel.webview, extUri, { body: body(), css: ['formulaOverview/webview.css'], js: ['formulaOverview/webview.js'] });
+  const subs = panelScope(panel, () => { cancelTimer('formulaOverview.update'); panel = null; ready = false; seq++; files = []; });
   panel.webview.onDidReceiveMessage((m) => {
     if (!m) return;
     if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') schedule(0); else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
-  }, null, context.subscriptions);
-  panel.onDidDispose(() => { cancelTimer('formulaOverview.update'); panel = null; ready = false; seq++; files = []; }, null, context.subscriptions);
+  }, null, subs);
 }
 
 function register(context) {

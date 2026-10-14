@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, textOfPath, warn } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, textOfPath, openDocByPath, warn } = require('./util');
 const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
@@ -484,33 +484,51 @@ async function insertRef(name) {
 }
 
 /* ================================= 6. word count ================================= */
-// words of the file and of everything it includes (\input, \include, \subfile, \includechapter)
+// words of the file and of everything it includes (\\input, \\include, \\subfile, \\includechapter).
+// What is read from one file (its words and the references in it, in the order of the text) is kept per file while the file is
+// unchanged (projectIndex: the version of an open document, mtime and size of a closed one), so the walk after a pause in typing
+// re-reads the one file that was edited and stat()s the rest; where a reference leads is resolved on every walk (a file may have
+// appeared or gone). The root file is read from the text that is passed in (the open, maybe unsaved, document) and is not kept.
 function deepWords(doc) {
   const root = rootOf(doc.uri);
   const tbl = table().filter((e) => !e.graphics && e.macro !== '\\localinput');
   const chapterMacro = String(cfg().get('chapterIncludeMacro', '\\includechapter')) || '\\includechapter';
   const chRe = new RegExp(chapterMacro.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![A-Za-z@])\\s*\\{\\s*([^{}\\s]+)\\s*\\}', 'g');
-  const seen = new Set();
-  let total = 0;
-  const walk = (abs, text, depth) => {
-    if (seen.has(abs) || depth > 6 || seen.size > 80) return;
-    seen.add(abs);
-    total += X.countWords(text);
-    const ctx = ctxFor({ uri: vscode.Uri.file(abs) });
+  // the references depend on the table of macros, on the chapter macro and on the root: another setting is another cache
+  const kind = 'words|' + JSON.stringify(tbl) + '|' + chapterMacro + '|' + (root || '');
+  const compute = (text) => {
+    const refs = [];
     for (const line of text.split(/\r?\n/)) {
-      for (const r of X.findFileRefs(line, tbl)) {
-        const hit = X.resolveRef(r.entry, r.name, ctx);
-        if (hit.found && /\.tex$/i.test(hit.abs)) { const t = textOfPath(hit.abs); if (t !== null) walk(hit.abs, t, depth + 1); }
-      }
+      for (const r of X.findFileRefs(line, tbl)) refs.push({ entry: r.entry, name: r.name });
       if (root) {
         const code = X.codePart(line);
         chRe.lastIndex = 0;
         let m;
-        while ((m = chRe.exec(code)) !== null) { const p = path.join(root, m[1], m[1] + '.tex'); const t = textOfPath(p); if (t !== null) walk(p, t, depth + 1); }
+        while ((m = chRe.exec(code)) !== null) refs.push({ chapter: m[1] });
+      }
+    }
+    return { words: X.countWords(text), refs };
+  };
+  const seen = new Set();
+  let total = 0;
+  const walk = (abs, depth, text) => {
+    if (seen.has(abs) || depth > 6 || seen.size > 80) return;
+    seen.add(abs);
+    const got = text !== undefined ? compute(text) : PI.get(kind, abs, compute);
+    total += got.words;
+    const ctx = ctxFor({ uri: vscode.Uri.file(abs) });
+    const reachable = (p) => !!openDocByPath(p) || existsFile(p);
+    for (const r of got.refs) {
+      if (r.entry) {
+        const hit = X.resolveRef(r.entry, r.name, ctx);
+        if (hit.found && /\.tex$/i.test(hit.abs) && reachable(hit.abs)) walk(hit.abs, depth + 1);
+      } else {
+        const p = path.join(root, r.chapter, r.chapter + '.tex');
+        if (reachable(p)) walk(p, depth + 1);
       }
     }
   };
-  walk(doc.uri.fsPath, doc.getText(), 0);
+  walk(doc.uri.fsPath, 0, doc.getText());
   return { total, files: seen.size };
 }
 
@@ -519,13 +537,21 @@ function setupWordCount(context) {
   item.command = 'tssworkflow.projectWordCount';
   context.subscriptions.push(item);
   let deep = { key: '', total: 0, files: 0 };
+  let counted = { key: '', big: false, all: 0 };
   const keyOf = (doc) => doc.uri.toString() + '@' + doc.version;
   const update = () => {
     const ed = vscode.window.activeTextEditor;
     if (!ed || !isTexLike(ed.document) || !cfg().get('wordCount', true)) { item.hide(); return; }
     const doc = ed.document;
-    if (doc.getText().length > 3000000) { item.hide(); return; }
-    const all = X.countWords(doc.getText());
+    // the document is counted once per version: a move of the cursor or of the selection does not read and count it again
+    const key = keyOf(doc);
+    if (counted.key !== key) {
+      const text = doc.getText();
+      const big = text.length > 3000000;
+      counted = { key, big, all: big ? 0 : X.countWords(text) };
+    }
+    if (counted.big) { item.hide(); return; }
+    const all = counted.all;
     const sel = ed.selection.isEmpty ? 0 : X.countWords(doc.getText(ed.selection));
     item.text = '$(pencil) ' + (sel ? sel + ' із ' : '') + all + ' сл.';
     const more = deep.key === keyOf(doc) && deep.files > 1 ? '\nЗ підключеними файлами (' + deep.files + '): ' + deep.total : '';
@@ -865,7 +891,7 @@ function register(context, helpers) {
     context.subscriptions.push(labels.view.onDidChangeVisibility((e) => { if (e.visible && labels.stale) labels.schedule(0); }));
   }
   // the panel follows the saved files, not every keystroke; a hidden panel is rebuilt when it is shown
-  const debounce = (doc) => { if (isTexLike(doc)) labels.schedule(); };
+  const refreshLabels = (doc) => { if (isTexLike(doc)) labels.schedule(); }; // not named debounce: that name is util.debounce(key, ms, fn) below
   const debouncedCheck = (doc) => debounce('files.check', 400, () => checkFiles(doc));
 
   context.subscriptions.push(
@@ -899,7 +925,7 @@ function register(context, helpers) {
     cmd('tssworkflow.savePdfCopy', savePdfCopyCmd),
     vscode.workspace.onDidOpenTextDocument(checkFiles),
     vscode.workspace.onDidChangeTextDocument((e) => { debouncedCheck(e.document); }),
-    vscode.workspace.onDidSaveTextDocument((d) => { checkFiles(d); debounce(d); }),
+    vscode.workspace.onDidSaveTextDocument((d) => { checkFiles(d); refreshLabels(d); }),
     vscode.workspace.onDidCloseTextDocument((d) => diagFiles.delete(d.uri)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('tssworkflow.fileMacros') || e.affectsConfiguration('tssworkflow.inputRoot') || e.affectsConfiguration('tssworkflow.rootRelativeMacros')) vscode.workspace.textDocuments.forEach(checkFiles);

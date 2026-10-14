@@ -10,6 +10,7 @@ const cp = require('child_process');
 const P = require('./corePure');
 const features = require('./features');
 const SY = require('./synctex');
+const lwGuard = require('./lwGuard');
 const { cancelTimer, debounce } = require('./util');
 
 let LOG = null; // output channel "TSS Workflow" (given by register)
@@ -83,6 +84,8 @@ const openedJobs = new Set();
 let building = null;
 let lastOutcome = null; // the result of the build that ended last: { ok } / { ok: false, code } / { stopped } (read by the build tasks, buildTasks.js)
 let pendingDoc = null; // a chapter saved while a build was running: it is built when that one ends
+let guarding = false; // the question "LaTeX Workshop is building the same document" is on the screen: no second build starts meanwhile
+let autoRun = false; // set around the call of compile() by the automatic build: runBuild reads it before its first await (lwGuard then skips quietly instead of asking)
 let buildItem = null;
 let spinItem = null; // constant '$(sync~spin)': a codicon restarts its rotation whenever the text of ITS item changes, so it must not share an item with the ticking seconds
 let buildTimer = null;
@@ -202,7 +205,8 @@ function compileOnSave(doc) {
   const t = target();
   const first = t && !openedJobs.has(t.job + '|' + t.chapter + '|' + t.tikz);
   if (t) openedJobs.add(t.job + '|' + t.chapter + '|' + t.tikz);
-  compile(!!first);
+  autoRun = true;
+  try { compile(!!first); } finally { autoRun = false; } // runBuild is reached synchronously from here and reads the flag
 }
 
 const isRootTex = (doc, folder) => path.dirname(doc.uri.fsPath) === folder.uri.fsPath && /\.tex$/i.test(doc.uri.fsPath);
@@ -425,8 +429,20 @@ async function openInLatexWorkshop(pdf) {
 let buildSeq = 0;
 async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, done, exe, repeat, steps }) {
   if (building) { busyWarning(); if (done) done(); return; }
+  if (guarding) { if (done) done(); return; } // the same question is already asked
+  const auto = autoRun; // read before the first await
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const cwd = cwdOverride || folder.uri.fsPath; // folder: the workspace folder of the task (or TaskScope.Workspace); cwd: where the build runs and writes
+  // LaTeX Workshop builds the same document now (tssworkflow.lwGuard): two builds into one main.aux / .log / .pdf spoil both.
+  // null when the check does not apply (off, no LaTeX Workshop): then nothing is awaited and the build starts at once, as before
+  const pre = lwGuard.guard({ cwd, folder: (folder && folder.uri && folder.uri.fsPath) || cwd, job }, { interactive: !auto });
+  if (pre) {
+    guarding = true;
+    let go = true;
+    try { go = await pre; } catch (err) { go = true; /* the check is a help, never a reason not to build */ } finally { guarding = false; }
+    if (!go) { if (done) done(); return; }
+    if (building) { busyWarning(); if (done) done(); return; } // a build of ours started while the question was open
+  }
   // unwrapped log lines, so that the warnings can be attributed to files
   const env = { max_print_line: '10000', error_line: '254', half_error_line: '238' };
   const id = ++buildSeq;
@@ -713,6 +729,17 @@ function clean(withPdf) {
   if (building) { busyWarning(); return; }
   const t = target();
   if (!t) return;
+  // files that LaTeX Workshop is writing right now must not be deleted from under it
+  const pre = lwGuard.guard({ cwd: t.folder.uri.fsPath, folder: t.folder.uri.fsPath, job: t.job, what: 'прибирання' });
+  if (!pre) return doClean(t, withPdf);
+  pre.then((ok) => {
+    if (!ok) return;
+    if (building) { busyWarning(); return; }
+    doClean(t, withPdf);
+  }, () => doClean(t, withPdf));
+}
+
+function doClean(t, withPdf) {
   const cwd = t.folder.uri.fsPath;
   const pdfName = (t.job + '.pdf').toLowerCase();
   let removed = 0;

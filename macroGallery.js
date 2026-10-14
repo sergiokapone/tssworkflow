@@ -14,7 +14,7 @@ const G = require('./macroGalleryPure');
 const P = require('./selectionPreviewPure');
 const K = require('./webviewKit');
 const M = require('./macros');
-const { cancelTimer, debounce } = require('./util');
+const { cancelTimer, debounce, panelScope } = require('./util');
 
 let panel = null;
 let ready = false;
@@ -84,11 +84,11 @@ function open(context) {
     { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')] });
   ready = false;
   panel.webview.html = K.shell(panel.webview, extUri, { body: body(), css: ['macroGallery/webview.css'], js: ['macroGallery/webview.js'] });
+  const subs = panelScope(panel, () => { cancelTimer('macroGallery.update'); panel = null; ready = false; seq++; items = []; });
   panel.webview.onDidReceiveMessage((m) => {
     if (!m) return;
     if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') { M._invalidate(); schedule(0); } else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
-  }, null, context.subscriptions);
-  panel.onDidDispose(() => { cancelTimer('macroGallery.update'); panel = null; ready = false; seq++; items = []; }, null, context.subscriptions);
+  }, null, subs);
 }
 
 function register(context) {
