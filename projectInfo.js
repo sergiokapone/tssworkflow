@@ -8,7 +8,7 @@ const fs = require('fs');
 const P = require('./corePure');
 const X = require('./projectInfoPure');
 const M = require('./macros');
-const { SEL_ANY, cfg, info } = require('./util');
+const { EXCLUDE, SEL_ANY, cfg, debounce, info } = require('./util');
 const PI = require('./projectIndex');
 
 let api = null;
@@ -332,7 +332,7 @@ async function macroInfo() {
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const defRe = new RegExp('\\\\(?:(?:re)?new|provide|Declare(?:Robust)?|New|Renew|Provide)[A-Za-z]*\\*?\\s*\\{?\\s*\\\\' + esc + '(?![A-Za-z@])|\\\\(?:[gex]?def|let|csdef)\\s*\\\\' + esc + '(?![A-Za-z@])');
   const hits = [];
-  for (const f of await vscode.workspace.findFiles('**/*.{tex,cls,sty,ltx,tikz}', api.EXCLUDE, 2000)) {
+  for (const f of await vscode.workspace.findFiles('**/*.{tex,cls,sty,ltx,tikz}', EXCLUDE, 2000)) {
     api.textOf(f).split(/\r?\n/).forEach((l, i) => { if (defRe.test(P.codePart(l))) hits.push({ f, line: i, text: l.trim().slice(0, 160) }); });
   }
   api.log('[macros] \\' + name + ' не знайдено сканером. Скановані джерела (' + sources.length + '): ' + (sources.map((s) => path.basename(s)).join(', ') || 'немає'));
@@ -357,7 +357,6 @@ function register(context, apiIn) {
   const todo = new TodoTree();
   const view = vscode.window.createTreeView('tssworkflow.todoView', { treeDataProvider: todo });
   todo.view = view;
-  let timer = null;
   subs.push(
     view,
     vscode.commands.registerCommand('tssworkflow.unusedEquations', unusedEquations),
@@ -369,8 +368,7 @@ function register(context, apiIn) {
     vscode.commands.registerCommand('tssworkflow.fixTypographyHints', fixTypographyHints),
     vscode.workspace.onDidSaveTextDocument((d) => {
       if (!/\.(tex|tikz)$/i.test(d.fileName)) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => todo.refresh(), 1200);
+      debounce('todo.refresh', 1200, () => todo.refresh());
     }),
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.todoKeywords')) todo.refresh(); })
   );

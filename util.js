@@ -5,7 +5,12 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
 
-const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
+// folders that are never project text; the only place where this list is written (macros.js, filesAndLabels.js and the rest import it)
+const EXCLUDED_DIRS = ['**/build/**', '**/.archive/**', '**/node_modules/**', '**/.git/**'];
+const excludeGlob = (extra) => '{' + EXCLUDED_DIRS.concat(extra || []).join(',') + '}';
+const EXCLUDE = excludeGlob();
+// the list of the labels panel and of the renames: the copies kept in pdf-versions are not part of the project either
+const EXCLUDE_PDF_VERSIONS = excludeGlob(['**/pdf-versions/**']);
 const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
 const SEL = [
   { language: 'latex', scheme: 'file', pattern: '**/*.tex' },
@@ -103,6 +108,29 @@ function textOf(uri) {
 }
 const baseOf = (p) => path.basename(p, path.extname(p));
 
+/* ------------------------------ timers ------------------------------- *
+ * debounce(key, ms, fn): runs fn once, ms after the LAST call with this key (every call restarts the wait). One place for the
+ * "clearTimeout + setTimeout" pairs that every module wrote for itself: a finished timer is forgotten (no entry per document that
+ * was ever edited), a pending one can be asked about and cancelled, and all pending ones are cleared when the extension is disposed.
+ * Keys are strings, one per concern ('labels.refresh', 'syntax:' + uri). unref: a timer that must not keep the process alive. */
+const timers = new Map();
+function debounce(key, ms, fn, unref) {
+  clearTimeout(timers.get(key));
+  const t = setTimeout(() => { if (timers.get(key) === t) timers.delete(key); fn(); }, ms);
+  if (unref && typeof t.unref === 'function') t.unref();
+  timers.set(key, t);
+  return t;
+}
+function cancelTimer(key) {
+  const t = timers.get(key);
+  if (t === undefined) return false;
+  clearTimeout(t);
+  timers.delete(key);
+  return true;
+}
+const timerPending = (key) => timers.has(key);
+function disposeTimers() { for (const t of timers.values()) clearTimeout(t); timers.clear(); }
+
 /* ------------------------------ caches ------------------------------- *
  * Enabled by initCaches(context) once the file watcher exists: then (1) the open documents are looked up in a Map
  * instead of a linear search over workspace.textDocuments for every file, and (2) the lists of project files are
@@ -140,6 +168,7 @@ const texFiles = () => findCached('**/*.{tex,tikz}', 3000);
 
 function initCaches(context) {
   if (caching) return true;
+  context.subscriptions.push({ dispose: disposeTimers }); // pending timers are cleared with the extension
   let w = null;
   try { w = vscode.workspace.createFileSystemWatcher('**/*.{tex,tikz,cls,sty,bib}'); } catch (e) { w = null; }
   if (!w || typeof w.onDidCreate !== 'function') return false;
@@ -162,8 +191,25 @@ function initCaches(context) {
 }
 const cachingOn = () => caching;
 
+// saves the open documents among the files (fsPath) that have unsaved changes (after a WorkspaceEdit on several files)
+async function saveDirtyDocs(paths) {
+  let saved = 0;
+  for (const abs of paths) {
+    const d = openDocByPath(abs);
+    if (d && d.isDirty) { try { await d.save(); saved++; } catch (e) { /* stays modified */ } }
+  }
+  return saved;
+}
+
 module.exports = {
   EXCLUDE,
+  cancelTimer,
+  debounce,
+  disposeTimers,
+  timerPending,
+  EXCLUDE_PDF_VERSIONS,
+  excludeGlob,
+  saveDirtyDocs,
   cachingOn,
   findCached,
   initCaches,

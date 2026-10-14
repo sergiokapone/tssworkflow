@@ -11,17 +11,15 @@ const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
-const { cfg, isTex, openDocByPath } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, isTex, openDocByPath } = require('./util');
 
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
 let panel = null;
 let deco = null; // decoration types of the table / row shown in the file
-let followTimer = null;
 let followRow = null;
 let target = null; // { uri, start, name }
 let selfEdit = 0;
-let refreshTimer = null;
 let log = () => {};
 let openedAt = 0; // when the tab was created: the time to the first picture is logged on 'ready'
 const ms = (t0) => Date.now() - t0;
@@ -45,7 +43,7 @@ function projectColors() {
     const results = [];
     const files = new Set();
     try {
-      const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}', 3000);
+      const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', EXCLUDE_PDF_VERSIONS, 3000);
       const t1 = Date.now();
       const read = async (u, k) => {
         const open = openDocByPath(u.fsPath);
@@ -225,8 +223,7 @@ async function follow(row) {
 // bursts of messages (arrow keys) become one reveal, after the pending changes of the file
 function scheduleFollow(row) {
   followRow = row;
-  clearTimeout(followTimer);
-  followTimer = setTimeout(() => { enqueue(() => follow(followRow)).catch(() => {}); }, 60);
+  debounce('tableEditor.follow', 60, () => { enqueue(() => follow(followRow)).catch(() => {}); });
 }
 
 // the changes go one after another: each one starts from the text the previous one left
@@ -258,7 +255,7 @@ function ensurePanel(context) {
     else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
   }, null, context.subscriptions);
   panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); }, null, context.subscriptions);
-  panel.onDidDispose(() => { clearTimeout(followTimer); clearFollow(); panel = null; target = null; followRow = null; }, null, context.subscriptions);
+  panel.onDidDispose(() => { cancelTimer('tableEditor.follow'); cancelTimer('tableEditor.refresh'); clearFollow(); panel = null; target = null; followRow = null; }, null, context.subscriptions);
   return panel;
 }
 
@@ -315,8 +312,7 @@ function register(context, api) {
     vscode.commands.registerCommand('tssworkflow.editTable', (uri, start) => openTable(context, uri instanceof vscode.Uri ? uri : null, start).catch((e) => vscode.window.showErrorMessage('Редактор таблиць: ' + (e && e.message ? e.message : e)))),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
-      clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => push(), 250);
+      debounce('tableEditor.refresh', 250, () => push());
     }),
     vscode.languages.registerCodeLensProvider(SEL, {
       provideCodeLenses(doc) {

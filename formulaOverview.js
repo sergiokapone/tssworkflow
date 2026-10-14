@@ -11,12 +11,11 @@ const O = require('./formulaOverviewPure');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
 const K = require('./webviewKit');
-const { isTex } = require('./util');
+const { cancelTimer, debounce, isTex } = require('./util');
 
 let panel = null;
 let ready = false;
 let files = []; // [{ abs }] in the order of the page; a click on the page names a file by its number here
-let timer = null;
 let seq = 0;
 
 function body() {
@@ -55,7 +54,7 @@ async function update() {
   panel.webview.postMessage({ type: 'data', files: r.fl.map((f) => f.path), entries: r.entries, macros: r.macros });
 }
 
-function schedule(delay) { if (!panel) return; clearTimeout(timer); timer = setTimeout(() => { update().catch(() => {}); }, delay); }
+function schedule(delay) { if (!panel) return; debounce('formulaOverview.update', delay, () => { update().catch(() => {}); }); }
 
 async function goto(m) {
   const f = m && Number.isInteger(m.f) ? files[m.f] : null;
@@ -76,7 +75,7 @@ function open(context) {
     if (!m) return;
     if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') schedule(0); else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
   }, null, context.subscriptions);
-  panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; files = []; }, null, context.subscriptions);
+  panel.onDidDispose(() => { cancelTimer('formulaOverview.update'); panel = null; ready = false; seq++; files = []; }, null, context.subscriptions);
 }
 
 function register(context) {

@@ -3,7 +3,7 @@
  * The rules are in lwCompatPure.js. The fixes are written into the latex-workshop.* settings (the workspace, see writeTarget). */
 const vscode = require('vscode');
 const L = require('./lwCompatPure');
-const { cfg } = require('./util');
+const { cfg, debounce } = require('./util');
 
 const LW_ID = 'James-Yu.latex-workshop';
 const DISMISS_KEY = 'lwCompat.dismissed';
@@ -85,8 +85,7 @@ async function nudge(context) {
 
 function register(context) {
   context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.checkLatexWorkshop', check));
-  const t = setTimeout(() => nudge(context).catch(() => {}), 8000);
-  if (t && typeof t.unref === 'function') t.unref();
+  debounce('lwCompat.nudge', 8000, () => nudge(context).catch(() => {}), true); // unref: never keeps the process alive
 }
 
 module.exports = { register, check, nudge, applyFixes };

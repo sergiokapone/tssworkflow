@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const P = require('./corePure');
-const { cfg } = require('./util');
+const { cfg, debounce } = require('./util');
 
 
 // first line of `<program> --version`, '' if it does not answer in 4 s
@@ -105,7 +105,7 @@ async function startupCheck(context) {
 
 function register(context) {
   context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.checkEnvironment', checkEnvironment));
-  setTimeout(() => startupCheck(context).catch(() => {}), 8000);
+  debounce('environment.startup', 8000, () => startupCheck(context).catch(() => {}));
 }
 
 exports.register = register;

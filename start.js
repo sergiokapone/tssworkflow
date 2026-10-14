@@ -5,7 +5,7 @@
  * Also: a one-time warning at the start when latexmk or lualatex is not in PATH. */
 const vscode = require('vscode');
 const P = require('./corePure');
-const { EXCLUDE, cfg } = require('./util');
+const { EXCLUDE, cfg, debounce } = require('./util');
 
 
 class EmptyTree {
@@ -49,8 +49,7 @@ function register(context) {
       await vscode.commands.executeCommand('setContext', 'tssworkflow.hasTex', v);
     }
   };
-  let timer = null;
-  const later = () => { clearTimeout(timer); timer = setTimeout(() => { apply(); }, 300); };
+  const later = () => debounce('start.apply', 300, apply);
 
   context.subscriptions.push(
     vscode.window.createTreeView('tssworkflow.startView', { treeDataProvider: new EmptyTree() }),
@@ -62,7 +61,7 @@ function register(context) {
     context.subscriptions.push(w, w.onDidCreate(later), w.onDidDelete(later));
   }
   apply();
-  setTimeout(() => offerEnvironmentCheck(context).catch(() => {}), 6000);
+  debounce('start.offerEnvironment', 6000, () => offerEnvironmentCheck(context).catch(() => {}));
 }
 
 exports.register = register;

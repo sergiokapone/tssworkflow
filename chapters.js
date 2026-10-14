@@ -8,7 +8,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const C = require('./chaptersPure');
-const { cfg, projectRoot } = require('./util');
+const { cfg, debounce, projectRoot } = require('./util');
 
 
 
@@ -124,8 +124,7 @@ function register(context) {
   const provider = new Provider();
   context.subscriptions.push(vscode.window.createTreeView('tssworkflow.chaptersView', { treeDataProvider: provider, showCollapseAll: true }));
 
-  let timer = null;
-  const later = () => { clearTimeout(timer); timer = setTimeout(() => provider.refresh(), 500); };
+  const later = () => debounce('chapters.refresh', 500, () => provider.refresh());
   const isTex = (p) => /\.(tex|tikz)$/i.test(p);
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((d) => { if (isTex(d.fileName)) later(); }),

@@ -7,7 +7,7 @@
 const vscode = require('vscode');
 const P = require('./wrapCmdPure');
 const { pickTyped, sep } = require('./pickTyped');
-const { cfg, isTex } = require('./util');
+const { cfg, debounce, isTex } = require('./util');
 
 const RECENT_KEY = 'tssworkflow.wrapCmd.recent';
 const RECENT_MAX = 8;
@@ -181,7 +181,6 @@ const selectionActions = {
   }
 };
 
-let lensTimer = null;
 function register(context) {
   state = context.globalState;
   context.subscriptions.push(
@@ -192,8 +191,7 @@ function register(context) {
     // the buttons follow the selection, a moment after it stopped changing (they move the lines below down while shown)
     vscode.window.onDidChangeTextEditorSelection((e) => {
       if (!['codelens', 'both'].includes(hintMode()) || !isTex(e.textEditor.document)) return;
-      clearTimeout(lensTimer);
-      lensTimer = setTimeout(() => lensChanged.fire(), e.textEditor.selection.isEmpty ? 0 : 400);
+      debounce('wrapCmd.lens', e.textEditor.selection.isEmpty ? 0 : 400, () => lensChanged.fire());
     }),
     lensChanged
   );

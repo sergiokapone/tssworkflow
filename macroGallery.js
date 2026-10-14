@@ -14,11 +14,11 @@ const G = require('./macroGalleryPure');
 const P = require('./selectionPreviewPure');
 const K = require('./webviewKit');
 const M = require('./macros');
+const { cancelTimer, debounce } = require('./util');
 
 let panel = null;
 let ready = false;
 let items = [];
-let timer = null;
 let seq = 0;
 
 const SRC_RE = /\.(cls|sty|ltx)$/i;
@@ -68,7 +68,7 @@ async function update() {
   panel.webview.postMessage({ type: 'items', items: r.list.map((it) => ({ i: it.i, kind: it.kind, name: it.name, sig: it.sig, doc: it.doc, src: it.src, fileName: it.fileName, line: it.line, op: it.op, alias: it.alias, theorem: it.theorem, examples: it.examples, mj: it.mj, mjNote: it.mjNote })), macros: r.katex, mjFile: r.mjFile });
 }
 
-function schedule(delay) { if (!panel) return; clearTimeout(timer); timer = setTimeout(() => { update().catch(() => {}); }, delay); }
+function schedule(delay) { if (!panel) return; debounce('macroGallery.update', delay, () => { update().catch(() => {}); }); }
 
 async function goto(m) {
   const it = m && Number.isInteger(m.i) ? items[m.i] : null; // the file comes from the list the extension made, not from the page
@@ -88,7 +88,7 @@ function open(context) {
     if (!m) return;
     if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') { M._invalidate(); schedule(0); } else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
   }, null, context.subscriptions);
-  panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; items = []; }, null, context.subscriptions);
+  panel.onDidDispose(() => { cancelTimer('macroGallery.update'); panel = null; ready = false; seq++; items = []; }, null, context.subscriptions);
 }
 
 function register(context) {

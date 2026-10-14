@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const cp = require('child_process');
 const X = require('./authoringPure');
-const { cfg, info, warn } = require('./util');
+const { EXCLUDE, cfg, info, warn } = require('./util');
 const { posix } = require('./corePure');
 
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif'];
@@ -321,7 +321,7 @@ async function bibFromDoi() {
   let bibUri;
   if (ed && ed.document.uri.fsPath.toLowerCase().endsWith('.bib')) bibUri = ed.document.uri;
   else {
-    const found = await vscode.workspace.findFiles('**/*.bib', '{**/node_modules/**,**/.git/**,**/build/**}', 20);
+    const found = await vscode.workspace.findFiles('**/*.bib', EXCLUDE, 20);
     if (found.length === 1) bibUri = found[0];
     else if (found.length > 1) {
       const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { placeHolder: 'У який .bib додати запис?' });
@@ -435,7 +435,7 @@ function refreshStale() {
 const QF = vscode.CodeActionKind.QuickFix;
 
 async function findSetLayersFile(root) {
-  const files = await vscode.workspace.findFiles('**/*.{cls,sty,tex}', '{**/node_modules/**,**/.git/**,**/build/**}', 400);
+  const files = await vscode.workspace.findFiles('**/*.{cls,sty,tex}', EXCLUDE, 400);
   for (const u of files) {
     try {
       if (/\\pgfsetlayers\{/.test(fs.readFileSync(u.fsPath, 'utf8'))) return u;

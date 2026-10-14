@@ -14,12 +14,11 @@ const path = require('path');
 const fs = require('fs');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { cfg, docLines, findCached, info, isTex, textOfPath, warn } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, textOfPath, warn } = require('./util');
 const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
 const isBib = (doc) => !!doc && (doc.languageId === 'bibtex' || doc.uri.fsPath.toLowerCase().endsWith('.bib'));
-const EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**}';
 const SEL = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
 
 let api = {};
@@ -33,7 +32,7 @@ const existsFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { 
 // [{ path (relative, with /), abs }] sorted by path; the text is not read (the list of files is cached until the watcher reports a change)
 async function projectList(exts, root) {
   const names = exts.map((e) => e.replace('.', ''));
-  const found = await findCached(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], 5000, EXCLUDE);
+  const found = await findCached(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], 5000, EXCLUDE_PDF_VERSIONS);
   const out = [];
   for (const u of found) {
     const base = root || rootOf(u) || path.dirname(u.fsPath);
@@ -249,10 +248,7 @@ async function onRenamed(e) {
     const we = new vscode.WorkspaceEdit();
     for (const p of plan) for (const ed of p.edits) we.replace(vscode.Uri.file(p.file.abs), new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText);
     if (await vscode.workspace.applyEdit(we)) {
-      for (const p of plan) {
-        const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === p.file.abs);
-        if (d && d.isDirty) { try { await d.save(); } catch (err) { /* stays modified */ } }
-      }
+      await saveDirtyDocs(plan.map((p) => p.file.abs));
       vscode.window.setStatusBarMessage('Оновлено посилань: ' + count + ' у ' + plan.length + ' файлах', 5000);
     } else warn('Не вдалося оновити посилання на ' + path.basename(oldAbs) + '.');
   }
@@ -281,8 +277,7 @@ async function onMovedTex(e) {
     const we = new vscode.WorkspaceEdit();
     for (const ed of edits) we.replace(f.newUri, new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText);
     if (await vscode.workspace.applyEdit(we)) {
-      const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === newAbs);
-      if (d && d.isDirty) { try { await d.save(); } catch (err) { /* stays modified */ } }
+      await saveDirtyDocs([newAbs]);
       vscode.window.setStatusBarMessage('Оновлено шляхів у ' + path.basename(newAbs) + ': ' + edits.length, 5000);
     }
   }
@@ -375,10 +370,9 @@ class LabelsProvider {
   // a hidden panel is not rebuilt: it only remembers that it is stale (the index is built when it becomes visible)
   get hidden() { return !!this.view && this.view.visible === false; }
   schedule(ms) {
-    clearTimeout(this.timer);
     this.stale = true;
-    if (this.hidden) return;
-    this.timer = setTimeout(() => this.refresh().catch(() => {}), ms === undefined ? 700 : ms);
+    if (this.hidden) { cancelTimer('labels.refresh'); return; }
+    debounce('labels.refresh', ms === undefined ? 700 : ms, () => this.refresh().catch(() => {}));
   }
   // for commands that read this.index: rebuild only if it is stale or empty
   async ensure() { if (this.stale || !this.index.total) await this.refresh(); }
@@ -475,7 +469,7 @@ async function renameLabelCmd(arg) {
   }
   if (!n) { info('Входжень «' + old + '» не знайдено.'); return; }
   if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося перейменувати.'); return; }
-  for (const abs of touched) { const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === abs); if (d && d.isDirty) { try { await d.save(); } catch (e) { /* stays modified */ } } }
+  await saveDirtyDocs(touched);
   vscode.window.setStatusBarMessage('Мітку перейменовано: ' + n + ' входжень у ' + touched.size + ' файлах', 6000);
   if (labelsProv) labelsProv.schedule(300);
 }
@@ -524,8 +518,6 @@ function setupWordCount(context) {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 97);
   item.command = 'tssworkflow.projectWordCount';
   context.subscriptions.push(item);
-  let timer = null;
-  let deepTimer = null;
   let deep = { key: '', total: 0, files: 0 };
   const keyOf = (doc) => doc.uri.toString() + '@' + doc.version;
   const update = () => {
@@ -539,14 +531,13 @@ function setupWordCount(context) {
     const more = deep.key === keyOf(doc) && deep.files > 1 ? '\nЗ підключеними файлами (' + deep.files + '): ' + deep.total : '';
     item.tooltip = 'Слів у ' + path.basename(doc.uri.fsPath) + ': ' + all + ' (без команд, формул, коментарів, рисунків)' + (sel ? '\nУ виділенні: ' + sel : '') + more + '\nКлік: слова в усіх файлах проєкту. Вимкнути: tssworkflow.wordCount';
     item.show();
-    clearTimeout(deepTimer);
-    deepTimer = setTimeout(() => {
+    debounce('wordcount.deep', 1500, () => {
       const cur = vscode.window.activeTextEditor;
       if (!cur || cur.document !== doc || deep.key === keyOf(doc)) return;
       try { const d = deepWords(doc); deep = { key: keyOf(doc), total: d.total, files: d.files }; update(); } catch (e) { /* the status stays without the extra line */ }
-    }, 1500);
+    });
   };
-  const later = () => { clearTimeout(timer); timer = setTimeout(update, 300); };
+  const later = () => debounce('wordcount.update', 300, update);
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(later),
     vscode.window.onDidChangeTextEditorSelection(later),
@@ -600,7 +591,7 @@ async function removePackages(list, files) {
   }
   if (!n) return 0;
   if (!(await vscode.workspace.applyEdit(we))) return 0;
-  for (const abs of touched) { const d = vscode.workspace.textDocuments.find((x) => x.uri.fsPath === abs); if (d && d.isDirty) { try { await d.save(); } catch (e) { /* stays modified */ } } }
+  await saveDirtyDocs(touched);
   return n;
 }
 
@@ -875,7 +866,7 @@ function register(context, helpers) {
   }
   // the panel follows the saved files, not every keystroke; a hidden panel is rebuilt when it is shown
   const debounce = (doc) => { if (isTexLike(doc)) labels.schedule(); };
-  const debouncedCheck = (() => { let t = null; return (doc) => { clearTimeout(t); t = setTimeout(() => checkFiles(doc), 400); }; })();
+  const debouncedCheck = (doc) => debounce('files.check', 400, () => checkFiles(doc));
 
   context.subscriptions.push(
     labels.view,

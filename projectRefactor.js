@@ -15,7 +15,7 @@ const fs = require('fs');
 const X = require('./projectRefactorPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
-const { EXCLUDE, SEL_ANY, cfg, errText, info, projectRoot, textOfPath, warn } = require('./util');
+const { EXCLUDE, SEL_ANY, cfg, debounce, errText, info, projectRoot, textOfPath, warn } = require('./util');
 const { posix } = require('./corePure');
 
 const SRC_GLOB = '**/*.{tex,tikz,cls,sty,bib}';
@@ -540,8 +540,7 @@ function register(context, api) {
   const problems = new ProblemsProvider();
   const view = vscode.window.createTreeView('tssworkflow.problemsView', { treeDataProvider: problems, showCollapseAll: true });
   problems.view = view;
-  let timer = null;
-  const later = () => { clearTimeout(timer); timer = setTimeout(() => problems.refresh(), 300); };
+  const later = () => debounce('problems.refresh', 300, () => problems.refresh());
   const resetBib = (d) => { if (!d || /\.bib$/i.test(d.fileName || '')) bibCache = null; };
   context.subscriptions.push(
     view,

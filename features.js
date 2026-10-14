@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
 const P = require('./corePure');
-const { EXCLUDE, REF_CTX, SEL, SEL_ANY, cfg, initCaches, isTexDoc, texFiles, textOf } = require('./util');
+const { REF_CTX, SEL, SEL_ANY, cancelTimer, cfg, debounce, initCaches, isTexDoc, texFiles, textOf } = require('./util');
 const { PREVIEW_SCHEME, applyWithPreview, convertEnv, displayToEquation, frameSectionsCmd, frameSettings, normalizeCmd, normalizeOptions, previewProvider, sentencesCmd, tableOps, typographyCmd, wrapParagraph } = require('./textCommands');
 const { buildIndex, checkLabels, diagLabels, refCompletion, renameProvider } = require('./labels');
 const { checkCitations, diagCites, initProjectSettings, ltexDictionary } = require('./settingsCitations');
@@ -20,7 +20,7 @@ function register(context, api) {
   const subs = context.subscriptions;
   initCaches(context); // open documents by a Map, lists of project files until the watcher reports a change (util.js, projectIndex.js)
   syncUserCode();
-  require('./macros').register(context, { log: (m) => outLog.appendLine(m), exclude: EXCLUDE });
+  require('./macros').register(context, { log: (m) => outLog.appendLine(m) });
   require('./tikzExtract').register(context);
   require('./wrapEnv').register(context);
   require('./wrapCmd').register(context);
@@ -29,7 +29,7 @@ function register(context, api) {
   require('./formulaOverview').register(context);
   require('./formulaCopy').register(context);
   require('./projectInfo').register(context, {
-    texFiles, textOf, buildIndex, EXCLUDE, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
+    texFiles, textOf, buildIndex, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });
   subs.push(
     cmd('tssworkflow.wrap', wrapParagraph),
@@ -78,19 +78,12 @@ function register(context, api) {
   refreshAuto();
 
   // quick error checks (debounced) and project label checks (on save)
-  const timers = new Map();
-  const later = (doc) => {
-    const k = doc.uri.toString();
-    clearTimeout(timers.get(k));
-    // the checks scan the whole file: the longer the file, the longer the pause after the last keystroke (P.syntaxDelay)
-    const wait = P.syntaxDelay(doc.lineCount);
-    timers.set(k, setTimeout(() => checkSyntax(doc), wait));
-  };
-  let labelTimer = null;
-  let citeTimer = null;
+  const syntaxKey = (doc) => 'syntax:' + doc.uri.toString();
+  // the checks scan the whole file: the longer the file, the longer the pause after the last keystroke (P.syntaxDelay)
+  const later = (doc) => debounce(syntaxKey(doc), P.syntaxDelay(doc.lineCount), () => checkSyntax(doc));
   subs.push(
     vscode.workspace.onDidOpenTextDocument(checkSyntax),
-    vscode.workspace.onDidCloseTextDocument((d) => diagSyntax.delete(d.uri)),
+    vscode.workspace.onDidCloseTextDocument((d) => { cancelTimer(syntaxKey(d)); diagSyntax.delete(d.uri); }), // a closed document is not checked later
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (isTexDoc(e.document)) later(e.document);
       if (!e.contentChanges.length || !e.contentChanges[0].text) return;
@@ -98,21 +91,18 @@ function register(context, api) {
       if (!ed || ed.document !== e.document || !isTexDoc(e.document)) return;
       const pos = ed.selection.active;
       if (REF_CTX.test(e.document.lineAt(pos.line).text.slice(0, pos.character))) {
-        clearTimeout(timers.get('suggest'));
-        timers.set('suggest', setTimeout(() => vscode.commands.executeCommand('editor.action.triggerSuggest'), 30));
+        debounce('suggest', 30, () => vscode.commands.executeCommand('editor.action.triggerSuggest'));
       }
     }),
     vscode.workspace.onDidSaveTextDocument((d) => {
       if ((isTexDoc(d) || /\.bib$/i.test(d.fileName)) && cfg().get('diagnostics', true)) {
-        clearTimeout(citeTimer);
-        citeTimer = setTimeout(() => checkCitations(false), 800);
+        debounce('citations', 800, () => checkCitations(false));
       }
       if (!isTexDoc(d)) return;
       checkSyntax(d);
       if (api && api.onSave && cfg().get('compileOnSave', false)) api.onSave(d);
       if (cfg().get('diagnostics', true)) {
-        clearTimeout(labelTimer);
-        labelTimer = setTimeout(() => checkLabels(false), 500);
+        debounce('labels.check', 500, () => checkLabels(false));
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {

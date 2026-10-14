@@ -5,11 +5,10 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const M = require('./macrosPure');
-const { cfg, openDocByPath } = require('./util');
+const { EXCLUDE, cfg, openDocByPath } = require('./util');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{tex,tikz,cls,sty,ltx}' }];
 
-let EXCLUDE = '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**}';
 let log = () => {};
 
 /* ------------------------------ sources ------------------------------ */
@@ -397,7 +396,6 @@ async function autoMathJax() {
 
 function register(context, api) {
   if (api && api.log) log = api.log;
-  if (api && api.exclude) EXCLUDE = api.exclude;
   const subs = context.subscriptions;
   const watcher = vscode.workspace.createFileSystemWatcher('**/*.{cls,sty}');
   subs.push(

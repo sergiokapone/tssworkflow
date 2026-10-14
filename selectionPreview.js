@@ -9,13 +9,12 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
-const { cfg, isTex } = require('./util');
+const { EXCLUDE, cancelTimer, cfg, debounce, isTex } = require('./util');
 
 let panel = null;
 let ready = false;
 let extUri = null;
 let roots = []; // folders (besides media/) the page may read pictures from
-let timer = null;
 let seq = 0;
 let last = null; // { doc, column } of the last .tex editor: where a file opened from the panel goes
 
@@ -222,7 +221,7 @@ async function openRef(m) {
   else {
     const dir = path.dirname(doc.uri.fsPath);
     let files = [];
-    try { files = await vscode.workspace.findFiles('**/*.{tex,tikz}', '{**/build/**,**/.archive/**,**/node_modules/**}', 1000); } catch (e) { /* none */ }
+    try { files = await vscode.workspace.findFiles('**/*.{tex,tikz}', EXCLUDE, 1000); } catch (e) { /* none */ }
     files.sort((a, b) => Number(b.fsPath.startsWith(dir)) - Number(a.fsPath.startsWith(dir)));
     for (const f of files) {
       if (f.fsPath === doc.uri.fsPath) continue;
@@ -269,8 +268,7 @@ function copyText(m) {
 
 function schedule(delay) {
   if (!panel) return;
-  clearTimeout(timer);
-  timer = setTimeout(() => { update().catch(() => {}); }, delay);
+  debounce('selectionPreview.update', delay, () => { update().catch(() => {}); });
 }
 
 function open(context) {
@@ -289,7 +287,7 @@ function open(context) {
   panel.webview.html = html(panel.webview, context.extensionUri);
   panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); else if (m && m.type === 'copy') copyText(m); }, null, context.subscriptions);
   panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, context.subscriptions);
-  panel.onDidDispose(() => { clearTimeout(timer); panel = null; ready = false; seq++; }, null, context.subscriptions);
+  panel.onDidDispose(() => { cancelTimer('selectionPreview.update'); panel = null; ready = false; seq++; }, null, context.subscriptions);
 }
 
 function register(context) {

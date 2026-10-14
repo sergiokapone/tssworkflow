@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
-const { EXCLUDE, cfg, findCached, info, texFiles, textOf } = require('./util');
+const { EXCLUDE, cfg, findCached, info, openDocByPath, texFiles, textOf } = require('./util');
 const { SEV } = require('./checksHovers');
 const PI = require('./projectIndex');
 
@@ -173,7 +173,8 @@ async function ltexDictionary() {
       const code = d.code && typeof d.code === 'object' ? d.code.value : d.code;
       const isSpell = /MORFOLOGIK|HUNSPELL|SPELL/i.test(String(code || '')) || /spell|орфограф|правопис/i.test(d.message);
       if (!isSpell) continue;
-      const doc = vscode.workspace.textDocuments.find((x) => x.uri.toString() === uri.toString());
+      // files by the Map of open documents; other schemes (untitled, git:) are not in it and are searched by uri
+      const doc = uri.scheme === 'file' ? openDocByPath(uri.fsPath) : vscode.workspace.textDocuments.find((x) => x.uri.toString() === uri.toString());
       const word = (doc ? doc.getText(d.range) : textOf(uri).split(/\r?\n/)[d.range.start.line].slice(d.range.start.character, d.range.end.character)).trim();
       if (word && !/\s/.test(word)) counts.set(word, (counts.get(word) || 0) + 1);
     }
