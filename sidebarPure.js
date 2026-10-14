@@ -17,7 +17,8 @@ const GROUPS = [
     ['clean', 'Видалити допоміжні файли й PDF', 'trash'],
     ['buildParts', 'Зібрати лише вибрані частини (\\part)', 'layers'],
     ['showHooks', 'Хуки виводу сторінки (shipout)', 'debug-console'],
-    ['checkLatexWorkshop', 'Сумісність із LaTeX Workshop', 'shield']
+    ['checkLatexWorkshop', 'Сумісність із LaTeX Workshop', 'shield'],
+    ['debugState', 'Стан розширення (витоки, таймери, кеші)', 'pulse']
   ] },
   { id: 'new', en: 'Templates & new files', label: 'Шаблони й нові файли', icon: 'new-file', expanded: true, items: [
     ['newFromTemplate', 'Новий документ із шаблона…', 'new-file'],

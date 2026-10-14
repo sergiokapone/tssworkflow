@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
+const cp = require('child_process');
 const P = require('./corePure');
 
 // folders that are never project text; the only place where this list is written (macros.js, filesAndLabels.js and the rest import it)
@@ -129,6 +130,7 @@ function cancelTimer(key) {
   return true;
 }
 const timerPending = (key) => timers.has(key);
+const timerKeys = () => [...timers.keys()];
 
 /* panelScope(panel, onGone): the listeners of ONE webview panel live exactly as long as the panel. The old code passed
  * context.subscriptions as the `disposables` of panel.onDidReceiveMessage / onDidChangeViewState / onDidDispose: every opening
@@ -146,6 +148,25 @@ function panelScope(panel, onGone) {
   return subs;
 }
 function disposeTimers() { for (const t of timers.values()) clearTimeout(t); timers.clear(); }
+
+/* ---------------------------- processes ----------------------------- *
+ * Every external program (git, latexdiff, pplatex, lualatex, the process list) is started through these two, so that none of
+ * them can wait for ever: before, the time limit was written in some call sites and forgotten in others (authoring's git /
+ * latexdiff had none). execFileT is execFile with the defaults; run() is the same as a Promise (resolves stdout, rejects with
+ * err.stderr). An explicit `timeout` wins, `timeout: 0` means "no limit". Detached viewers are cp.spawn and are not covered. */
+const RUN_TIMEOUT = 120000;
+const runOpts = (opts) => Object.assign({ maxBuffer: 64 * 1024 * 1024, windowsHide: true, encoding: 'utf8', timeout: RUN_TIMEOUT }, opts);
+function execFileT(cmd, args, opts, cb) {
+  if (typeof opts === 'function') { cb = opts; opts = {}; }
+  return cp.execFile(cmd, args, runOpts(opts), cb);
+}
+function run(cmd, args, opts) {
+  return new Promise((resolve, reject) => {
+    execFileT(cmd, args, opts, (err, stdout, stderr) => {
+      if (err) { err.stderr = stderr; reject(err); } else resolve(stdout);
+    });
+  });
+}
 
 /* ------------------------------ caches ------------------------------- *
  * Enabled by initCaches(context) once the file watcher exists: then (1) the open documents are looked up in a Map
@@ -206,6 +227,8 @@ function initCaches(context) {
   return true;
 }
 const cachingOn = () => caching;
+// sizes for the state report (debugState.js): the file-list cache and the open-documents Map (null while it is not built)
+const cacheStats = () => ({ caching, findCache: findCache.size, docMap: docMap ? docMap.size : null });
 
 // saves the open documents among the files (fsPath) that have unsaved changes (after a WorkspaceEdit on several files)
 async function saveDirtyDocs(paths) {
@@ -219,11 +242,17 @@ async function saveDirtyDocs(paths) {
 
 module.exports = {
   EXCLUDE,
+  RUN_TIMEOUT,
+  execFileT,
+  run,
+  runOpts,
   cancelTimer,
   debounce,
   disposeTimers,
   panelScope,
   timerPending,
+  timerKeys,
+  cacheStats,
   EXCLUDE_PDF_VERSIONS,
   excludeGlob,
   saveDirtyDocs,

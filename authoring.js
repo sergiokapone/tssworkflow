@@ -6,9 +6,8 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const cp = require('child_process');
 const X = require('./authoringPure');
-const { EXCLUDE, cfg, info, warn } = require('./util');
+const { EXCLUDE, cfg, info, run, warn } = require('./util');
 const { posix } = require('./corePure');
 
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif'];
@@ -22,13 +21,6 @@ function workspaceRoot(doc) {
 }
 function listOf(v, fallback) {
   return Array.isArray(v) && v.length ? v.map(String) : fallback;
-}
-function run(cmd, args, opts) {
-  return new Promise((resolve, reject) => {
-    cp.execFile(cmd, args, Object.assign({ maxBuffer: 64 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, opts), (err, stdout, stderr) => {
-      if (err) { err.stderr = stderr; reject(err); } else resolve(stdout);
-    });
-  });
 }
 
 /* ============================ figures: drop and paste ============================ */

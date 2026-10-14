@@ -1,6 +1,5 @@
 .vscode/**
 .gitignore
-build.js
 .vscodeignore
 node_modules/**
 vsix/**

@@ -330,6 +330,7 @@ function register(context, api) {
 }
 
 exports.register = register;
+exports.isOpen = () => !!panel; // for the state report (debugState.js)
 // the caches of the colours and macros of the project are shared with the panel "Preview selection"
 exports.projectColors = projectColors;
 exports.colorsFresh = colorsFresh;

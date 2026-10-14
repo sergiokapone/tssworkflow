@@ -4,9 +4,8 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const { execFile } = require('child_process');
 const P = require('./corePure');
-const { cfg, debounce } = require('./util');
+const { cfg, debounce, execFileT } = require('./util');
 
 
 // first line of `<program> --version`, '' if it does not answer in 4 s
@@ -14,7 +13,7 @@ function versionOf(file) {
   return new Promise((resolve) => {
     const shell = /\.(cmd|bat)$/i.test(file);
     try {
-      execFile(shell ? '"' + file + '"' : file, ['--version'], { timeout: 4000, windowsHide: true, shell }, (err, out, errOut) => {
+      execFileT(shell ? '"' + file + '"' : file, ['--version'], { timeout: 4000, windowsHide: true, shell }, (err, out, errOut) => {
         const text = String(out || errOut || '').split(/\r?\n/).map((l) => l.trim()).find(Boolean) || '';
         resolve(err && !text ? '' : text.slice(0, 90));
       });

@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -141,6 +141,10 @@
       {
         "command": "tssworkflow.synctexDiagnose",
         "title": "TSS Workflow: Diagnose SyncTeX (is this file in the PDF?)"
+      },
+      {
+        "command": "tssworkflow.debugState",
+        "title": "TSS Workflow: Show state (leaks, timers, caches)"
       },
       {
         "command": "tssworkflow.checkLatexWorkshop",

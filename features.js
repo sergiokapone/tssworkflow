@@ -3,9 +3,8 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
-const cp = require('child_process');
 const P = require('./corePure');
-const { REF_CTX, SEL, SEL_ANY, cancelTimer, cfg, debounce, initCaches, isTexDoc, texFiles, textOf } = require('./util');
+const { REF_CTX, SEL, SEL_ANY, cancelTimer, cfg, debounce, execFileT, initCaches, isTexDoc, texFiles, textOf } = require('./util');
 const { PREVIEW_SCHEME, applyWithPreview, convertEnv, displayToEquation, frameSectionsCmd, frameSettings, normalizeCmd, normalizeOptions, previewProvider, sentencesCmd, tableOps, typographyCmd, wrapParagraph } = require('./textCommands');
 const { buildIndex, checkLabels, diagLabels, refCompletion, renameProvider } = require('./labels');
 const { checkCitations, diagCites, initProjectSettings, ltexDictionary } = require('./settingsCitations');
@@ -141,7 +140,7 @@ async function showHooks() {
   outLog.appendLine('[hooks] ' + what + ': ' + exe + ' -jobname=' + jobname + ' (зупиняється на початку документа)');
   await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'TSS: читаю хуки виводу сторінки…' }, () =>
     new Promise((resolve) => {
-      cp.execFile(exe, ['-interaction=nonstopmode', '-file-line-error', '-shell-escape', '-jobname=' + jobname, inject],
+      execFileT(exe, ['-interaction=nonstopmode', '-file-line-error', '-shell-escape', '-jobname=' + jobname, inject],
         { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true, timeout: 180000, env: Object.assign({}, process.env, { max_print_line: '10000' }) }, (err) => {
           let log = '';
           try { log = fs.readFileSync(path.join(cwd, jobname + '.log'), 'utf8'); } catch (e) { /* no log */ }

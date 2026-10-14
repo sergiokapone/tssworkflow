@@ -101,7 +101,7 @@ function argAt(code, re, col) {
 
 // hover on \includegraphics: name, size, a thumbnail (tssworkflow.imagePreviewMode / imagePreviewMaxMB) and a link that opens the file
 function imageHoverMd(file) {
-  const cfg = vscode.workspace.getConfiguration('tssworkflow');
+  const conf = vscode.workspace.getConfiguration('tssworkflow');
   const ext = path.extname(file).toLowerCase();
   const size = fs.statSync(file).size;
   const md = new vscode.MarkdownString();
@@ -113,7 +113,7 @@ function imageHoverMd(file) {
     md.appendMarkdown('Попередній перегляд для ' + ext + ' недоступний.  \n[Відкрити файл](command:vscode.open?' + cmdArgs + ')');
     return md;
   }
-  const plan = P.imagePreviewPlan(size, cfg.get('imagePreviewMode', 'file'), cfg.get('imagePreviewMaxMB', 1));
+  const plan = P.imagePreviewPlan(size, conf.get('imagePreviewMode', 'file'), conf.get('imagePreviewMaxMB', 1));
   if (plan.kind === 'file') {
     md.appendMarkdown('![](' + vscode.Uri.file(file).toString() + ')\n\n' + open);
   } else if (plan.kind === 'data') {

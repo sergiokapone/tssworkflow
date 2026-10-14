@@ -472,6 +472,8 @@ function activate(context) {
   require('./synctex').register(context, { activePdf: build.activePdf });
   require('./buildTasks').register(context, { run: build.runForTask, outcome: build.outcome, stop: build.stopBuild });
   require('./lwCompat').register(context);
+  // 0.20.1: the report with the numbers that grow when something leaks
+  require('./debugState').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template
   debounce('extension.offerProjectSettings', 3000, () => offerProjectSettings(context).catch(() => {}));
 }

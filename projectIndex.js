@@ -55,6 +55,8 @@ function mapOver(kind, uris, compute) {
 }
 
 function drop(kind) { if (kind) kinds.delete(kind); else kinds.clear(); }
+// every kind with the number of files kept (for the state report)
+function stats() { const o = {}; for (const [k, m] of kinds) o[k] = m.size; return o; }
 function size(kind) { const m = kinds.get(kind); return m ? m.size : 0; }
 
 /* -------------------------- diagnostics by diff -------------------------- */
@@ -100,4 +102,4 @@ function diagSetter(collection) {
   };
 }
 
-module.exports = { get, mapOver, prune, drop, size, stampOf, diagSetter };
+module.exports = { get, mapOver, prune, drop, size, stats, stampOf, diagSetter };

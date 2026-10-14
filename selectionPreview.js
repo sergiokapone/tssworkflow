@@ -304,4 +304,5 @@ function register(context) {
 }
 
 exports.register = register;
+exports.isOpen = () => !!panel; // for the state report (debugState.js)
 exports._t = { resolveTikz, pictureAround, findLabelPos };

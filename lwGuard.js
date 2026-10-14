@@ -6,9 +6,8 @@
  * tssworkflow.lwGuard: 'job' (default: the same document), 'project' (any build under the project folder), 'off'.
  * A list that cannot be read (no ps / PowerShell, a timeout) never blocks: the build starts as it did before this module. */
 const vscode = require('vscode');
-const cp = require('child_process');
 const L = require('./lwGuardPure');
-const { cfg, debounce, cancelTimer } = require('./util');
+const { cfg, debounce, cancelTimer, execFileT } = require('./util');
 
 const LW_ID = 'James-Yu.latex-workshop';
 const CACHE_MS = 1000; // two requests within a second (a save and a button) share one reading
@@ -23,7 +22,7 @@ function listProcesses(fresh) {
   const c = L.listCommand(process.platform);
   const p = new Promise((resolve) => {
     try {
-      cp.execFile(c.cmd, c.args, { timeout: LIST_TIMEOUT, maxBuffer: 16 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
+      execFileT(c.cmd, c.args, { timeout: LIST_TIMEOUT, maxBuffer: 16 * 1024 * 1024, windowsHide: true, encoding: 'utf8' }, (err, stdout) => {
         if (err && !stdout) return resolve(null);
         resolve(c.parse(stdout));
       });
