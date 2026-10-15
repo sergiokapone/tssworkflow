@@ -11,7 +11,8 @@
  *   indexInsertions(files, rep)    Map path -> new text: \index{term} after the first definition of each term without an index entry
  *   indexEntryFor(text)            the argument of \index for a selected text (specials of makeindex escaped)
  *   formatTermsReport(rep, o)      Markdown
- *   byBookOrder(order)             a comparator of files [{ path }] by the chapter folders of main.tex */
+ *   byBookOrder(order)             a comparator of files [{ path }] by the chapter folders of main.tex
+ *   fileLineRefs(line)             \"A/A.tex:12\" places in one line of a report: [{ start, len, rel, line }] (for clickable links) */
 const { codePart } = require('./corePure');
 
 const blank = (s) => s.replace(/[^\r\n]/g, ' ');
@@ -214,4 +215,14 @@ function byBookOrder(order) {
   return (a, b) => (rank(a.path) - rank(b.path)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
 
-module.exports = { proseOf, termDefinitions, indexKeys, termsReport, indexEntryFor, indexInsertions, formatTermsReport, byBookOrder, wordMatch, wordsOf };
+// places like  Розділ/Розділ.tex:12  in a line of a report (the relative path of a .tex/.tikz/.sty/.cls/.bib file, a colon, the line)
+const REF_RE = /(?<![\p{L}\p{N}_@+./\\-])((?:[\p{L}\p{N}_@+.-]+\/)*[\p{L}\p{N}_@+.-]+\.(?:tex|tikz|sty|cls|bib)):(\d+)(?!\d)/gu;
+function fileLineRefs(line) {
+  const out = [];
+  let m;
+  REF_RE.lastIndex = 0;
+  while ((m = REF_RE.exec(String(line)))) out.push({ start: m.index, len: m[0].length, rel: m[1], line: parseInt(m[2], 10) });
+  return out;
+}
+
+module.exports = { fileLineRefs, proseOf, termDefinitions, indexKeys, termsReport, indexEntryFor, indexInsertions, formatTermsReport, byBookOrder, wordMatch, wordsOf };

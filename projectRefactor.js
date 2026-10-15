@@ -266,8 +266,31 @@ async function moveChapterCmd(arg, dir) {
 }
 
 /* ============================= replace in project =========================== */
-function reportDoc(md) {
-  return vscode.workspace.openTextDocument({ language: 'markdown', content: md }).then((d) => vscode.window.showTextDocument(d, { preview: false }));
+// reports are untitled Markdown documents; every \"Розділ/Розділ.tex:12\" in them is a link that opens the file at that line
+const reportRoots = new Map(); // uri of the report -> project root
+const reportLinks = {
+  provideDocumentLinks(doc) {
+    const root = reportRoots.get(doc.uri.toString());
+    if (!root) return [];
+    const links = [];
+    for (let i = 0; i < doc.lineCount; i++) {
+      for (const r of TERMS.fileLineRefs(doc.lineAt(i).text)) {
+        const abs = path.resolve(root, r.rel);
+        if (abs !== root && !abs.startsWith(root + path.sep)) continue; // only inside the project
+        if (!fs.existsSync(abs)) continue;
+        const link = new vscode.DocumentLink(new vscode.Range(i, r.start, i, r.start + r.len), vscode.Uri.file(abs).with({ fragment: 'L' + r.line }));
+        link.tooltip = 'Відкрити ' + r.rel + ', рядок ' + r.line;
+        links.push(link);
+      }
+    }
+    return links;
+  }
+};
+
+async function reportDoc(md, root) {
+  const d = await vscode.workspace.openTextDocument({ language: 'markdown', content: md });
+  if (root) reportRoots.set(d.uri.toString(), root);
+  return vscode.window.showTextDocument(d, { preview: false });
 }
 
 async function replaceInProjectCmd() {
@@ -307,7 +330,7 @@ async function replaceInProjectCmd() {
   const msg = 'Знайдено ' + total + ' збігів у ' + changes.size + ' файлах (' + per.slice(0, 3).join(', ') + (per.length > 3 ? ', …' : '') + '). Замінити? Знімок проєкту збережеться.';
   const pick = await warn(msg, 'Замінити', 'Показати список');
   if (pick === 'Показати список') {
-    await reportDoc('# Збіги «' + find + '» → «' + repl + '»\n\n' + per.join('\n') + '\n\n```\n' + hits.slice(0, 200).join('\n') + '\n```\n');
+    await reportDoc('# Збіги «' + find + '» → «' + repl + '»\n\n' + per.join('\n') + '\n\n```\n' + hits.slice(0, 200).join('\n') + '\n```\n', root);
     if ((await info('Замінити ' + total + ' збігів?', 'Замінити')) !== 'Замінити') return;
   } else if (pick !== 'Замінити') return;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
@@ -365,7 +388,7 @@ async function notationCmd() {
   const groups = Array.isArray(custom) && custom.length ? custom : X.NOTATION_DEFAULT;
   const files = await projectFiles(root, ['.tex', '.tikz', '.sty', '.cls']);
   const rep = X.notationReport(files, groups);
-  await reportDoc(X.formatNotationReport(rep, { folder: path.basename(root) }));
+  await reportDoc(X.formatNotationReport(rep, { folder: path.basename(root) }), root);
   const mixed = rep.filter((r) => r.mixed);
   if (!mixed.length) return;
   const g = await vscode.window.showQuickPick(mixed.map((r) => ({
@@ -405,7 +428,7 @@ async function termsCmd() {
   const macros = cfg().get('termMacros', ['\\emph']);
   const ignore = cfg().get('termsIgnore', []);
   const rep = TERMS.termsReport(files, { macros: Array.isArray(macros) ? macros : ['\\emph'], ignore: Array.isArray(ignore) ? ignore : [], index: !!ip.name });
-  await reportDoc(TERMS.formatTermsReport(rep, { folder: path.basename(root), macros: Array.isArray(macros) ? macros : [], index: !!ip.name }));
+  await reportDoc(TERMS.formatTermsReport(rep, { folder: path.basename(root), macros: Array.isArray(macros) ? macros : [], index: !!ip.name }), root);
   if (ip.raw && !ip.name) warn('indexprogram = ' + ip.raw + ': підтримуються upmendex, mendex, makeindex. Покажчик не збирається.');
   if (!rep.noIndex.length) return;
   const go = await warn('Додати \\index{…} після першого означення ' + rep.noIndex.length + ' термінів, яких немає в покажчику? Запис береться з написання в означенні, воно може бути не в називному відмінку: перегляньте результат. Знімок проєкту збережеться.', { modal: true }, 'Додати');
@@ -604,6 +627,8 @@ function register(context, api) {
     cmd('tssworkflow.termsReport', termsCmd),
     cmd('tssworkflow.indexTerm', indexTermCmd),
     cmd('tssworkflow.buildParts', buildPartsCmd),
+    vscode.languages.registerDocumentLinkProvider({ language: 'markdown', scheme: 'untitled' }, reportLinks),
+    vscode.workspace.onDidCloseTextDocument((d) => reportRoots.delete(d.uri.toString())),
     vscode.languages.registerCompletionItemProvider(SEL_ANY, citeCompletion, '{', ','),
     vscode.languages.registerHoverProvider(SEL_ANY, citeHover)
   );

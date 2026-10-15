@@ -106,4 +106,47 @@ t('latexmkIndexArgs: one -e argument for another program, nothing for makeindex'
   assert.deepStrictEqual(W.latexmkIndexArgs(''), []);
   assert.deepStrictEqual(W.latexmkIndexArgs('rm'), []);
 });
+t('fileLineRefs: path:line in a report line; other colons, versions and bare names are not links', () => {
+  const l = '| напруженість | Електростатика/Електростатика.tex:12 | A/B/c-d.tex:7 — текст: ось | 3 |';
+  const r = T.fileLineRefs(l);
+  assert.deepStrictEqual(r.map((x) => [x.rel, x.line]), [['Електростатика/Електростатика.tex', 12], ['A/B/c-d.tex', 7]]);
+  assert.strictEqual(l.slice(r[0].start, r[0].start + r[0].len), 'Електростатика/Електростатика.tex:12');
+  assert.deepStrictEqual(T.fileLineRefs('- заряд (main.tex:3)').map((x) => [x.rel, x.line]), [['main.tex', 3]]);
+  assert.deepStrictEqual(T.fileLineRefs('версія 0.20.3, файл main.tex, час 12:30, x.texx:5'), []);
+});
+
+t('fileLineRefs: all five extensions; line:column keeps the line only; markdown, brackets and trailing punctuation stay outside the link; repeated calls give the same result', () => {
+  const pairs = (l) => T.fileLineRefs(l).map((x) => [x.rel, x.line]);
+  assert.deepStrictEqual(pairs('a.tex:1 b.tikz:2 c.sty:3 d.cls:4 e.bib:5'), [['a.tex', 1], ['b.tikz', 2], ['c.sty', 3], ['d.cls', 4], ['e.bib', 5]]);
+  assert.deepStrictEqual(pairs('Фізика/Розділ_1/Розділ_1.tex:12:5'), [['Фізика/Розділ_1/Розділ_1.tex', 12]], 'a column after the line is not part of it');
+  assert.deepStrictEqual(pairs('a.tex:1,b.tex:2;c.tex:3'), [['a.tex', 1], ['b.tex', 2], ['c.tex', 3]]);
+  for (const l of ['`A/A.tex:5`', '[A/A.tex:5](x)', '(A/A.tex:5)', 'A/A.tex:5.', 'A/A.tex:5abc']) {
+    const r = T.fileLineRefs(l);
+    assert.strictEqual(r.length, 1, l);
+    assert.strictEqual(l.slice(r[0].start, r[0].start + r[0].len), 'A/A.tex:5', l);
+  }
+  const l = '| A/A.tex:1 | B/B.tex:2 |';
+  assert.deepStrictEqual(T.fileLineRefs(l), T.fileLineRefs(l), 'the regular expression keeps no state between calls');
+  assert.deepStrictEqual([T.fileLineRefs(''), T.fileLineRefs(null), T.fileLineRefs(undefined)], [[], [], []]);
+});
+
+t('fileLineRefs: URLs, Windows and absolute paths, upper-case extension, no number, a bare extension are not links; ./ and ../ come back as written (the provider decides)', () => {
+  for (const l of ['https://example.com/a.tex:12', 'C:\\x\\a.tex:5', '/abs/A.tex:1', 'A/A.TEX:1', 'A.tex: 5', 'A.tex', 'tex:3', '.tex:3', 'a.texx:5']) {
+    assert.deepStrictEqual(T.fileLineRefs(l), [], l);
+  }
+  assert.deepStrictEqual(T.fileLineRefs('./A.tex:1 ../B.tex:2').map((x) => x.rel), ['./A.tex', '../B.tex']);
+  // known limit: a path with a space is cut at the space (the cut part is then looked up and, as a rule, not found, so there is no link)
+  assert.deepStrictEqual(T.fileLineRefs('my file.tex:3').map((x) => x.rel), ['file.tex']);
+});
+
+t('fileLineRefs: in a real Terms report every \"path:line\" is found and points at an existing line of its file', () => {
+  const a = F('A/A.tex', '\\chapter{Напруженість}\nНапруженість електричного поля тут вже є.\n$напруженість$\nЗаряди взаємодіють.');
+  const b = F('B/B.tex', 'Назвемо \\emph{напруженістю} величину.\n\\emph{Заряд} означено тут.');
+  const files = [a, b];
+  const md = T.formatTermsReport(T.termsReport(files, { index: true }), { folder: 'proj', macros: [], index: true });
+  const found = [];
+  for (const line of md.split('\n')) for (const x of T.fileLineRefs(line)) { found.push(line.slice(x.start, x.start + x.len)); const f = files.find((q) => q.path === x.rel); assert.ok(f, x.rel); assert.ok((f.text.split('\n')[x.line - 1] || '').trim(), x.rel + ':' + x.line + ' is an empty or missing line'); }
+  assert.deepStrictEqual(found, ['B/B.tex:1', 'A/A.tex:2', 'B/B.tex:2', 'A/A.tex:4', 'B/B.tex:1', 'B/B.tex:2'], 'the table (defined, first earlier use) and the list of terms without \\index');
+});
+
 console.log(n + ' tests passed');

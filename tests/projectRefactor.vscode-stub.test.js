@@ -17,7 +17,9 @@ w('refs.bib', '@book{landau,\n author={Landau, L. and Lifshitz, E.},\n title={Fi
 
 const ans = { input: [], pick: [], warn: [], info: [] };
 const log = { infos: [], warns: [], cmds: [], status: [], docs: [] };
-class Uri { constructor(p) { this.fsPath = p; this.scheme = 'file'; } static file(p) { return new Uri(p); } }
+class Uri { constructor(p, fragment) { this.fsPath = p; this.scheme = 'file'; this.fragment = fragment || ''; } static file(p) { return new Uri(p); } with(o) { return new Uri(this.fsPath, o.fragment); } toString() { return 'file://' + this.fsPath + (this.fragment ? '#' + this.fragment : ''); } }
+class DocumentLink { constructor(range, target) { this.range = range; this.target = target; } }
+let docSeq = 0;
 class Range { constructor(a, b, c, d) { this.start = { line: a, character: b }; this.end = { line: c, character: d }; } }
 class WorkspaceEdit {
   constructor() { this.ops = []; }
@@ -33,7 +35,7 @@ const mkDoc = (fsPath) => {
 const orig = Module._load;
 const treeItems = [];
 const stub = {
-  Uri, Range, WorkspaceEdit,
+  Uri, Range, WorkspaceEdit, DocumentLink,
   RelativePattern: class { constructor(b, p) { this.base = b; this.pattern = p; } },
   EventEmitter: class { constructor() { this.event = () => ({ dispose() {} }); } fire() {} },
   TreeItem: class { constructor(l, s) { this.label = l; this.collapsibleState = s; } },
@@ -53,7 +55,7 @@ const stub = {
       const ext2 = typeof pat === 'string' ? /\.bib$/ : /\.(tex|tikz|cls|sty|bib)$/;
       return walk(base, []).filter((f) => ext2.test(f) && !f.includes('.archive')).map(Uri.file);
     },
-    openTextDocument: async (a) => (a && a.content !== undefined ? (log.docs.push(a), { content: a.content }) : mkDoc(a.fsPath)),
+    openTextDocument: async (a) => (a && a.content !== undefined ? (log.docs.push(a), (() => { const lines = a.content.split('\n'); return { content: a.content, uri: (() => { const id = 'untitled:Untitled-' + (++docSeq); return { toString: () => id }; })(), lineCount: lines.length, lineAt: (i) => ({ text: lines[i] }) }; })()) : mkDoc(a.fsPath)),
     applyEdit: async (e) => {
       for (const op of e.ops) {
         if (op.t === 'replace') fs.writeFileSync(op.uri.fsPath, op.text, 'utf8');
@@ -63,6 +65,7 @@ const stub = {
     },
     saveAll: async () => true,
     onDidSaveTextDocument: () => ({ dispose() {} }),
+    onDidCloseTextDocument: () => ({ dispose() {} }),
     createFileSystemWatcher: () => ({ onDidChange: () => ({}), onDidCreate: () => ({}), onDidDelete: () => ({}), dispose() {} })
   },
   window: {
@@ -71,7 +74,7 @@ const stub = {
     showQuickPick: async (items, o) => { const want = ans.pick.shift(); log.lastPick = { items, o }; return typeof want === 'function' ? want(items) : want; },
     showWarningMessage: async (m, ...b) => { log.warns.push(m); return ans.warn.shift(); },
     showInformationMessage: async (m, ...b) => { log.infos.push(m); return ans.info.shift(); },
-    showTextDocument: async (d) => d,
+    showTextDocument: async (d) => { stub._last = d; return d; },
     setStatusBarMessage: (m) => { log.status.push(m); },
     createTreeView: (id) => { stub.view = { id }; return { dispose() {} }; }
   },
@@ -83,6 +86,7 @@ const stub = {
     onDidChangeDiagnostics: () => ({ dispose() {} }),
     registerCompletionItemProvider: () => ({ dispose() {} }),
     registerHoverProvider: () => ({ dispose() {} }),
+    registerDocumentLinkProvider: (sel, prov) => { stub.linkProv = prov; stub.linkSel = sel; return { dispose() {} }; },
     getDiagnostics: () => stub._diags
   },
   _cmds: {}, _diags: []
@@ -229,6 +233,54 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.ok(log.docs.at(-1).content.includes('Немає: кожен означений термін є серед'), 'then every term has an entry');
     assert.strictEqual(log.warns.filter((m) => m.includes('Додати \\index')).length, 1, 'no second question');
     w('main.tex', MAIN);
+  });
+
+  await run('reports: path:line in the report is a link to the file at that line (only inside the project, only existing files)', async () => {
+    assert.deepStrictEqual(stub.linkSel, { language: 'markdown', scheme: 'untitled' });
+    w('Charges/T1.tex', 'Тут вже є напруженість електричного поля.\nА \\emph{заряд} означено тут.\n');
+    w('Magnet/T2.tex', 'Назвемо \\emph{напруженістю} векторну величину.\n');
+    await C['tssworkflow.termsReport']();
+    const doc = stub._last;
+    const links = stub.linkProv.provideDocumentLinks(doc);
+    const targets = links.map((l) => path.relative(proj, l.target.fsPath).split(path.sep).join('/') + '#' + l.target.fragment);
+    assert.ok(targets.includes('Magnet/T2.tex#L1') && targets.includes('Charges/T1.tex#L1'), targets.join(', '));
+    const row = doc.lineAt(links[0].range.start.line).text;
+    assert.strictEqual(row.slice(links[0].range.start.character, links[0].range.end.character), 'Magnet/T2.tex:1');
+    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks({ uri: { toString: () => 'untitled:other' }, lineCount: 1, lineAt: () => ({ text: 'Magnet/T2.tex:1' }) }), [], 'a document that is not a report has no links');
+    const fake = { uri: doc.uri, lineCount: 2, lineAt: (i) => ({ text: ['../outside.tex:1', 'Magnet/missing.tex:2'][i] }) };
+    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(fake), [], 'outside the project or missing: no link');
+  });
+
+  await run('reports: the list of matches of «Replace in project» has links too; each report keeps its own project; «Notation» has no line numbers, so no links', async () => {
+    const REP = 'початок\n\\zzz x\nщось\n\\zzz y\n';
+    w('Rep/Rep.tex', REP);
+    await C['tssworkflow.termsReport']();
+    const terms = stub._last;
+    const termsBefore = stub.linkProv.provideDocumentLinks(terms).length;
+    assert.ok(termsBefore > 0);
+    ans.input = ['\\zzz', '\\yyy'];
+    ans.pick = [(items) => items.filter((i) => i.picked)];
+    ans.warn = ['Показати список'];
+    ans.info = [undefined]; // do not replace after looking at the list
+    await C['tssworkflow.replaceInProject']();
+    const rep = stub._last;
+    assert.notStrictEqual(rep, terms, 'a new document');
+    assert.strictEqual(r('Rep/Rep.tex'), REP, 'nothing replaced');
+    const links = stub.linkProv.provideDocumentLinks(rep);
+    assert.deepStrictEqual(links.map((l) => path.relative(proj, l.target.fsPath).split(path.sep).join('/') + '#' + l.target.fragment), ['Rep/Rep.tex#L2', 'Rep/Rep.tex#L4']);
+    assert.deepStrictEqual(links.map((l) => rep.lineAt(l.range.start.line).text.slice(l.range.start.character, l.range.end.character)), ['Rep/Rep.tex:2', 'Rep/Rep.tex:4'], 'the link covers exactly path:line; the \"Rep/Rep.tex (2)\" summary line has none');
+    assert.ok(links[0].tooltip.includes('Rep/Rep.tex') && links[0].tooltip.includes('рядок 2'), links[0].tooltip);
+    assert.strictEqual(stub.linkProv.provideDocumentLinks(terms).length, termsBefore, 'the first report still has its links');
+    ans.pick = [undefined];
+    await C['tssworkflow.notationReport']();
+    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(stub._last), [], 'the notation report lists files and counts, not lines: nothing to link (change this test if line numbers are added)');
+    const sib = path.join(tmp, 'proj-other', 'x.tex');
+    fs.mkdirSync(path.dirname(sib), { recursive: true });
+    fs.writeFileSync(sib, 'x\n', 'utf8');
+    const fake = { uri: terms.uri, lineCount: 1, lineAt: () => ({ text: '../proj-other/x.tex:1' }) };
+    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(fake), [], 'a sibling folder with the same beginning of the name is outside the project');
+    fs.rmSync(path.join(proj, 'Rep'), { recursive: true, force: true });
+    assert.strictEqual(stub.linkProv.provideDocumentLinks(rep).length, 0, 'the file is gone: no link');
   });
 
   await run('indexTerm: \\index after the selection or the word under the cursor, hint without the magic comment', async () => {
