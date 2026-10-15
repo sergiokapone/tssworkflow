@@ -118,7 +118,7 @@ t('fileLineRefs: path:line in a report line; other colons, versions and bare nam
 t('fileLineRefs: all five extensions; line:column keeps the line only; markdown, brackets and trailing punctuation stay outside the link; repeated calls give the same result', () => {
   const pairs = (l) => T.fileLineRefs(l).map((x) => [x.rel, x.line]);
   assert.deepStrictEqual(pairs('a.tex:1 b.tikz:2 c.sty:3 d.cls:4 e.bib:5'), [['a.tex', 1], ['b.tikz', 2], ['c.sty', 3], ['d.cls', 4], ['e.bib', 5]]);
-  assert.deepStrictEqual(pairs('Фізика/Розділ_1/Розділ_1.tex:12:5'), [['Фізика/Розділ_1/Розділ_1.tex', 12]], 'a column after the line is not part of it');
+  assert.deepStrictEqual(pairs('Фізика/Розділ_1/Розділ_1.tex:12:5'), [['Фізика/Розділ_1/Розділ_1.tex', 12]], 'the column belongs to the link, the line is read from it');
   assert.deepStrictEqual(pairs('a.tex:1,b.tex:2;c.tex:3'), [['a.tex', 1], ['b.tex', 2], ['c.tex', 3]]);
   for (const l of ['`A/A.tex:5`', '[A/A.tex:5](x)', '(A/A.tex:5)', 'A/A.tex:5.', 'A/A.tex:5abc']) {
     const r = T.fileLineRefs(l);
@@ -147,6 +147,44 @@ t('fileLineRefs: in a real Terms report every \"path:line\" is found and points 
   const found = [];
   for (const line of md.split('\n')) for (const x of T.fileLineRefs(line)) { found.push(line.slice(x.start, x.start + x.len)); const f = files.find((q) => q.path === x.rel); assert.ok(f, x.rel); assert.ok((f.text.split('\n')[x.line - 1] || '').trim(), x.rel + ':' + x.line + ' is an empty or missing line'); }
   assert.deepStrictEqual(found, ['B/B.tex:1', 'A/A.tex:2', 'B/B.tex:2', 'A/A.tex:4', 'B/B.tex:1', 'B/B.tex:2'], 'the table (defined, first earlier use) and the list of terms without \\index');
+});
+
+t('fileLineRefs: :line:column is one link with the column; line 0 and a lone trailing colon are not part of it', () => {
+  const l = 'a.tex:12:5 b.tex:0 c.tex:7: d.tex:3x e.tex:9:0';
+  const r = T.fileLineRefs(l);
+  assert.deepStrictEqual(r.map((x) => [l.slice(x.start, x.start + x.len), x.rel, x.line, x.col]), [['a.tex:12:5', 'a.tex', 12, 5], ['c.tex:7', 'c.tex', 7, undefined], ['d.tex:3', 'd.tex', 3, undefined], ['e.tex:9:0', 'e.tex', 9, undefined]], 'b.tex:0 is skipped; column 0 is no column');
+});
+
+t('termsForms: a changing vowel of the stem (потік / потоку / потоком) is the same word in the text, in the \\index keys and in the ignore list', () => {
+  // потік / потоку share only 3 letters, so the usual comparison by the beginning does not see them as one word (потоку / потоком it does)
+  const a = F('A.tex', 'Величина потоку поля вже є. Рух зарядів.');
+  const b = F('B.tex', 'Назвемо \\emph{потік} величину. \\index{потоком}\n\\emph{струмами} теж.');
+  const forms = [['потік', 'потоку', 'ПОТОКОМ'], 'not a group', ['а б']];
+  assert.deepStrictEqual(T.termsReport([a, b], { index: true }).early, [], 'without the setting the words are different');
+  assert.deepStrictEqual(T.termsReport([a, b], { index: true }).noIndex.map((x) => x.term).sort(), ['потік', 'струмами'], 'and \\index{потоком} does not cover потік');
+  const r = T.termsReport([a, b], { index: true, forms });
+  assert.deepStrictEqual(r.early.map((e) => [e.term, e.first.path, e.first.line, e.count]), [['потік', 'A.tex', 1, 1]], 'the text: потоку is потік');
+  assert.deepStrictEqual(r.noIndex.map((x) => x.term), ['струмами'], 'the index: \\index{потоком} covers потік');
+  assert.deepStrictEqual(T.termsReport([a, b], { forms, ignore: ['Потоком'] }).terms.map((x) => x.term), ['струмами'], 'ignore: the same word in another form');
+  const c = F('C.tex', '\\emph{потоку} ще раз.');
+  assert.strictEqual(T.termsReport([a, b, c], { forms }).terms.find((x) => x.term === 'потік').defs, 2, 'a definition in another form is the same term');
+  assert.strictEqual(T.termsReport([a, b, c], {}).terms.find((x) => x.term === 'потік').defs, 1);
+  const f = T.formsCanon(forms);
+  assert.deepStrictEqual([f('потоку'), f('потоком'), f('потік'), f('струм')], ['потік', 'потік', 'потік', 'струм']);
+  assert.strictEqual(T.formsCanon(null)('слово'), 'слово');
+});
+
+t('indexInsertions: with entries only the terms that have one are written, in the typed form (specials escaped); without them the written form', () => {
+  const b = F('B.tex', 'Назвемо \\emph{напруженістю} величину. \\emph{струмами} теж. \\emph{а!б в} ще.');
+  const rep = T.termsReport([b], { index: true });
+  assert.deepStrictEqual(rep.noIndex.map((x) => x.term), ['напруженістю', 'струмами', 'а!б в']);
+  const all = T.indexInsertions([b], rep).get('B.tex');
+  assert.ok(all.includes('\\emph{напруженістю}\\index{напруженістю}') && all.includes('\\emph{струмами}\\index{струмами}') && all.includes('\\index{а\"!б в}'), all);
+  const some = T.indexInsertions([b], rep, new Map([['напруженістю', 'напруженість'], ['а!б в', 'а!б в']])).get('B.tex');
+  assert.ok(some.includes('\\emph{напруженістю}\\index{напруженість}'), 'the typed entry, not the written one');
+  assert.ok(some.includes('\\emph{струмами} теж') && !some.includes('\\index{струмами}'), 'a term without an entry is skipped');
+  assert.ok(some.includes('\\index{а\"!б в}'));
+  assert.strictEqual(T.indexInsertions([b], rep, new Map()).size, 0, 'no entries: nothing to write');
 });
 
 console.log(n + ' tests passed');

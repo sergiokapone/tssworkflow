@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.20.5",
+  "version": "0.20.6",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1723,6 +1723,17 @@
             "type": "string"
           },
           "description": "Words and phrases that \"Terms\" skips (a \\emph used for emphasis, not for a definition)."
+        },
+        "tssworkflow.termsForms": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Groups of forms of one word that \"Terms\" treats as the same word when the vowel of the stem changes: [[\"потік\", \"потоку\", \"потоком\"]]. Single words only; case does not matter."
         },
         "tssworkflow.notationGroups": {
           "type": "array",

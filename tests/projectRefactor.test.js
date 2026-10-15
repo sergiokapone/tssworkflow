@@ -122,6 +122,20 @@ t('notationReport / unify', () => {
   const txt = X.formatNotationReport(rep, { folder: 'p' });
   assert.ok(txt.includes('⚠️ ε') && txt.includes('✅ φ'));
 });
+t('notationReport: the first places of every variant (file:line, one per line, at most three) are in the report', () => {
+  const files = [
+    { path: 'A/A.tex', text: 'x\n$\\epsilon$ $\\epsilon$\n\n$\\epsilon$\n$\\epsilon$' },
+    { path: 'B/B.tex', text: '$\\varepsilon$' }
+  ];
+  const rep = X.notationReport(files, null);
+  const eps = rep.find((r) => r.name.startsWith('ε'));
+  const v = (label) => eps.variants.find((q) => q.label.includes(label));
+  assert.deepStrictEqual(v('\\epsilon').places, [{ path: 'A/A.tex', line: 2 }, { path: 'A/A.tex', line: 4 }, { path: 'A/A.tex', line: 5 }]);
+  assert.deepStrictEqual(v('\\varepsilon').places, [{ path: 'B/B.tex', line: 1 }]);
+  const txt = X.formatNotationReport(rep, { folder: 'p' });
+  assert.ok(txt.includes('напр. A/A.tex:2, A/A.tex:4, A/A.tex:5') && txt.includes('напр. B/B.tex:1'), txt);
+  assert.ok(!rep.find((r) => r.name.startsWith('φ')).variants.some((q) => q.places.length), 'a variant that is not used has no places');
+});
 t('parseBibEntries: fields, braces, accents, editor fallback, date, skipped types', () => {
   const bib = [
     '@comment{x}', '@string{a = "b"}',

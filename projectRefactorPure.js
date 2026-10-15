@@ -242,12 +242,14 @@ function notationReport(files, groups) {
     for (const v of g.variants) {
       try { new RegExp(v.pattern); } catch (e) { continue; }
       const perFile = new Map();
+      const places = []; // the first few places: [{ path, line }]
       let count = 0;
       for (const f of files) {
         const r = replaceInText(f.text, v.pattern, '', { regex: true });
         if (r.count) { perFile.set(f.path, r.count); count += r.count; }
+        for (const h of r.hits) { const last = places[places.length - 1]; if (places.length < 3 && !(last && last.path === f.path && last.line === h.line + 1)) places.push({ path: f.path, line: h.line + 1 }); }
       }
-      vs.push({ label: v.label, count, perFile, variant: v });
+      vs.push({ label: v.label, count, perFile, places, variant: v });
     }
     out.push({ name: g.name, variants: vs, mixed: vs.filter((v) => v.count > 0).length > 1, group: g });
   }
@@ -263,7 +265,8 @@ function formatNotationReport(rep, o) {
     lines.push('## ' + (r.mixed ? '⚠️ ' : '✅ ') + r.name);
     for (const v of r.variants) {
       const files = [...v.perFile].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([f, n]) => f + ' (' + n + ')').join(', ');
-      lines.push('- `' + v.label + '`: ' + v.count + (files ? ' — ' + files + (v.perFile.size > 5 ? ', …' : '') : ''));
+      const where = v.places && v.places.length ? ' · напр. ' + v.places.map((x) => x.path + ':' + x.line).join(', ') : '';
+      lines.push('- `' + v.label + '`: ' + v.count + (files ? ' — ' + files + (v.perFile.size > 5 ? ', …' : '') : '') + where);
     }
     lines.push('');
   }

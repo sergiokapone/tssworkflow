@@ -7,12 +7,14 @@
  *                                  blanked (same length: offsets and lines of the original stay valid)
  *   termDefinitions(text, macros)  [{ term, key, words, start, end, line }] in the order of the text
  *   termsReport(files, o)          { terms, early, noIndex, indexKeys }: files [{ path, text }] in the order of the book;
- *                                  o: { macros, ignore, index (the report of the index is wanted) }
- *   indexInsertions(files, rep)    Map path -> new text: \index{term} after the first definition of each term without an index entry
+ *                                  o: { macros, ignore, index (the report of the index is wanted), forms (groups of forms of one word: [["потік", "потоку"]]) }
+ *   indexInsertions(files, rep, entries)  Map path -> new text: \index{term} after the first definition of each term without an index entry
+ *                                  (entries: Map term -> the entry to write, a term that is not in it is skipped; without it the written form)
+ *   formsCanon(forms)              word -> the first word of its group of forms (the word itself when it is in no group)
  *   indexEntryFor(text)            the argument of \index for a selected text (specials of makeindex escaped)
  *   formatTermsReport(rep, o)      Markdown
  *   byBookOrder(order)             a comparator of files [{ path }] by the chapter folders of main.tex
- *   fileLineRefs(line)             \"A/A.tex:12\" places in one line of a report: [{ start, len, rel, line }] (for clickable links) */
+ *   fileLineRefs(line)             \"A/A.tex:12\" places in one line of a report: [{ start, len, rel, line, col }] (for clickable links; col is undefined without \":column\") */
 const { codePart } = require('./corePure');
 
 const blank = (s) => s.replace(/[^\r\n]/g, ' ');
@@ -58,6 +60,18 @@ function wordMatch(a, b, loose) {
   return !!loose && k >= 3 && a.length - k <= 2 && b.length - k <= 2;
 }
 const samePhrase = (a, b) => a.length === b.length && a.every((w, i) => wordMatch(w, b[i], a.length > 1));
+
+// groups of forms of one word (the vowel of the stem changes: потік / потоку / потоком) -> a function word -> the first word of its group.
+// Only single words count; a group is an array of strings, a string with several words is cut to its first word; case does not matter
+function formsCanon(forms) {
+  const map = new Map();
+  for (const g of Array.isArray(forms) ? forms : []) {
+    if (!Array.isArray(g)) continue;
+    const ws = g.map((x) => (wordsOf(String(x))[0] || {}).w).filter(Boolean);
+    for (const w of ws) if (!map.has(w)) map.set(w, ws[0]);
+  }
+  return (w) => map.get(w) || w;
+}
 
 const lineStarts = (text) => { const a = [0]; const re = /\n/g; let m; while ((m = re.exec(text))) a.push(m.index + 1); return a; };
 function lineOf(starts, off) { let lo = 0, hi = starts.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= off) lo = mid; else hi = mid - 1; } return lo + 1; }
@@ -111,10 +125,12 @@ const phraseIn = (phrase, tokens) => {
 
 function termsReport(files, o) {
   const opt = o || {};
-  const ignore = new Set((opt.ignore || []).map((s) => wordsOf(String(s)).map((x) => x.w).join(' ')));
+  const canon = formsCanon(opt.forms);
+  const ignore = new Set((opt.ignore || []).map((s) => wordsOf(String(s)).map((x) => canon(x.w)).join(' ')));
   const docs = files.map((f) => {
     const pr = proseOf(f.text);
-    return { path: f.path, text: f.text, pr, defs: termDefinitions(f.text, opt.macros, pr), starts: lineStarts(f.text) };
+    const defs = termDefinitions(f.text, opt.macros, pr).map((df) => { const words = df.words.map(canon); return Object.assign({}, df, { words, key: words.join(' ') }); });
+    return { path: f.path, text: f.text, pr, defs, starts: lineStarts(f.text) };
   });
   // the terms: the same term defined twice is one term; its first definition counts
   const terms = [];
@@ -132,7 +148,7 @@ function termsReport(files, o) {
   docs.forEach((d, fi) => {
     const plain = d.pr.replace(/\\[A-Za-z@]+\*?/g, blank);
     for (const x of wordsOf(plain)) {
-      const tok = { fi, w: x.w, start: x.start, end: x.end, i: tokens.length };
+      const tok = { fi, w: canon(x.w), start: x.start, end: x.end, i: tokens.length };
       tokens.push(tok);
       const h = x.w.slice(0, 3);
       if (!byHead.has(h)) byHead.set(h, []);
@@ -158,7 +174,7 @@ function termsReport(files, o) {
   }
   // the index: which terms have no \index entry
   let keys = [];
-  for (const f of files) keys = keys.concat(indexKeys(f.text));
+  for (const f of files) keys = keys.concat(indexKeys(f.text).map((k) => ({ words: k.words.map(canon), raw: k.raw })));
   const noIndex = opt.index ? terms.filter((t) => !keys.some((k) => phraseIn(t.words, k.words))) : [];
   return { terms, early, noIndex, indexEntries: keys.length };
 }
@@ -169,13 +185,16 @@ function indexEntryFor(text) {
 }
 
 // \index{term} right after the first definition of each term without an index entry (rep from termsReport with index: true)
-function indexInsertions(files, rep) {
+function indexInsertions(files, rep, entries) {
   const byPath = new Map();
   for (const t of rep.noIndex) {
     const f = files[t.def.fi];
     if (!f) continue;
+    const entry = entries ? entries.get(t.term) : t.term;
+    const arg = entry === undefined ? '' : indexEntryFor(entry);
+    if (!arg) continue; // not asked for (or nothing left of it after the commands are dropped)
     if (!byPath.has(f.path)) byPath.set(f.path, []);
-    byPath.get(f.path).push({ at: t.def.end, text: '\\index{' + indexEntryFor(t.term) + '}' });
+    byPath.get(f.path).push({ at: t.def.end, text: '\\index{' + arg + '}' });
   }
   const out = new Map();
   for (const [p, ins] of byPath) {
@@ -215,14 +234,20 @@ function byBookOrder(order) {
   return (a, b) => (rank(a.path) - rank(b.path)) || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
 
-// places like  Розділ/Розділ.tex:12  in a line of a report (the relative path of a .tex/.tikz/.sty/.cls/.bib file, a colon, the line)
-const REF_RE = /(?<![\p{L}\p{N}_@+./\\-])((?:[\p{L}\p{N}_@+.-]+\/)*[\p{L}\p{N}_@+.-]+\.(?:tex|tikz|sty|cls|bib)):(\d+)(?!\d)/gu;
+// places like  Розділ/Розділ.tex:12  or  Розділ/Розділ.tex:12:5  in a line of a report (the relative path of a .tex/.tikz/.sty/.cls/.bib file,
+// a colon, the line, optionally a colon and the column); line 0 is not a place
+const REF_RE = /(?<![\p{L}\p{N}_@+./\\-])((?:[\p{L}\p{N}_@+.-]+\/)*[\p{L}\p{N}_@+.-]+\.(?:tex|tikz|sty|cls|bib)):(\d+)(?::(\d+))?(?!\d)/gu;
 function fileLineRefs(line) {
   const out = [];
   let m;
   REF_RE.lastIndex = 0;
-  while ((m = REF_RE.exec(String(line)))) out.push({ start: m.index, len: m[0].length, rel: m[1], line: parseInt(m[2], 10) });
+  while ((m = REF_RE.exec(String(line)))) {
+    const ln = parseInt(m[2], 10);
+    if (ln < 1) continue;
+    const col = m[3] === undefined ? undefined : parseInt(m[3], 10);
+    out.push({ start: m.index, len: m[0].length, rel: m[1], line: ln, col: col >= 1 ? col : undefined });
+  }
   return out;
 }
 
-module.exports = { fileLineRefs, proseOf, termDefinitions, indexKeys, termsReport, indexEntryFor, indexInsertions, formatTermsReport, byBookOrder, wordMatch, wordsOf };
+module.exports = { fileLineRefs, formsCanon, proseOf, termDefinitions, indexKeys, termsReport, indexEntryFor, indexInsertions, formatTermsReport, byBookOrder, wordMatch, wordsOf };

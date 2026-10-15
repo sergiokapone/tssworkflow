@@ -18,6 +18,7 @@ w('refs.bib', '@book{landau,\n author={Landau, L. and Lifshitz, E.},\n title={Fi
 const ans = { input: [], pick: [], warn: [], info: [] };
 const log = { infos: [], warns: [], cmds: [], status: [], docs: [] };
 class Uri { constructor(p, fragment) { this.fsPath = p; this.scheme = 'file'; this.fragment = fragment || ''; } static file(p) { return new Uri(p); } with(o) { return new Uri(this.fsPath, o.fragment); } toString() { return 'file://' + this.fsPath + (this.fragment ? '#' + this.fragment : ''); } }
+class CodeLens { constructor(range, command) { this.range = range; this.command = command; } }
 class DocumentLink { constructor(range, target) { this.range = range; this.target = target; } }
 let docSeq = 0;
 class Range { constructor(a, b, c, d) { this.start = { line: a, character: b }; this.end = { line: c, character: d }; } }
@@ -32,10 +33,19 @@ const mkDoc = (fsPath) => {
   const lines = text.split('\n');
   return { uri: Uri.file(fsPath), fileName: fsPath, isDirty: false, lineCount: lines.length, lineAt: (i) => ({ text: lines[i] }), getText: () => text, save: async () => true };
 };
+// an untitled document that can be replaced as a whole (what "↻ Оновити звіт" does with a WorkspaceEdit)
+const mkUntitled = (content) => {
+  const id = 'untitled:Untitled-' + (++docSeq);
+  const d = { content, uri: { toString: () => id, _doc: null }, isClosed: false, validateRange: (r) => r };
+  d.setText = (t) => { const ls = t.split('\n'); d.content = t; d.lineCount = ls.length; d.lineAt = (i) => ({ text: ls[i] }); log.docs.at(-1).content = t; };
+  d.uri._doc = d;
+  d.setText(content);
+  return d;
+};
 const orig = Module._load;
 const treeItems = [];
 const stub = {
-  Uri, Range, WorkspaceEdit, DocumentLink,
+  Uri, Range, WorkspaceEdit, DocumentLink, CodeLens,
   RelativePattern: class { constructor(b, p) { this.base = b; this.pattern = p; } },
   EventEmitter: class { constructor() { this.event = () => ({ dispose() {} }); } fire() {} },
   TreeItem: class { constructor(l, s) { this.label = l; this.collapsibleState = s; } },
@@ -49,15 +59,16 @@ const stub = {
     workspaceFolders: [{ uri: Uri.file(proj) }],
     getWorkspaceFolder: () => ({ uri: Uri.file(proj) }),
     textDocuments: [],
-    getConfiguration: () => ({ get: (k, d) => (k === 'mainFile' ? 'main.tex' : d) }),
+    getConfiguration: () => ({ get: (k, d) => (k === 'mainFile' ? 'main.tex' : stub.conf && k in stub.conf ? stub.conf[k] : d) }),
     findFiles: async (pat) => {
       const base = typeof pat === 'string' ? proj : pat.base;
       const ext2 = typeof pat === 'string' ? /\.bib$/ : /\.(tex|tikz|cls|sty|bib)$/;
       return walk(base, []).filter((f) => ext2.test(f) && !f.includes('.archive')).map(Uri.file);
     },
-    openTextDocument: async (a) => (a && a.content !== undefined ? (log.docs.push(a), (() => { const lines = a.content.split('\n'); return { content: a.content, uri: (() => { const id = 'untitled:Untitled-' + (++docSeq); return { toString: () => id }; })(), lineCount: lines.length, lineAt: (i) => ({ text: lines[i] }) }; })()) : mkDoc(a.fsPath)),
+    openTextDocument: async (a) => (a && a.content !== undefined ? (log.docs.push(a), mkUntitled(a.content)) : mkDoc(a.fsPath)),
     applyEdit: async (e) => {
       for (const op of e.ops) {
+        if (op.uri && op.uri._doc) { op.uri._doc.setText(op.text); continue; }
         if (op.t === 'replace') fs.writeFileSync(op.uri.fsPath, op.text, 'utf8');
         else fs.renameSync(op.a.fsPath, op.b.fsPath);
       }
@@ -70,7 +81,7 @@ const stub = {
   },
   window: {
     activeTextEditor: null,
-    showInputBox: async (o) => { const v = ans.input.shift(); if (v !== undefined && v !== null && o.validateInput) log.validation = o.validateInput(v); return v; },
+    showInputBox: async (o) => { (log.inputs = log.inputs || []).push(o); const v = ans.input.shift(); if (v !== undefined && v !== null && o.validateInput) log.validation = o.validateInput(v); return v; },
     showQuickPick: async (items, o) => { const want = ans.pick.shift(); log.lastPick = { items, o }; return typeof want === 'function' ? want(items) : want; },
     showWarningMessage: async (m, ...b) => { log.warns.push(m); return ans.warn.shift(); },
     showInformationMessage: async (m, ...b) => { log.infos.push(m); return ans.info.shift(); },
@@ -86,6 +97,7 @@ const stub = {
     onDidChangeDiagnostics: () => ({ dispose() {} }),
     registerCompletionItemProvider: () => ({ dispose() {} }),
     registerHoverProvider: () => ({ dispose() {} }),
+    registerCodeLensProvider: (sel, prov) => { stub.lensProv = prov; stub.lensSel = sel; return { dispose() {} }; },
     registerDocumentLinkProvider: (sel, prov) => { stub.linkProv = prov; stub.linkSel = sel; return { dispose() {} }; },
     getDiagnostics: () => stub._diags
   },
@@ -99,7 +111,7 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
 
 (async () => {
   await run('commands are registered', async () => {
-    assert.deepStrictEqual(Object.keys(C).sort(), ['tssworkflow.buildParts', 'tssworkflow.indexTerm', 'tssworkflow.makeSnapshot', 'tssworkflow.moveChapterDown', 'tssworkflow.moveChapterUp', 'tssworkflow.normalizeProject', 'tssworkflow.notationReport', 'tssworkflow.refreshProblems', 'tssworkflow.renameChapter', 'tssworkflow.replaceInProject', 'tssworkflow.restoreSnapshot', 'tssworkflow.termsReport']);
+    assert.deepStrictEqual(Object.keys(C).sort(), ['tssworkflow._refreshReport', 'tssworkflow.buildParts', 'tssworkflow.indexTerm', 'tssworkflow.makeSnapshot', 'tssworkflow.moveChapterDown', 'tssworkflow.moveChapterUp', 'tssworkflow.normalizeProject', 'tssworkflow.notationReport', 'tssworkflow.refreshProblems', 'tssworkflow.renameChapter', 'tssworkflow.replaceInProject', 'tssworkflow.restoreSnapshot', 'tssworkflow.termsReport']);
     assert.strictEqual(stub.view.id, 'tssworkflow.problemsView');
   });
 
@@ -251,7 +263,7 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(fake), [], 'outside the project or missing: no link');
   });
 
-  await run('reports: the list of matches of «Replace in project» has links too; each report keeps its own project; «Notation» has no line numbers, so no links', async () => {
+  await run('reports: the list of matches of «Replace in project» has links too; each report keeps its own project; «Notation» lists places too', async () => {
     const REP = 'початок\n\\zzz x\nщось\n\\zzz y\n';
     w('Rep/Rep.tex', REP);
     await C['tssworkflow.termsReport']();
@@ -273,7 +285,15 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.strictEqual(stub.linkProv.provideDocumentLinks(terms).length, termsBefore, 'the first report still has its links');
     ans.pick = [undefined];
     await C['tssworkflow.notationReport']();
-    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(stub._last), [], 'the notation report lists files and counts, not lines: nothing to link (change this test if line numbers are added)');
+    const nrep = stub._last;
+    const nlinks = stub.linkProv.provideDocumentLinks(nrep);
+    assert.ok(nlinks.length > 0, 'the notation report names places ("напр. файл:рядок"): they are links');
+    for (const l of nlinks) assert.ok(/^[^ ]+\.tex:\d+$/.test(nrep.lineAt(l.range.start.line).text.slice(l.range.start.character, l.range.end.character)));
+    const colDoc = { uri: terms.uri, lineCount: 2, lineAt: (i) => ({ text: ['див. Magnet/T2.tex:1:7, далі', 'Magnet/T2.tex:1:'][i] }) };
+    const cl = stub.linkProv.provideDocumentLinks(colDoc);
+    assert.deepStrictEqual(cl.map((l) => l.target.fragment), ['L1,7', 'L1'], 'the column goes into the fragment (L1,7)');
+    assert.strictEqual(colDoc.lineAt(0).text.slice(cl[0].range.start.character, cl[0].range.end.character), 'Magnet/T2.tex:1:7', 'and into the link');
+    assert.ok(cl[0].tooltip.includes('рядок 1') && cl[0].tooltip.includes('стовпець 7'), cl[0].tooltip);
     const sib = path.join(tmp, 'proj-other', 'x.tex');
     fs.mkdirSync(path.dirname(sib), { recursive: true });
     fs.writeFileSync(sib, 'x\n', 'utf8');
@@ -281,6 +301,127 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(fake), [], 'a sibling folder with the same beginning of the name is outside the project');
     fs.rmSync(path.join(proj, 'Rep'), { recursive: true, force: true });
     assert.strictEqual(stub.linkProv.provideDocumentLinks(rep).length, 0, 'the file is gone: no link');
+  });
+
+  await run('snapshots: two snapshots with the same label in one second are two snapshots (the id used to be the same and the second overwrote the first)', async () => {
+    const n = M._t.listSnapshots(proj).length;
+    const RealDate = Date, T0 = RealDate.now();
+    global.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : [T0])); } static now() { return T0; } }; // the same second, for sure
+    let first, all;
+    try {
+      await M._t.takeSnapshot(proj, 'same label');
+      first = M._t.listSnapshots(proj).length;
+      w('Snap/S.tex', 'one\n');
+      await M._t.takeSnapshot(proj, 'same label');
+      all = M._t.listSnapshots(proj);
+    } finally { global.Date = RealDate; }
+    assert.strictEqual(first, n + 1);
+    assert.strictEqual(all.length, n + 2, 'both are kept');
+    const ids = all.map((m) => m.id).filter((id) => id.includes('same-label'));
+    assert.strictEqual(new Set(ids).size, 2, ids.join(', '));
+    assert.ok(ids.some((id) => /-2$/.test(id)), 'the second one is numbered');
+    fs.rmSync(path.join(proj, 'Snap'), { recursive: true, force: true });
+  });
+
+  await run('Terms: «Уточнити форми…» asks for the entry of every term (the written form is the default); empty skips a term, Esc cancels everything', async () => {
+    const IDX = '% !TEX indexprogram = upmendex\n' + MAIN;
+    w('main.tex', IDX);
+    w('Charges/T1.tex', 'Тут \\emph{заряд}\\index{заряд} означено.\n'); // the terms of the earlier tests have their entries
+    w('Magnet/T2.tex', 'Назвемо \\emph{напруженістю}\\index{напруженість} величину.\n');
+    const FORMS = 'Тут \\emph{потоком} і \\emph{струмами} означено.\n';
+    w('Forms/Forms.tex', FORMS);
+    ans.warn = ['Уточнити форми…'];
+    ans.input = ['потік', ''];
+    const before = M._t.listSnapshots(proj).length, n0 = (log.inputs || []).length;
+    await C['tssworkflow.termsReport']();
+    const asked = log.inputs.slice(n0);
+    assert.strictEqual(asked.length, 2, 'one question per term without an entry: ' + JSON.stringify(asked.map((o) => o.value)));
+    assert.deepStrictEqual(asked.map((o) => o.value), ['потоком', 'струмами'], 'the written form is offered');
+    assert.ok(asked[0].prompt.includes('Forms/Forms.tex:1') && asked[0].prompt.includes('Esc') && asked[0].ignoreFocusOut, asked[0].prompt);
+    assert.strictEqual(r('Forms/Forms.tex'), 'Тут \\emph{потоком}\\index{потік} і \\emph{струмами} означено.\n', 'the typed form is written, the term with an empty answer is skipped');
+    assert.strictEqual(M._t.listSnapshots(proj).length, before + 1);
+    assert.ok(log.infos.at(-1).includes('Додано \\index до 1 термінів'), log.infos.at(-1));
+    // Esc on a question: nothing is written, no snapshot
+    const snaps = M._t.listSnapshots(proj).length;
+    ans.warn = ['Уточнити форми…'];
+    ans.input = [undefined];
+    await C['tssworkflow.termsReport']();
+    assert.strictEqual(r('Forms/Forms.tex'), 'Тут \\emph{потоком}\\index{потік} і \\emph{струмами} означено.\n');
+    // Esc on the second question cancels the answer to the first too
+    ans.warn = ['Уточнити форми…'];
+    ans.input = ['дослівно', undefined];
+    await C['tssworkflow.termsReport']();
+    assert.ok(!r('Forms/Forms.tex').includes('дослівно'), 'nothing of a cancelled series is written');
+    assert.strictEqual(M._t.listSnapshots(proj).length, snaps, 'cancelled: no snapshot');
+    // without the setting the entry \index{потік} does not cover \emph{потоком} (the vowel of the stem changes): two terms are still asked about
+    ans.warn = ['Уточнити форми…'];
+    ans.input = ['', ''];
+    const w0 = log.warns.length;
+    await C['tssworkflow.termsReport']();
+    assert.ok(log.warns[w0].includes('2 термінів'), log.warns[w0]);
+    assert.ok(log.infos.at(-1).includes('Жодного запису не додано'), log.infos.at(-1));
+    // the setting termsForms joins the forms: потоком is covered, one term is left
+    stub.conf = { termsForms: [['потік', 'потоку', 'потоком']] };
+    ans.warn = [undefined];
+    const w1 = log.warns.length;
+    await C['tssworkflow.termsReport']();
+    assert.ok(log.warns[w1].includes('1 термінів'), log.warns[w1]);
+    assert.ok(!/Означені терміни без запису в покажчику[\s\S]*потоком/.test(stub._last.content), 'the report does not list it either');
+    stub.conf = null;
+    // «Додати» is still the written form for all of them
+    ans.warn = ['Додати'];
+    await C['tssworkflow.termsReport']();
+    assert.ok(r('Forms/Forms.tex').includes('\\emph{струмами}\\index{струмами}'));
+    w('main.tex', MAIN);
+    fs.rmSync(path.join(proj, 'Forms'), { recursive: true, force: true });
+  });
+
+  await run('reports: «↻ Оновити звіт» is a lens above the first line of a report that can be built again; it rewrites the same document and the links follow', async () => {
+    assert.deepStrictEqual(stub.lensSel, { language: 'markdown', scheme: 'untitled' });
+    assert.deepStrictEqual(stub.lensProv.provideCodeLenses({ uri: { toString: () => 'untitled:other' } }), [], 'not a report: no lens');
+    const REP = 'початок\n\\zzz x\n';
+    w('Rep/Rep.tex', REP);
+    ans.input = ['\\zzz', '\\yyy'];
+    ans.pick = [(items) => items.filter((i) => i.picked)];
+    ans.warn = ['Показати список'];
+    ans.info = [undefined];
+    await C['tssworkflow.replaceInProject']();
+    const doc = stub._last;
+    const lens = stub.lensProv.provideCodeLenses(doc);
+    assert.strictEqual(lens.length, 1);
+    assert.deepStrictEqual([lens[0].range.start.line, lens[0].command.title, lens[0].command.command, lens[0].command.arguments], [0, '↻ Оновити звіт', 'tssworkflow._refreshReport', [doc.uri.toString()]]);
+    assert.strictEqual(stub.linkProv.provideDocumentLinks(doc).length, 1);
+    w('Rep/Rep.tex', REP + 'ще\n\\zzz y\n');
+    await C['tssworkflow._refreshReport'](doc.uri.toString());
+    assert.ok(doc.content.includes('Rep/Rep.tex:4') && doc.content.includes('Rep/Rep.tex (2)'), doc.content);
+    assert.deepStrictEqual(stub.linkProv.provideDocumentLinks(doc).map((l) => l.target.fragment), ['L2', 'L4'], 'the links are computed from the new text');
+    assert.ok(log.status.at(-1).includes('оновлено'));
+    assert.strictEqual(stub.lensProv.provideCodeLenses(doc).length, 1, 'still a report after the refresh');
+    // the pattern is gone from the project: the report says so and still has its lens
+    w('Rep/Rep.tex', 'нічого\n');
+    await C['tssworkflow._refreshReport'](doc.uri.toString());
+    assert.ok(doc.content.includes('Збігів не знайдено'), doc.content);
+    assert.strictEqual(stub.linkProv.provideDocumentLinks(doc).length, 0);
+    // other reports are built again by their own command: Terms and Notation have a lens too
+    await C['tssworkflow.termsReport']();
+    assert.strictEqual(stub.lensProv.provideCodeLenses(stub._last).length, 1);
+    const terms = stub._last;
+    const old = terms.content;
+    w('Charges/T3.tex', 'Назвемо \\emph{опором} величину.\n');
+    await C['tssworkflow._refreshReport'](terms.uri.toString());
+    const count = (t) => +/Означених термінів: (\d+)/.exec(t)[1];
+    assert.strictEqual(count(terms.content), count(old) + 1, 'the new term is counted after the refresh');
+    ans.pick = [undefined];
+    await C['tssworkflow.notationReport']();
+    assert.strictEqual(stub.lensProv.provideCodeLenses(stub._last).length, 1);
+    fs.rmSync(path.join(proj, 'Rep'), { recursive: true, force: true });
+    fs.rmSync(path.join(proj, 'Charges', 'T3.tex'), { force: true });
+    // an unknown or already closed report is ignored
+    await C['tssworkflow._refreshReport']('untitled:nothing');
+    doc.isClosed = true;
+    const keep = doc.content;
+    await C['tssworkflow._refreshReport'](doc.uri.toString());
+    assert.strictEqual(doc.content, keep, 'a closed document is not touched');
   });
 
   await run('indexTerm: \\index after the selection or the word under the cursor, hint without the magic comment', async () => {
