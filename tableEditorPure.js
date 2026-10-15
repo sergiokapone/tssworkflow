@@ -294,6 +294,7 @@ function parseTable(text, env) {
   } else specRange = [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart];
   if (specRange) spec = tokenizeSpec(head.slice(specRange[0], specRange[1]));
   const kinfo = isTblr ? keyInfo(specSrc) : { auto: false, manual: false };
+  const optSp = isTblr ? parseOptSpans(specSrc) : { spans: [], complex: false };
 
   const body = text.slice(a.headEnd, env.bodyEnd);
   if (/\\verb\b|\\lstinline|\\mintinline/.test(body)) return { skip: 'у таблиці є \\verb або код' };
@@ -324,7 +325,7 @@ function parseTable(text, env) {
   const model = {
     env: name, base, isTblr, spread: name === 'spreadtab', tailText: tail, head, specRange, spec, specDirty: false,
     groupRange: [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart], keyOps: [], keyInfo: kinfo,
-    rows: out, styles: isTblr ? parseStyleRules(specSrc) : [],
+    rows: out, styles: isTblr ? parseStyleRules(specSrc) : [], optSpans: optSp.spans, optComplex: optSp.complex,
     prefix: text.slice(env.start, env.bodyStart), suffix: text.slice(env.bodyEnd, env.end)
   };
   model.origBody = serializeBody(model);
@@ -346,8 +347,50 @@ function rowSpans(model, bodyAt) {
   return out;
 }
 
+/* The merged cells of a table where they stand in the file (for the lightbulb and the warnings of the editor).
+ * Offsets of every cell of a freshly parsed table: [row][cell] -> [start, end) in the text it was parsed from. */
+function cellRanges(model, bodyAt) {
+  const sp = rowSpans(model, bodyAt);
+  return model.rows.map((r, i) => {
+    let pos = sp[i].start + r.pre.length + r.lead.length;
+    return splitTop(r.rest.trim(), 'cell').pieces.map((p) => {
+      const ws = /^\s*/.exec(p.text)[0].length;
+      const a = pos + ws;
+      pos += p.text.length + 1;
+      return [a, a + p.text.trim().length];
+    });
+  });
+}
+
+// { model, spans: [{ r, c, rs, cs, src, range: [from, to] | null }], conflicts } of the table `env` of `text`, or null when it cannot be read
+function spanMap(text, env) {
+  const res = parseTable(text, env);
+  if (res.skip) return null;
+  const m = res.model;
+  if (!m.isTblr) return { model: m, spans: [], conflicts: [] };
+  const cr = cellRanges(m, env.bodyStart + m.head.length);
+  const base = env.bodyStart + m.groupRange[0];
+  const spans = spanList(m).map((s) => {
+    if (s.src === 'opts') return Object.assign({}, s, { range: [base + s.opt.a, base + s.opt.b] });
+    const k = cellIndexAt(m.rows[s.r], s.c);
+    return Object.assign({}, s, { range: k >= 0 && cr[s.r] && cr[s.r][k] ? cr[s.r][k] : null });
+  });
+  const conflicts = spanConflicts(m, spans);
+  return { model: m, spans, conflicts, headRange: [env.start, env.bodyStart + m.head.length] };
+}
+
+// the text of the whole environment after `op` (spansToOptions, spansToCells, spanKeep, merge, unmerge) or { error }
+function convertSpans(text, env, op) {
+  const res = parseTable(text, env);
+  if (res.skip) return { error: res.skip };
+  const r = applyOp(res.model, op);
+  if (r.error) return { error: r.error };
+  if (r.confirm) return { error: r.confirm };
+  return { text: serialize(r.model) };
+}
+
 const width = (m) => Math.max(m.spec ? m.spec.tokens.length : 0, ...m.rows.map((r) => r.cells.reduce((s, c) => s + c.span, 0)));
-const hasSpans = (m) => m.rows.some((r) => r.cells.some((c) => c.cs > 1 || c.rs > 1));
+const hasSpans = (m) => (m.optSpans || []).length > 0 || m.rows.some((r) => r.cells.some((c) => c.cs > 1 || c.rs > 1));
 
 function joinCells(cells) {
   let s = cells[0] ? cells[0].t : '';
@@ -479,6 +522,144 @@ function anchors(m) {
   return out;
 }
 
+// the index of the cell that starts at the logical column `l` of the row (-1: that column lies inside a \multicolumn)
+const cellIndexAt = (row, l) => starts(row).indexOf(l);
+
+/* ------------------------- merged cells: both ways of writing them ------------------------- */
+// \SetCell[r=2,c=3]{…} in the body, or cell{i}{j} = {r=2,c=3}{…} in the options of tblr
+const SPAN_KEY_RE = /^\s*[rc]\s*=\s*\d+\s*$/;
+const HAS_SPAN_RE = /(?:^|,)\s*[rc]\s*=\s*\d+/;
+const spanKey = (src, k) => { const m = new RegExp('(?:^|,)\\s*' + k + '\\s*=\\s*(\\d+)').exec(src); return m ? Math.max(1, +m[1]) : 1; };
+// the {…} groups at the start of the value of an item: "{r=2}{c}" -> ['r=2', 'c']
+function valueGroups(val) {
+  const out = [];
+  let k = 0;
+  for (;;) {
+    while (/\s/.test(val[k] || '')) k++;
+    if (val[k] !== '{') break;
+    const e = E4.matchBracket(val, k);
+    if (e < 0) break;
+    out.push(val.slice(k + 1, e));
+    k = e + 1;
+  }
+  return out;
+}
+
+// the merged cells written in the options: cell{2}{1} = {r=2,c=3}{…}. Only plain numbers in both selectors can be followed
+// (lists, ranges, odd / even are reported as `complex` and left as they are). a, b: where the item stands in the options text
+function parseOptSpans(specSrc) {
+  const spans = [];
+  let complex = false;
+  rewriteKeys(specSrc, (key, sels, val, a, b) => {
+    if (key === 'cell') {
+      const g = valueGroups(val);
+      if (g.length && HAS_SPAN_RE.test(g[0])) {
+        const rs = spanKey(g[0], 'r');
+        const cs = spanKey(g[0], 'c');
+        if (rs > 1 || cs > 1) {
+          if (/^\d+$/.test(sels[0].trim()) && /^\d+$/.test(sels[1].trim())) spans.push({ r: +sels[0] - 1, c: +sels[1] - 1, rs, cs, groups: g, a, b });
+          else complex = true;
+        }
+      }
+    }
+    return sels;
+  });
+  return { spans, complex };
+}
+
+// every merged cell of the table, from both places: { r, c (0-based, c logical), rs, cs, src: 'cell' | 'opts', opt }
+function spanList(m) {
+  const out = [];
+  for (const a of anchors(m)) out.push({ r: a.r, c: a.s, rs: a.cell.rs, cs: a.cell.cs, src: 'cell' });
+  for (const o of m.optSpans || []) out.push({ r: o.r, c: o.c, rs: o.rs, cs: o.cs, src: 'opts', opt: o });
+  return out;
+}
+
+const spanHit = (a, b) => !(a.r > b.r + b.rs - 1 || b.r > a.r + a.rs - 1 || a.c > b.c + b.cs - 1 || b.c > a.c + a.cs - 1);
+const where1 = (s) => '(' + (s.r + 1) + ', ' + (s.c + 1) + ')';
+const whereSrc = (s) => (s.src === 'cell' ? '\\SetCell' : 'cell{' + (s.r + 1) + '}{' + (s.c + 1) + '} у параметрах');
+
+// what is wrong with the merged cells: two of them on one cell or on top of each other, one that leaves the table,
+// text in a cell that a merge covers. [{ kind, msg, at: [span…], cells: [{ r, c }] }]
+function spanConflicts(m, list) {
+  const L = list || spanList(m);
+  const nr = m.rows.length;
+  const w = width(m);
+  const out = [];
+  for (const s of L) if (s.r + s.rs > nr || s.c + s.cs > w) out.push({ kind: 'bounds', at: [s], cells: [{ r: s.r, c: s.c }], msg: 'Об\'єднання в клітинці ' + where1(s) + ' (' + whereSrc(s) + ') виходить за межі таблиці.' });
+  for (let i = 0; i < L.length; i++) {
+    for (let j = i + 1; j < L.length; j++) {
+      const a = L[i];
+      const b = L[j];
+      if (a.r === b.r && a.c === b.c) {
+        out.push({ kind: a.src === b.src ? 'dup-same' : 'dup', at: [a, b], cells: [{ r: a.r, c: a.c }], msg: 'Клітинка ' + where1(a) + ' об\'єднана двічі: ' + (a.src === b.src ? 'у параметрах таблиці є два записи cell{' + (a.r + 1) + '}{' + (a.c + 1) + '} із r=/c=' : 'і в \\SetCell, і в параметрах таблиці (cell{' + (a.r + 1) + '}{' + (a.c + 1) + '})') + '. Результат у PDF неоднозначний: залиш одне.' });
+      } else if (spanHit(a, b)) {
+        out.push({ kind: 'overlap', at: [a, b], cells: [{ r: a.r, c: a.c }, { r: b.r, c: b.c }], msg: 'Об\'єднання клітинок ' + where1(a) + ' (' + whereSrc(a) + ') і ' + where1(b) + ' (' + whereSrc(b) + ') перекриваються.' });
+      }
+    }
+  }
+  const seen = new Set();
+  for (const s of L) {
+    if (s.r + s.rs > nr || s.c + s.cs > w) continue;
+    for (let rr = s.r; rr < s.r + s.rs; rr++) {
+      const row = m.rows[rr];
+      const st = starts(row);
+      for (let ll = s.c; ll < s.c + s.cs; ll++) {
+        if (rr === s.r && ll === s.c) continue;
+        const k = st.indexOf(ll);
+        const key = rr + ':' + ll;
+        if (k >= 0 && row.cells[k].inner.trim() && !seen.has(key)) {
+          seen.add(key);
+          out.push({ kind: 'hidden', at: [s], cells: [{ r: rr, c: ll }], msg: 'У клітинці (' + (rr + 1) + ', ' + (ll + 1) + '), закритій об\'єднанням ' + where1(s) + ', є текст: у PDF його, найімовірніше, не буде видно.' });
+        }
+      }
+    }
+  }
+  if (m.optComplex) out.push({ kind: 'complex', at: [], cells: [], msg: 'У параметрах таблиці є об\'єднання зі складним селектором (cell{1-3}{2}, odd, список): редактор їх не показує, правь їх у коді.' });
+  return out;
+}
+
+// \SetCell[opts]{mand} rest, taken apart. lead: the "@ " of spreadtab
+function scParse(t) {
+  const m = /^((?:@\s*)?)\\SetCell\s*/.exec(t);
+  if (!m) return null;
+  let i = m[0].length;
+  let opts = null;
+  let mand = null;
+  if (t[i] === '[') { const e = E4.matchBracket(t, i); if (e > 0) { opts = t.slice(i + 1, e); i = e + 1; } }
+  while (/\s/.test(t[i] || '')) i++;
+  if (t[i] === '{') { const e = E4.matchBracket(t, i); if (e > 0) { mand = t.slice(i + 1, e); i = e + 1; } }
+  return { lead: m[1], opts, mand, rest: t.slice(i).replace(/^\s+/, '') };
+}
+const scBuild = (p) => p.lead + '\\SetCell' + (p.opts ? '[' + p.opts + ']' : '') + '{' + (p.mand || '') + '}' + (p.rest ? ' ' + p.rest : '');
+// the optional argument of \SetCell with the spans rs / cs (1 = no key)
+function optsWith(opts, rs, cs) {
+  const keep = splitCommas(opts || '').map((x) => x.trim()).filter((x) => x && !SPAN_KEY_RE.test(x));
+  if (rs > 1) keep.push('r=' + rs);
+  if (cs > 1) keep.push('c=' + cs);
+  return keep.join(',');
+}
+// a cell that already has \SetCell gets other spans (1×1: the key goes, and the command with it when nothing else is in it)
+function setScSpan(cell, rs, cs) {
+  const p = scParse(cell.t);
+  if (!p) return cell;
+  p.opts = optsWith(p.opts, rs, cs);
+  if (!p.opts && !(p.mand || '').trim()) return classify(p.lead + p.rest);
+  return classify(scBuild(p));
+}
+// a plain cell becomes \SetCell[…]{mand} text
+function toSc(m, cell, rs, cs, mand) {
+  const at = m.spread ? /^@\s*/.exec(cell.t) : null;
+  return classify(scBuild({ lead: at ? at[0] : '', opts: optsWith('', rs, cs), mand: mand || '', rest: at ? cell.t.slice(at[0].length) : cell.t }));
+}
+
+const OPT_MSG = 'Тут діє об\'єднання з параметрів таблиці (cell{…}{…} = {r=…,c=…}): перенеси його в \\SetCell (лампочка в редакторі), і тоді рядки та стовпці можна додавати й видаляти.';
+const optInsideRow = (m, at) => (m.optSpans || []).some((o) => o.rs > 1 && o.r < at && at <= o.r + o.rs - 1);
+const optInsideCol = (m, at) => (m.optSpans || []).some((o) => o.cs > 1 && o.c < at && at <= o.c + o.cs - 1);
+const optCoversRow = (m, r) => (m.optSpans || []).some((o) => o.rs > 1 && o.r <= r && r <= o.r + o.rs - 1);
+const optCoversCol = (m, c) => (m.optSpans || []).some((o) => o.cs > 1 && o.c <= c && c <= o.c + o.cs - 1);
+const optRowsHit = (m, r1, r2) => (m.optSpans || []).some((o) => o.rs > 1 && !(o.r + o.rs - 1 < r1 || o.r > r2));
+
 function replaceCell(m, ref, next) {
   for (const row of m.rows) { const k = row.cells.indexOf(ref); if (k >= 0) { row.cells[k] = next; row.dirty = true; return; } }
 }
@@ -514,7 +695,7 @@ function insertRow(m, at, cells, below) {
   shiftFormulas(m, op);
 }
 
-const hasSpan = (m) => m.rows.some((r) => r.cells.some((c) => c.cs > 1 || c.rs > 1));
+const hasSpan = (m) => hasSpans(m);
 
 // ops: setCell {r,c,text} · addRow {at} · delRow {r} · moveRow {r,dir} · addCol {at} · delCol {c} · moveCol {c,dir} · setAlign {c,a} · fill {r,c,rows}
 function applyOp(model, op) {
@@ -535,13 +716,16 @@ function applyOp(model, op) {
       return { model: m };
     }
     case 'addRow': {
-      insertRow(m, Math.max(0, Math.min(nRows, op.at)), null, !!op.below);
+      const at0 = Math.max(0, Math.min(nRows, op.at));
+      if (optInsideRow(m, at0)) return err(OPT_MSG);
+      insertRow(m, at0, null, !!op.below);
       return { model: m };
     }
     case 'delRow': {
       if (nRows <= 1) return err('Не можна видалити єдиний рядок.');
       const r = op.r;
       if (!m.rows[r]) return err('Немає такого рядка.');
+      if (optCoversRow(m, r)) return err(OPT_MSG);
       const shrink = anchors(m).filter((a) => a.cell.rs > 1 && a.r < r && r <= a.r + a.cell.rs - 1);
       const [gone] = m.rows.splice(r, 1);
       m.keyOps.push({ t: 'rowDel', at: r });
@@ -560,6 +744,7 @@ function applyOp(model, op) {
       const b = a + (op.dir < 0 ? -1 : 1);
       if (!m.rows[a] || !m.rows[b]) return err('Далі пересувати нікуди.');
       if (m.rows[a].cells.concat(m.rows[b].cells).some((c) => c.rs > 1)) return err('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): переставляй у коді.');
+      if (optRowsHit(m, Math.min(a, b), Math.max(a, b))) return err(OPT_MSG);
       const t = m.rows[a].cells;
       m.rows[a].cells = m.rows[b].cells;
       m.rows[b].cells = t;
@@ -572,6 +757,7 @@ function applyOp(model, op) {
       const r2 = Math.min(nRows - 1, op.r2);
       if (!(r1 <= r2)) return err('Немає такого рядка.');
       for (let k = r1; k <= r2; k++) if (m.rows[k].cells.some((c) => c.rs > 1)) return err('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): дублюй у коді.');
+      if (optRowsHit(m, r1, r2 + 1)) return err(OPT_MSG);
       const copies = m.rows.slice(r1, r2 + 1).map((r) => r.cells.map((c) => classify(c.t)));
       copies.forEach((cells, k) => insertRow(m, r2 + 1 + k, cells, true));
       return { model: m };
@@ -588,6 +774,7 @@ function applyOp(model, op) {
       padRows(m);
       const w = width(m);
       const at = Math.max(0, Math.min(w, op.at));
+      if (optInsideCol(m, at)) return err(OPT_MSG);
       const grow = anchors(m).filter((x) => x.cell.cs > 1 && x.s < at && at <= x.s + x.cell.cs - 1);
       for (const row of m.rows) {
         const st = starts(row);
@@ -615,6 +802,7 @@ function applyOp(model, op) {
       if (width(m) <= 1) return err('Не можна видалити єдиний стовпець.');
       const col = op.c;
       if (col < 0 || col >= width(m)) return err('Немає такого стовпця.');
+      if (optCoversCol(m, col)) return err(OPT_MSG);
       const shrink = anchors(m).filter((x) => x.cell.cs > 1 && x.s < col && col <= x.s + x.cell.cs - 1);
       for (const row of m.rows) {
         const st = starts(row);
@@ -671,6 +859,129 @@ function applyOp(model, op) {
           if (bad) return err('Рядок ' + (op.r + i + 1) + ': ' + bad);
           row.cells[c] = classify(rebuild(row.cells[c], t));
         }
+        row.dirty = true;
+      }
+      return { model: m };
+    }
+    case 'merge': {
+      if (!m.isTblr) return err('Об\'єднання клітинок працює в tblr, longtblr і talltblr. У tabular використовуй \\multicolumn і \\multirow у коді.');
+      padRows(m);
+      const w = width(m);
+      let a = { r1: Math.max(0, Math.min(op.r1, op.r2)), r2: Math.min(nRows - 1, Math.max(op.r1, op.r2)), c1: Math.max(0, Math.min(op.c1, op.c2)), c2: Math.min(w - 1, Math.max(op.c1, op.c2)) };
+      const L = spanList(m);
+      // a merged cell that the selection only touches is taken whole (as in a spreadsheet)
+      for (let again = true; again;) {
+        again = false;
+        for (const sp of L) {
+          const sr2 = sp.r + sp.rs - 1;
+          const sc2 = sp.c + sp.cs - 1;
+          const touches = !(sp.r > a.r2 || sr2 < a.r1 || sp.c > a.c2 || sc2 < a.c1);
+          if (touches && (sp.r < a.r1 || sr2 > a.r2 || sp.c < a.c1 || sc2 > a.c2)) {
+            if (sr2 >= nRows || sc2 >= w) return err('Існуюче об\'єднання виходить за межі таблиці: спершу виправ його в коді.');
+            a = { r1: Math.min(a.r1, sp.r), r2: Math.max(a.r2, sr2), c1: Math.min(a.c1, sp.c), c2: Math.max(a.c2, sc2) };
+            again = true;
+          }
+        }
+      }
+      if (a.r1 === a.r2 && a.c1 === a.c2) return err('Виділи кілька клітинок, щоб їх об\'єднати.');
+      const R = a.r2 - a.r1 + 1;
+      const C = a.c2 - a.c1 + 1;
+      if (L.some((sp) => sp.r === a.r1 && sp.c === a.c1 && sp.rs === R && sp.cs === C)) return err('Ці клітинки вже об\'єднані.');
+      const inside = [];
+      for (let rr = a.r1; rr <= a.r2; rr++) {
+        const row = m.rows[rr];
+        const st = starts(row);
+        for (let ll = a.c1; ll <= a.c2; ll++) {
+          const k = st.indexOf(ll);
+          if (k < 0 || row.cells[k].kind === 'mc') return err('У виділенні є \\multicolumn: об\'єднуй такі клітинки в коді.');
+          inside.push({ rr, k });
+        }
+      }
+      const lost = inside.slice(1).filter((x) => m.rows[x.rr].cells[x.k].inner.trim()).length;
+      if (lost && !op.confirmed) return { confirm: (lost === 1 ? 'В одній клітинці' : 'У ' + lost + ' клітинках') + ' виділення є текст: після об\'єднання лишиться тільки текст верхньої лівої клітинки. Об\'єднати?' };
+      // merges written in the options that now lie inside the new one go (their span keys; other keys of the item stay)
+      for (const sp of L) if (sp.src === 'opts' && sp.r >= a.r1 && sp.r + sp.rs - 1 <= a.r2 && sp.c >= a.c1 && sp.c + sp.cs - 1 <= a.c2) m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: false });
+      inside.slice(1).forEach((x) => { m.rows[x.rr].cells[x.k] = mkEmpty(); m.rows[x.rr].dirty = true; });
+      const top = inside[0];
+      const tc = m.rows[top.rr].cells[top.k];
+      m.rows[top.rr].cells[top.k] = tc.kind === 'sc' ? setScSpan(tc, R, C) : toSc(m, tc, R, C, '');
+      m.rows[top.rr].dirty = true;
+      return { model: m };
+    }
+    case 'unmerge': {
+      padRows(m);
+      const L = spanList(m);
+      const seen = new Set();
+      let done = 0;
+      for (const p of op.list || [{ r: op.r, c: op.c }]) {
+        const sp = L.find((x) => p.r >= x.r && p.r <= x.r + x.rs - 1 && p.c >= x.c && p.c <= x.c + x.cs - 1);
+        if (!sp) continue;
+        const key = sp.src + ':' + sp.r + ':' + sp.c;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (sp.src === 'cell') {
+          const row = m.rows[sp.r];
+          const k = cellIndexAt(row, sp.c);
+          if (k < 0) continue;
+          row.cells[k] = setScSpan(row.cells[k], 1, 1);
+          row.dirty = true;
+        } else m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: false });
+        done++;
+      }
+      if (!done) return err('У виділенні немає об\'єднаних клітинок.');
+      return { model: m };
+    }
+    case 'spansToOptions':
+    case 'spansToCells': {
+      const toOpts = op.type === 'spansToOptions';
+      if (!m.isTblr) return err('Параметри таблиці (cell{…}{…}) є лише в tblr, longtblr і talltblr.');
+      if (toOpts) {
+        if (!m.spec) return err('Не вдалося знайти colspec у параметрах таблиці: перенеси об\'єднання в код вручну.');
+        if (appendKeys(m.head.slice(m.groupRange[0], m.groupRange[1]), ['x']) === null) return err('Параметри таблиці закінчуються коментарем %: прибери його й повтори.');
+      }
+      padRows(m);
+      const L = spanList(m);
+      let list = L.filter((x) => x.src === (toOpts ? 'cell' : 'opts'));
+      if (Number.isInteger(op.r) && Number.isInteger(op.c)) list = list.filter((x) => op.r >= x.r && op.r <= x.r + x.rs - 1 && op.c >= x.c && op.c <= x.c + x.cs - 1);
+      if (!list.length) return err(toOpts ? 'Немає об\'єднань у \\SetCell, які можна перенести.' : 'Немає об\'єднань у параметрах таблиці (cell{i}{j} = {r=…,c=…}), які можна перенести.' + (m.optComplex ? ' Ті, що зі складним селектором (діапазон, список), переноси в коді.' : ''));
+      const items = [];
+      for (const sp of list) {
+        const same = L.filter((x) => x.r === sp.r && x.c === sp.c && x !== sp);
+        if (same.length) return err('Клітинка ' + where1(sp) + ' має два об\'єднання (' + whereSrc(same[0]) + '): спершу розв\'яжи конфлікт.');
+        const row = m.rows[sp.r];
+        const k = row ? cellIndexAt(row, sp.c) : -1;
+        if (k < 0) return err('Клітинку ' + where1(sp) + ' не знайдено в таблиці.');
+        const cell = row.cells[k];
+        if (cell.kind === 'mc') return err('Клітинка ' + where1(sp) + ' містить \\multicolumn: переносити нічого.');
+        if (toOpts) {
+          const p = scParse(cell.t);
+          items.push('cell{' + (sp.r + 1) + '}{' + (sp.c + 1) + '} = {' + (p.opts || '') + '}' + (p.mand && p.mand.trim() ? '{' + p.mand.trim() + '}' : ''));
+          row.cells[k] = classify(p.lead + p.rest);
+        } else if (cell.kind === 'sc') {
+          // the cell has its own \SetCell already: only the span moves to it, the other keys of the item stay in the options
+          row.cells[k] = setScSpan(cell, sp.rs, sp.cs);
+          m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: false });
+        } else {
+          const extra = splitCommas(sp.opt.groups[0]).map((x) => x.trim()).filter((x) => x && !SPAN_KEY_RE.test(x)).concat(sp.opt.groups.slice(1).map((x) => x.trim()).filter(Boolean));
+          row.cells[k] = toSc(m, cell, sp.rs, sp.cs, extra.join(', '));
+          m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: true });
+        }
+        row.dirty = true;
+      }
+      if (toOpts) m.keyOps.push({ t: 'optAdd', items });
+      return { model: m };
+    }
+    case 'spanKeep': {
+      const L = spanList(m);
+      const inCell = L.find((x) => x.src === 'cell' && x.r === op.r && x.c === op.c);
+      const inOpts = L.find((x) => x.src === 'opts' && x.r === op.r && x.c === op.c);
+      if (!inCell || !inOpts) return err('У цій клітинці немає конфлікту об\'єднань.');
+      if (op.keep === 'cell') m.keyOps.push({ t: 'optDel', r: op.r + 1, c: op.c + 1, all: false });
+      else {
+        const row = m.rows[op.r];
+        const k = cellIndexAt(row, op.c);
+        if (k < 0) return err('Клітинку не знайдено в таблиці.');
+        row.cells[k] = setScSpan(row.cells[k], 1, 1);
         row.dirty = true;
       }
       return { model: m };
@@ -735,7 +1046,9 @@ const lum = (rgb) => (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
 
 
 /* ------------------------- numbered keys of the tblr preamble ------------------------- */
-// each numbered selector in row{..}, column{..}, cell{..}{..}, hline{..}, vline{..} of the preamble goes through f(key, sels) -> sels | null (drop the item)
+// each numbered selector in row{..}, column{..}, cell{..}{..}, hline{..}, vline{..} of the preamble goes through
+// f(key, sels, value, from, to) -> sels | { sels, val } | null (drop the item). value: the text after "=" ({r=2}{c} of cell{1}{1} = {r=2}{c}),
+// from / to: where the item stands in `spec`
 function rewriteKeys(spec, f) {
   let out = '';
   let i = 0;
@@ -755,10 +1068,15 @@ function rewriteKeys(spec, f) {
         const want = m[1] === 'cell' ? 2 : 1;
         // end of the value: a {...} group or text up to the next top-level comma
         let j = i + m[0].length;
-        if (spec[j] === '{') { const e = E4.matchBracket(spec, j); j = e < 0 ? n : e + 1; }
-        else { let d = 0; for (; j < n; j++) { const ch = spec[j]; if (ch === '{') d++; else if (ch === '}') { if (d === 0) break; d--; } else if (ch === ',' && d === 0) break; } }
+        if (spec[j] === '{') {
+          const e = E4.matchBracket(spec, j);
+          j = e < 0 ? n : e + 1;
+          // cell{1}{1} = {r=2}{c}: the keys of the cell stand in a second group
+          if (m[1] === 'cell' && e >= 0) { let k = j; while (/\s/.test(spec[k] || '')) k++; if (spec[k] === '{') { const e2 = E4.matchBracket(spec, k); if (e2 >= 0) j = e2 + 1; } }
+        } else { let d = 0; for (; j < n; j++) { const ch = spec[j]; if (ch === '{') d++; else if (ch === '}') { if (d === 0) break; d--; } else if (ch === ',' && d === 0) break; } }
         if (sels.length === want) {
-          const next = f(m[1], sels);
+          const res = f(m[1], sels, spec.slice(i + m[0].length, j), i, j);
+          const next = res === null || Array.isArray(res) ? res : res.sels;
           if (next === null) {
             let k = j;
             while (k < n && /[ \t]/.test(spec[k])) k++;
@@ -770,7 +1088,7 @@ function rewriteKeys(spec, f) {
             i = k;
             continue;
           }
-          out += m[1] + next.map((g) => '{' + g + '}').join('') + m[3] + spec.slice(i + m[0].length, j);
+          out += m[1] + next.map((g) => '{' + g + '}').join('') + m[3] + (res && !Array.isArray(res) && res.val !== undefined ? res.val : spec.slice(i + m[0].length, j));
           i = j;
           continue;
         }
@@ -813,10 +1131,44 @@ const insMap = (n1) => (a, b) => (a >= n1 ? [a + 1, b + 1] : b >= n1 ? [a, b + 1
 const delMap = (n0) => (a, b) => (b < n0 ? [a, b] : a > n0 ? [a - 1, b - 1] : a === b ? null : [a, b - 1]);
 const swapMap = (x, y) => (a, b) => (a === b ? (a === x ? [y, y] : a === y ? [x, x] : [a, b]) : [a, b]);
 
-// op: { t: 'rowIns'|'rowDel'|'rowSwap'|'colIns'|'colDel'|'colSwap', at, n, a, b }
+// the span keys r= / c= of the item cell{R}{C} (1-based) go; what else the item says stays (in one group), an empty item goes
+// altogether, and with `all` the whole item goes
+function dropOptSpan(spec, R, C, all) {
+  const out = rewriteKeys(spec, (key, sels, val) => {
+    if (key !== 'cell' || sels[0].trim() !== String(R) || sels[1].trim() !== String(C)) return sels;
+    const g = valueGroups(val);
+    if (!g.length || !HAS_SPAN_RE.test(g[0])) return sels;
+    if (all) return null;
+    const keys = splitCommas(g[0]).map((x) => x.trim()).filter((x) => x && !SPAN_KEY_RE.test(x)).concat(g.slice(1).map((x) => x.trim()).filter(Boolean));
+    if (!keys.length) return null;
+    return { sels, val: '{' + keys.join(', ') + '}' };
+  });
+  // the item that stood last took its comma with it, the one before keeps its own: a comma that was not there before goes
+  return /,\s*$/.test(out) && !/,\s*$/.test(spec) ? out.replace(/,(\s*)$/, '$1') : out;
+}
+
+// new items at the end of the options (the text between the braces of \begin{tblr}{…}); null when a comment ends them.
+// A bare column specification (\begin{tblr}{ccc}) becomes colspec={ccc}
+function appendKeys(spec, items) {
+  if (!items || !items.length) return spec;
+  if (!/=/.test(spec)) return 'colspec={' + spec.trim() + '}, ' + items.join(', ');
+  const trimmed = spec.replace(/\s+$/, '');
+  const tail = spec.slice(trimmed.length);
+  const lastLine = trimmed.slice(trimmed.lastIndexOf('\n') + 1);
+  if (/(^|[^\\])%/.test(lastLine)) return null;
+  const multi = /\n/.test(trimmed);
+  const indent = multi ? (/\n([ \t]*)\S[^\n]*$/.exec(trimmed) || ['', ''])[1] : '';
+  const sep = multi ? ',\n' + indent : ', ';
+  const comma = /,$/.test(trimmed);
+  return (comma ? trimmed.slice(0, -1) : trimmed) + sep + items.join(sep) + (comma ? ',' : '') + tail;
+}
+
+// op: { t: 'rowIns'|'rowDel'|'rowSwap'|'colIns'|'colDel'|'colSwap', at, n, a, b } · { t: 'optDel', r, c, all } · { t: 'optAdd', items }
 function applyKeyOps(spec, ops) {
   let cur = spec;
   for (const op of ops) {
+    if (op.t === 'optDel') { cur = dropOptSpan(cur, op.r, op.c, !!op.all); continue; }
+    if (op.t === 'optAdd') { cur = appendKeys(cur, op.items) || cur; continue; }
     const rows = op.t.startsWith('row');
     let fn;
     let lineFn;
@@ -917,7 +1269,10 @@ function parseStyleRules(specSrc) {
     const sels = [];
     m[2].replace(/\{([^{}]*)\}/g, (all, g) => { sels.push(g); return all; });
     let v = m[3].trim();
-    if (v.startsWith('{')) { const e = E4.matchBracket(v, 0); if (e > 0) v = v.slice(1, e); }
+    if (v.startsWith('{')) {
+      if (m[1] === 'cell') v = valueGroups(v).join(',');
+      else { const e = E4.matchBracket(v, 0); if (e > 0) v = v.slice(1, e); }
+    }
     const props = parseProps(v);
     if (Object.keys(props).length) rules.push({ kind: m[1], sels, props });
   }
@@ -978,13 +1333,19 @@ function setCmdMode(pre, name, key) {
 function toView(m, defs) {
   const w = width(m);
   const nr = m.rows.length;
-  // regions covered by \SetCell[r=, c=]
+  // regions covered by \SetCell[r=, c=] and by cell{i}{j} = {r=, c=} of the options; the latter are drawn on their cell
   const covered = new Set();
-  for (const a of anchors(m)) {
-    for (let rr = a.r; rr < Math.min(nr, a.r + a.cell.rs); rr++) {
-      for (let cc = a.s; cc < a.s + a.cell.cs; cc++) if (rr !== a.r || cc !== a.s) covered.add(rr + ':' + cc);
+  const fromOpts = new Map();
+  const spans = spanList(m);
+  for (const a of spans) {
+    for (let rr = a.r; rr < Math.min(nr, a.r + a.rs); rr++) {
+      for (let cc = a.c; cc < a.c + a.cs; cc++) if (rr !== a.r || cc !== a.c) covered.add(rr + ':' + cc);
     }
+    if (a.src === 'opts' && m.rows[a.r]) { const k = cellIndexAt(m.rows[a.r], a.c); if (k >= 0) fromOpts.set(a.r + ':' + k, a); }
   }
+  const conflicts = spanConflicts(m, spans);
+  const conflictAt = new Set();
+  for (const c of conflicts) for (const p of c.cells) conflictAt.add(p.r + ':' + p.c);
   const resolve = (e) => (e ? colorExpr(e, defs, 0) : null);
   const modes = m.isTblr && m.spec ? m.spec.tokens.map((t) => modeOfUnit(t.unit)) : null;
   const rowSet = [], colSet = []; // mode= from \SetRow / \SetColumn (a \SetColumn before a row speaks about the columns from the first one)
@@ -1014,8 +1375,10 @@ function toView(m, defs) {
         if (bg && !fg) fg = lum(bg) > 0.55 ? [0, 0, 0] : [255, 255, 255];
         const unknown = !!bgExpr && !bg;
         const hidden = covered.has(r + ':' + col) && !c.inner;
+        const op = fromOpts.get(r + ':' + k);
         return {
-          t: text, raw: c.inner, span: c.cs, rowspan: c.rs, kind: c.kind, hidden, formula: isFormula(m, c.t),
+          t: text, raw: c.inner, span: op ? op.cs : c.cs, rowspan: op ? op.rs : c.rs, kind: c.kind, hidden, formula: isFormula(m, c.t),
+          fromOpts: !!op, conflict: conflictAt.has(r + ':' + col),
           style: { bg: bg ? css(bg) : '', fg: fg ? css(fg) : '', bold: !!sr.bold, align: sr.align || c.align || '', mode, unknownColor: unknown ? bgExpr : '' },
           cellcolor: cc ? cc[0] : ''
         };
@@ -1032,6 +1395,9 @@ function toView(m, defs) {
     canCols: true,
     colsWhy: '',
     merged: hasSpans(m),
+    canMerge: !!m.isTblr,
+    conflicts: conflicts.map((c) => c.msg),
+    optSpans: (m.optSpans || []).length,
     spread: m.spread,
     indexedKeys: m.keyInfo.manual,
     keysAuto: m.keyInfo.auto,
@@ -1041,4 +1407,4 @@ function toView(m, defs) {
   };
 }
 
-module.exports = { rowSpans, restyleTblr, applyKeyOps, rewriteKeys, keyInfo, classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };
+module.exports = { spanMap, convertSpans, spanList, spanConflicts, rowSpans, restyleTblr, applyKeyOps, rewriteKeys, keyInfo, classify, colorDefs, colorExpr, parseStyleRules, SUPPORTED, locateTables, tableAt, parseTable, applyOp, serialize, toView, tokenizeSpec, specToString, alignOf, withAlign, checkCellText, width, splitPrefix, splitTop };

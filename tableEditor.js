@@ -132,7 +132,14 @@ async function push(extra) {
 async function onOp(op) {
   const cur = await current();
   if (!cur || cur.skip) { push(); return; }
-  const res = X.applyOp(cur.model, op);
+  let res = X.applyOp(cur.model, op);
+  // merging cells that hold text: the text of all but the first cell is lost, so the user is asked first
+  if (res.confirm) {
+    const yes = 'Об\'єднати';
+    const answer = await vscode.window.showWarningMessage(res.confirm, { modal: true }, yes);
+    if (answer !== yes) { push(); return; }
+    res = X.applyOp(cur.model, Object.assign({}, op, { confirmed: true }));
+  }
   if (res.error) { ctl.panel.webview.postMessage({ type: 'error', message: res.error }); push(); return; }
   if (res.same) return;
   const align = cfg().get('tableEditor.alignAfterEdit', true) !== false;
@@ -240,7 +247,7 @@ function html(webview, extUri) {
   return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + kx('katex.min.css') + '"><link rel="stylesheet" href="' + own('webview.css') + '"></head><body>' +
     '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div>' +
-    '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+Z: скасувати зміну у файлі</div>' +
+    '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+M / Ctrl+Shift+M: об\'єднати / розʼєднати виділене · Ctrl+Z: скасувати зміну у файлі</div>' +
     '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + kx('optmacros.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
 }
 
@@ -300,6 +307,76 @@ async function openTable(context, uri, start) {
   scheduleFollow(null);
 }
 
+/* ------------------- merged cells in the text: the lightbulb and the warnings ------------------- */
+// \SetCell[r=,c=] in the body <-> cell{i}{j} = {r=,c=}{…} in the options of tblr; both ways of writing are read, and when one
+// cell has a merge in both places (or two merges overlap) the editor warns
+let spanDiag = null;
+const spanKinds = () => (vscode.CodeActionKind || {});
+
+function spanEdit(doc, env, text) {
+  const we = new vscode.WorkspaceEdit();
+  we.replace(doc.uri, new vscode.Range(doc.positionAt(env.start), doc.positionAt(env.end)), text);
+  return we;
+}
+
+const spanActions = {
+  provideCodeActions(doc, range, ctx) {
+    const text = doc.getText();
+    const off = doc.offsetAt(range.start);
+    const env = X.tableAt(text, off);
+    if (!env) return [];
+    const map = X.spanMap(text, env);
+    if (!map || !map.model.isTblr) return [];
+    const kinds = spanKinds();
+    const out = [];
+    const add = (title, op, kind, fixes) => {
+      const r = X.convertSpans(text, env, op);
+      if (r.error || !kind) return;
+      const a = new vscode.CodeAction(title, kind);
+      a.edit = spanEdit(doc, env, r.text);
+      if (fixes) a.diagnostics = fixes;
+      out.push(a);
+    };
+    const cells = map.spans.filter((x) => x.src === 'cell');
+    const opts = map.spans.filter((x) => x.src === 'opts');
+    const here = map.spans.find((x) => x.range && x.range[0] <= off && off <= x.range[1]);
+    const dup = map.conflicts.find((c) => c.kind === 'dup' && c.at.some((x) => x.range && x.range[0] <= off && off <= x.range[1]));
+    if (dup) {
+      const mine = (ctx && ctx.diagnostics ? ctx.diagnostics : []).filter((d) => d.code === 'table-span-dup');
+      const p = dup.cells[0];
+      add('Залишити \\SetCell, прибрати об\'єднання з параметрів таблиці', { type: 'spanKeep', r: p.r, c: p.c, keep: 'cell' }, kinds.QuickFix, mine);
+      add('Залишити об\'єднання в параметрах таблиці, прибрати з \\SetCell', { type: 'spanKeep', r: p.r, c: p.c, keep: 'opts' }, kinds.QuickFix, mine);
+    }
+    if (here && !dup) {
+      const nm = 'cell{' + (here.r + 1) + '}{' + (here.c + 1) + '}';
+      if (here.src === 'cell') add('Перенести це об\'єднання в параметри таблиці (' + nm + ' = {r=…,c=…})', { type: 'spansToOptions', r: here.r, c: here.c }, kinds.RefactorRewrite);
+      else add('Перенести це об\'єднання (' + nm + ') у \\SetCell', { type: 'spansToCells', r: here.r, c: here.c }, kinds.RefactorRewrite);
+    }
+    if (cells.length && (cells.length > 1 || !here || here.src !== 'cell')) add('Перенести всі об\'єднання таблиці (' + cells.length + ') з \\SetCell у параметри', { type: 'spansToOptions' }, kinds.RefactorRewrite);
+    if (opts.length && (opts.length > 1 || !here || here.src !== 'opts')) add('Перенести всі об\'єднання таблиці (' + opts.length + ') з параметрів у \\SetCell', { type: 'spansToCells' }, kinds.RefactorRewrite);
+    return out;
+  }
+};
+
+function refreshSpanDiag(doc) {
+  if (!spanDiag || !doc || !isTex(doc)) return;
+  const text = doc.getText();
+  const found = [];
+  for (const env of X.locateTables(text)) {
+    let map = null;
+    try { map = X.spanMap(text, env); } catch (e) { map = null; }
+    if (!map) continue;
+    for (const c of map.conflicts) {
+      const rg = (c.at.find((x) => x.range) || {}).range || map.headRange || [env.start, env.bodyStart];
+      const d = new vscode.Diagnostic(new vscode.Range(doc.positionAt(rg[0]), doc.positionAt(rg[1])), c.msg, c.kind === 'hidden' || c.kind === 'complex' ? vscode.DiagnosticSeverity.Information : vscode.DiagnosticSeverity.Warning);
+      d.source = 'TSS Workflow';
+      d.code = 'table-span-' + c.kind;
+      found.push(d);
+    }
+  }
+  spanDiag.set(doc.uri, found);
+}
+
 let warmTimer = null;
 // a file with tables was shown: look for the colours and macros of the project now, before the tab is opened
 function warm(doc) {
@@ -307,6 +384,28 @@ function warm(doc) {
   warmTimer = setTimeout(async () => {
     try { await Promise.all([projectColors(), katexMacros(doc)]); } catch (e) { /* later, on demand */ } finally { warmTimer = null; }
   }, 1500);
+}
+
+// the warnings about merged cells and the lightbulb actions; nothing is registered where the host lacks the API (test stubs)
+function registerSpanTools() {
+  const subs = [];
+  const langs = vscode.languages || {};
+  if (typeof langs.registerCodeActionsProvider === 'function') {
+    const k = spanKinds();
+    subs.push(langs.registerCodeActionsProvider(SEL, spanActions, { providedCodeActionKinds: [k.RefactorRewrite, k.QuickFix].filter(Boolean) }));
+  }
+  if (typeof langs.createDiagnosticCollection === 'function') {
+    spanDiag = langs.createDiagnosticCollection('tssworkflow-table-spans');
+    subs.push(spanDiag);
+    const ws = vscode.workspace;
+    const on = (ev, cb) => (typeof ev === 'function' ? ev(cb) : null);
+    const later = (doc) => { if (doc && isTex(doc)) debounce('tableEditor.spanDiag:' + doc.uri.toString(), 700, () => refreshSpanDiag(doc)); };
+    subs.push(on(ws.onDidOpenTextDocument, (d) => refreshSpanDiag(d)));
+    subs.push(on(ws.onDidChangeTextDocument, (e) => later(e.document)));
+    subs.push(on(ws.onDidCloseTextDocument, (d) => { if (spanDiag) spanDiag.delete(d.uri); }));
+    for (const d of ws.textDocuments || []) refreshSpanDiag(d);
+  }
+  return subs.filter(Boolean);
 }
 
 function register(context, api) {
@@ -321,6 +420,7 @@ function register(context, api) {
       if (!ctl.panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
       debounce('tableEditor.refresh', 250, () => push());
     }),
+    ...registerSpanTools(),
     vscode.languages.registerCodeLensProvider(SEL, {
       provideCodeLenses(doc) {
         if (!cfg().get('tableEditor.codeLens', true)) return [];
