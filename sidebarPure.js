@@ -70,6 +70,8 @@ const GROUPS = [
     ['pickMacro', 'Перейти до макроса з .cls/.sty', 'symbol-method'],
     ['macroGallery', 'Галерея макросів класу (відрендерені, з прапорцями KaTeX/MathJax)', 'extensions'],
     ['formulaOverview', 'Формули проєкту відрендерені (пошук, не використовуються)', 'symbol-ruler'],
+    ['markKeyFormula', 'Позначити / зняти ключову формулу (%! key)', 'star'],
+    ['keyFormulasDraft', 'Чернетка «Підсумки» з ключових формул', 'checklist'],
     ['macroInfo', 'Де визначено макрос (діагностика)', 'question']
   ] },
   { id: 'checks', en: 'Checks', label: 'Перевірки', icon: 'checklist', items: [

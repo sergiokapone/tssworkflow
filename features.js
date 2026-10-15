@@ -27,6 +27,7 @@ function register(context, api) {
   require('./macroGallery').register(context);
   require('./formulaOverview').register(context);
   require('./formulaCopy').register(context);
+  require('./keyFormulas').register(context);
   require('./projectInfo').register(context, {
     texFiles, textOf, buildIndex, log: (m) => outLog.appendLine(m), showLog: () => outLog.show(true)
   });

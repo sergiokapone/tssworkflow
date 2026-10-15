@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -421,6 +421,14 @@
       {
         "command": "tssworkflow.formulaOverview",
         "title": "TSS Workflow: Formulas of the project (rendered, with search)"
+      },
+      {
+        "command": "tssworkflow.markKeyFormula",
+        "title": "TSS Workflow: Mark / unmark the formula under the cursor as key (%! key)"
+      },
+      {
+        "command": "tssworkflow.keyFormulasDraft",
+        "title": "TSS Workflow: Draft of the chapter summary from key formulas"
       },
       {
         "command": "tssworkflow.savePdfCopy",
