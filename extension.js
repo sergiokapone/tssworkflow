@@ -466,6 +466,7 @@ function activate(context) {
   require('./projectRefactor').register(context, { frameSettings: features.frameSettings });
   require('./formatters').register(context, { applyWithPreview: features.applyWithPreview });
   require('./filesAndLabels').register(context, { applyWithPreview: features.applyWithPreview });
+  require('./wordCount').register(context);
   require('./tableEditor').register(context, { log: (m) => LOG && LOG.appendLine(m) });
   require('./start').register(context);
   // 0.19.0: the jump to a line in the PDF is checked against the synctex file; the builds as VS Code tasks; LaTeX Workshop settings that get in the way

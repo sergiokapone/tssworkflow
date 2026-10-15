@@ -83,7 +83,7 @@ t('the command is registered, opens a Markdown report, and the second call shows
 
 t('every panel module exports isOpen (the report asks them)', () => {
   const fs = require('fs');
-  for (const f of ['selectionPreview.js', 'tableEditor.js', 'macroGallery.js', 'formulaOverview.js']) assert.ok(/exports\.isOpen = \(\) => !!panel/.test(fs.readFileSync(path.join(ext, f), 'utf8')), f);
+  for (const f of ['selectionPreview.js', 'tableEditor.js', 'macroGallery.js', 'formulaOverview.js']) assert.ok(/exports\.isOpen = \(\) => ctl\.isOpen\(\)/.test(fs.readFileSync(path.join(ext, f), 'utf8')), f);
 });
 
 (async () => {

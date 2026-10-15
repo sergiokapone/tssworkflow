@@ -92,19 +92,21 @@ t('the shadowing check sees the 0.20.0 bug (mutation: the old local `debounce` i
 });
 
 const panelFiles = () => files.filter((f) => /createWebviewPanel\(/.test(clean[f]));
+const FOUR = ['formulaOverview.js', 'macroGallery.js', 'selectionPreview.js', 'tableEditor.js'];
 
-t('webview panels exist, and every module that keeps its panel in a module-level `let panel` uses util.panelScope', () => {
-  assert.ok(panelFiles().length >= 4, 'expected at least 4 panel modules, found ' + panelFiles().join(', '));
-  // a module with state about one panel (ready, seq, timers) must reset it and drop the listeners when the panel closes
-  const stateful = panelFiles().filter((f) => /^let panel\b/m.test(clean[f]));
-  assert.ok(stateful.length >= 4, 'the four stateful panels: ' + stateful.join(', '));
-  const without = stateful.filter((f) => !/\bpanelScope\(/.test(clean[f]));
-  assert.deepStrictEqual(without, [], 'keeps a panel without panelScope: ' + without.join(', '));
+t('the four panels are built by webviewKit.createPanelController; only webviewKit.js (and the one-off pictures panel) call createWebviewPanel', () => {
+  assert.deepStrictEqual(panelFiles(), ['saveAndPictures.js', 'webviewKit.js']);
+  for (const f of FOUR) {
+    assert.ok(/\bK\.createPanelController\(/.test(clean[f]), f + ' builds its panel with K.createPanelController');
+    assert.ok(!/^let (?:panel|ready|seq)\b/m.test(clean[f]), f + ' keeps no panel / ready / seq of its own: they live in the controller');
+  }
+  // the controller is the one place that wires the listeners to the panel: panelScope, and no extension-wide list
+  assert.ok(/\bpanelScope\(/.test(clean['webviewKit.js']), 'the controller uses util.panelScope');
 });
 
-t('context.subscriptions is never the `disposables` argument of a listener in a panel module', () => {
+t('context.subscriptions is never the `disposables` argument of a listener of a webview (any module that touches a webview)', () => {
   const bad = [];
-  for (const f of panelFiles()) {
+  for (const f of files.filter((x) => /\bwebview\b|WebviewPanel/.test(clean[x]))) {
     for (const m of clean[f].matchAll(/,\s*(?:null|undefined)\s*,\s*(?:\w+\.)?subscriptions\b/g)) bad.push(f + ':' + lineOf(clean[f], m.index));
     for (const m of clean[f].matchAll(/\.on(?:DidReceiveMessage|DidChangeViewState|DidDispose)\s*\([^;]*?\bcontext\.subscriptions\b/gs)) bad.push(f + ':' + lineOf(clean[f], m.index) + ' (listener of a panel)');
   }

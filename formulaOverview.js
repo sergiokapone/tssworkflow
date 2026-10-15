@@ -11,12 +11,9 @@ const O = require('./formulaOverviewPure');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
 const K = require('./webviewKit');
-const { cancelTimer, debounce, isTex, panelScope } = require('./util');
+const { isTex } = require('./util');
 
-let panel = null;
-let ready = false;
 let files = []; // [{ abs }] in the order of the page; a click on the page names a file by its number here
-let seq = 0;
 
 function body() {
   return '<div id="top"><h1>Формули проєкту</h1><span id="stat"></span><button id="refresh" title="Перечитати файли проєкту">Оновити</button></div>' +
@@ -43,19 +40,6 @@ async function collect() {
   return { fl, entries, macros };
 }
 
-async function update() {
-  if (!panel || !ready) return;
-  const mine = ++seq;
-  let r;
-  try { r = await collect(); } catch (e) { return; }
-  if (!panel || mine !== seq) return;
-  if (!r) { panel.webview.postMessage({ type: 'data', files: [], entries: [], macros: {} }); return; }
-  files = r.fl.map((f) => ({ abs: f.abs }));
-  panel.webview.postMessage({ type: 'data', files: r.fl.map((f) => f.path), entries: r.entries, macros: r.macros });
-}
-
-function schedule(delay) { if (!panel) return; debounce('formulaOverview.update', delay, () => { update().catch(() => {}); }); }
-
 async function goto(m) {
   const f = m && Number.isInteger(m.f) ? files[m.f] : null;
   if (!f || !Number.isInteger(m.line) || m.line < 1) return;
@@ -64,27 +48,29 @@ async function goto(m) {
   await vscode.window.showTextDocument(vscode.Uri.file(f.abs), { selection: new vscode.Range(a, b), viewColumn: vscode.ViewColumn.One, preserveFocus: false });
 }
 
-function open(context) {
-  if (panel) { panel.reveal(undefined, false); schedule(0); return; }
-  const extUri = context.extensionUri;
-  panel = vscode.window.createWebviewPanel('tssworkflow.formulaOverview', 'Формули проєкту', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
-    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')] });
-  ready = false;
-  panel.webview.html = K.shell(panel.webview, extUri, { body: body(), css: ['formulaOverview/webview.css'], js: ['formulaOverview/webview.js'] });
-  const subs = panelScope(panel, () => { cancelTimer('formulaOverview.update'); panel = null; ready = false; seq++; files = []; });
-  panel.webview.onDidReceiveMessage((m) => {
-    if (!m) return;
-    if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') schedule(0); else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
-  }, null, subs);
-}
+// the frame of the panel (panel, ready, seq, deferred update, 'ready' / 'copy', panelScope) is webviewKit.createPanelController
+const ctl = K.createPanelController({
+  id: 'formulaOverview',
+  title: 'Формули проєкту',
+  html: (webview, extUri) => K.shell(webview, extUri, { body: body(), css: ['formulaOverview/webview.css'], js: ['formulaOverview/webview.js'] }),
+  collect,
+  render: (r, c) => {
+    if (!r) { c.post({ type: 'data', files: [], entries: [], macros: {} }); return; }
+    files = r.fl.map((f) => ({ abs: f.abs }));
+    c.post({ type: 'data', files: r.fl.map((f) => f.path), entries: r.entries, macros: r.macros });
+  },
+  onRefresh: (c) => c.schedule(0),
+  onMessage: (m) => { if (m.type === 'goto') goto(m).catch(() => {}); },
+  onReset: () => { files = []; }
+});
 
 function register(context) {
   context.subscriptions.push(
-    vscode.commands.registerCommand('tssworkflow.formulaOverview', () => open(context)),
+    vscode.commands.registerCommand('tssworkflow.formulaOverview', () => ctl.open(context)),
     // the files changed: the list is made again a moment after the save (a project of hundreds of formulas is read in a blink)
-    vscode.workspace.onDidSaveTextDocument((d) => { if (panel && /\.(tex|tikz)$/i.test(path.basename(d.fileName))) schedule(900); })
+    vscode.workspace.onDidSaveTextDocument((d) => { if (ctl.isOpen() && /\.(tex|tikz)$/i.test(path.basename(d.fileName))) ctl.schedule(900); })
   );
 }
 
 exports.register = register;
-exports.isOpen = () => !!panel; // for the state report (debugState.js)
+exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)

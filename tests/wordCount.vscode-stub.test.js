@@ -63,7 +63,7 @@ write('commented.tex', 'Це не повинно рахуватись нікуд
 (async () => {
   const FL = req('filesAndLabels.js');
   const U = req('util.js');
-  const deep = FL._t.deepWords;
+  const deep = req('wordCount.js').deepWords;
   const expectedAll = words('main.tex') + words('A/A.tex') + words('A/sec.tex') + words('extra.tex') + words('B/B.tex');
 
   t('deepWords reaches every included file once (\\includechapter, \\input, a cycle, a duplicate), skips a missing one and a commented-out one', () => {
@@ -133,7 +133,7 @@ write('commented.tex', 'Це не повинно рахуватись нікуд
       const ed = { document: doc, selection: { isEmpty: true } };
       vscode.window.activeTextEditor = ed;
       // register() creates the item and calls update() once
-      FL2.register({ subscriptions: [], extensionUri: Uri.file(ext) }, { applyWithPreview: async () => {} });
+      req('wordCount.js').register({ subscriptions: [], extensionUri: Uri.file(ext) });
       const item = statusItems[statusItems.length - 1];
       assert.ok(/5 сл\./.test(item.text), 'five words: ' + item.text);
       const before = calls;

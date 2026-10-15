@@ -14,12 +14,8 @@ const G = require('./macroGalleryPure');
 const P = require('./selectionPreviewPure');
 const K = require('./webviewKit');
 const M = require('./macros');
-const { cancelTimer, debounce, panelScope } = require('./util');
 
-let panel = null;
-let ready = false;
 let items = [];
-let seq = 0;
 
 const SRC_RE = /\.(cls|sty|ltx)$/i;
 
@@ -58,18 +54,6 @@ async function collect() {
   return { list, katex, mjFile: texts.length > 0 };
 }
 
-async function update() {
-  if (!panel || !ready) return;
-  const mine = ++seq;
-  let r;
-  try { r = await collect(); } catch (e) { return; }
-  if (!panel || mine !== seq) return;
-  items = r.list;
-  panel.webview.postMessage({ type: 'items', items: r.list.map((it) => ({ i: it.i, kind: it.kind, name: it.name, sig: it.sig, doc: it.doc, src: it.src, fileName: it.fileName, line: it.line, op: it.op, alias: it.alias, theorem: it.theorem, examples: it.examples, mj: it.mj, mjNote: it.mjNote })), macros: r.katex, mjFile: r.mjFile });
-}
-
-function schedule(delay) { if (!panel) return; debounce('macroGallery.update', delay, () => { update().catch(() => {}); }); }
-
 async function goto(m) {
   const it = m && Number.isInteger(m.i) ? items[m.i] : null; // the file comes from the list the extension made, not from the page
   if (!it) return;
@@ -77,28 +61,29 @@ async function goto(m) {
   await vscode.window.showTextDocument(vscode.Uri.file(it.file), { selection: new vscode.Range(pos, pos), viewColumn: vscode.ViewColumn.One, preserveFocus: false });
 }
 
-function open(context) {
-  if (panel) { panel.reveal(undefined, false); schedule(0); return; }
-  const extUri = context.extensionUri;
-  panel = vscode.window.createWebviewPanel('tssworkflow.macroGallery', 'Галерея макросів', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: false },
-    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')] });
-  ready = false;
-  panel.webview.html = K.shell(panel.webview, extUri, { body: body(), css: ['macroGallery/webview.css'], js: ['macroGallery/webview.js'] });
-  const subs = panelScope(panel, () => { cancelTimer('macroGallery.update'); panel = null; ready = false; seq++; items = []; });
-  panel.webview.onDidReceiveMessage((m) => {
-    if (!m) return;
-    if (m.type === 'ready') { ready = true; schedule(0); } else if (m.type === 'refresh') { M._invalidate(); schedule(0); } else if (m.type === 'goto') goto(m).catch(() => {}); else if (m.type === 'copy') K.copyText(panel, m);
-  }, null, subs);
-}
+// the frame of the panel (panel, ready, seq, deferred update, 'ready' / 'copy', panelScope) is webviewKit.createPanelController
+const ctl = K.createPanelController({
+  id: 'macroGallery',
+  title: 'Галерея макросів',
+  html: (webview, extUri) => K.shell(webview, extUri, { body: body(), css: ['macroGallery/webview.css'], js: ['macroGallery/webview.js'] }),
+  collect,
+  render: (r, c) => {
+    items = r.list;
+    c.post({ type: 'items', items: r.list.map((it) => ({ i: it.i, kind: it.kind, name: it.name, sig: it.sig, doc: it.doc, src: it.src, fileName: it.fileName, line: it.line, op: it.op, alias: it.alias, theorem: it.theorem, examples: it.examples, mj: it.mj, mjNote: it.mjNote })), macros: r.katex, mjFile: r.mjFile });
+  },
+  onRefresh: (c) => { M._invalidate(); c.schedule(0); },
+  onMessage: (m) => { if (m.type === 'goto') goto(m).catch(() => {}); },
+  onReset: () => { items = []; }
+});
 
 function register(context) {
   context.subscriptions.push(
-    vscode.commands.registerCommand('tssworkflow.macroGallery', () => open(context)),
+    vscode.commands.registerCommand('tssworkflow.macroGallery', () => ctl.open(context)),
     // the class or a package changed: the cards are made again a moment after the save
-    vscode.workspace.onDidSaveTextDocument((d) => { if (panel && (SRC_RE.test(d.fileName) || /mathjax-macros|newcommand/i.test(path.basename(d.fileName)))) schedule(600); })
+    vscode.workspace.onDidSaveTextDocument((d) => { if (ctl.isOpen() && (SRC_RE.test(d.fileName) || /mathjax-macros|newcommand/i.test(path.basename(d.fileName)))) ctl.schedule(600); })
   );
 }
 
 exports.register = register;
-exports.isOpen = () => !!panel; // for the state report (debugState.js)
+exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
 exports._t = { collect };

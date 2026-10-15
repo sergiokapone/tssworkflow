@@ -80,4 +80,23 @@ t('the reference does not mention modules that were renamed or removed (the chan
   assert.deepStrictEqual([...new Set(stale)], []);
 });
 
+t('no stub row (a table row with the marker `ЗАПОВНИТИ ОПИС`) is left (tests/docs-sync.js adds them for a setting or a command that has no row yet)', () => {
+  const left = doc.map((l, i) => [i + 1, l]).filter(([, l]) => l.startsWith('|') && /ЗАПОВНИТИ ОПИС/.test(l)).map(([i, l]) => 'line ' + i + ': ' + l.slice(0, 60));
+  assert.deepStrictEqual(left, []);
+});
+
+t('the tables of sections 7 and 8 hold only rows of settings / commands (or of keys of other extensions): a changelog row that landed there (0.19.1, 0.19.2) is caught', () => {
+  const odd = [];
+  for (const [from, to] of [['## 7.', '## 8.'], ['## 8.', '## 9.']]) {
+    for (const l of section(from, to)) {
+      if (!l.startsWith('|')) continue;
+      const first = cells(l)[0];
+      // a row starts with a backticked name: a setting / command of ours, or a key of another extension that the section explains ([latex], ltex.*, workbench.*)
+      if (/^-+:?$|^:-+/.test(first) || /^(Ключ|Команда)$/.test(first) || first.startsWith('`')) continue;
+      odd.push(l.slice(0, 70));
+    }
+  }
+  assert.deepStrictEqual(odd, [], 'a row that is neither a setting nor a command (move it to section 10)');
+});
+
 console.log('\n' + n + ' tests passed');

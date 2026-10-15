@@ -11,11 +11,11 @@ const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
-const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, isTex, openDocByPath, panelScope } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cfg, debounce, isTex, openDocByPath } = require('./util');
+const K = require('./webviewKit');
 
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
-let panel = null;
 let deco = null; // decoration types of the table / row shown in the file
 let followRow = null;
 let target = null; // { uri, start, name }
@@ -111,14 +111,14 @@ async function katexMacros(doc) {
 // The grid is shown at once with what is already known; when the colours and macros of the project still have to be
 // found (first time, or after a file with definitions was saved), they are searched for in the background and sent after.
 async function push(extra) {
-  if (!panel) return;
+  if (!ctl.panel) return;
   const t0 = Date.now();
   const cur = await current();
   if (!cur) return;
-  if (cur.skip) { panel.webview.postMessage({ type: 'skip', reason: cur.skip }); return; }
+  if (cur.skip) { ctl.panel.webview.postMessage({ type: 'skip', reason: cur.skip }); return; }
   const where = path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env);
-  panel.title = 'Таблиця: ' + where;
-  const send = (colors, macros) => panel && panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, colors), macros, where }, extra || {}));
+  ctl.panel.title = 'Таблиця: ' + where;
+  const send = (colors, macros) => ctl.panel && ctl.panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, colors), macros, where }, extra || {}));
   const known = macrosCache.key === cur.doc.uri.toString() ? macrosCache.macros : {};
   if (colorsFresh() && macrosFresh(cur.doc)) { send(defsCache.defs, macrosCache.macros); return; }
   send(defsCache.defs, known);
@@ -126,14 +126,14 @@ async function push(extra) {
   const t1 = Date.now();
   await Promise.all([projectColors(), katexMacros(cur.doc)]);
   log('[таблиця] кольори й макроси готові за ' + ms(t1) + ' мс');
-  if (panel && colorsFresh()) await push(); // the second picture, now with colours and macros (nothing is left to wait for)
+  if (ctl.panel && colorsFresh()) await push(); // the second picture, now with colours and macros (nothing is left to wait for)
 }
 
 async function onOp(op) {
   const cur = await current();
   if (!cur || cur.skip) { push(); return; }
   const res = X.applyOp(cur.model, op);
-  if (res.error) { panel.webview.postMessage({ type: 'error', message: res.error }); push(); return; }
+  if (res.error) { ctl.panel.webview.postMessage({ type: 'error', message: res.error }); push(); return; }
   if (res.same) return;
   const align = cfg().get('tableEditor.alignAfterEdit', true) !== false;
   let out = X.serialize(res.model, { align });
@@ -167,7 +167,7 @@ async function history(cmd) {
     await vscode.window.showTextDocument(cur.doc, { viewColumn: ed ? ed.viewColumn : vscode.ViewColumn.One, preserveFocus: false });
     await vscode.commands.executeCommand(cmd);
   } finally {
-    if (panel) panel.reveal(panel.viewColumn, false);
+    if (ctl.panel) ctl.panel.reveal(ctl.panel.viewColumn, false);
   }
 }
 
@@ -192,12 +192,12 @@ function clearFollow() {
 // shows the table (row: its row) in the file without taking the focus from the grid
 async function follow(row) {
   const mode = followMode();
-  if (!panel || !target) return;
+  if (!ctl.panel || !target) return;
   if (mode === 'off') { clearFollow(); return; }
   const cur = await current();
   if (!cur || cur.skip || !cur.doc) return;
   let ed = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === cur.doc.uri.toString());
-  if (!ed) ed = await vscode.window.showTextDocument(cur.doc, { viewColumn: panel.viewColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One, preserveFocus: true, preview: false });
+  if (!ed) ed = await vscode.window.showTextDocument(cur.doc, { viewColumn: ctl.panel.viewColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One, preserveFocus: true, preview: false });
   const at = (o) => cur.doc.positionAt(o);
   const tableRange = new vscode.Range(at(cur.env.start), at(cur.env.end));
   let rowRange = null;
@@ -244,20 +244,27 @@ function html(webview, extUri) {
     '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + kx('optmacros.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
 }
 
-function ensurePanel(context) {
-  if (panel) { panel.reveal(vscode.ViewColumn.Beside, true); return panel; }
-  panel = vscode.window.createWebviewPanel('tssworkflow.tableEditor', 'Таблиця', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')] });
-  panel.webview.html = html(panel.webview, context.extensionUri);
-  const subs = panelScope(panel, () => { cancelTimer('tableEditor.follow'); cancelTimer('tableEditor.refresh'); clearFollow(); panel = null; target = null; followRow = null; });
-  panel.webview.onDidReceiveMessage((m) => {
-    if (m.type === 'ready') { if (openedAt) { log('[таблиця] сторінка вкладки завантажилась за ' + ms(openedAt) + ' мс'); openedAt = 0; } enqueue(() => push()); }
-    else if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => panel && panel.webview.postMessage({ type: 'error', message: String(e && e.message ? e.message : e) }));
+// the frame of the panel (panel, deferred update, 'ready', panelScope) is webviewKit.createPanelController; this module gives the page and its messages
+const ctl = K.createPanelController({
+  id: 'tableEditor',
+  title: 'Таблиця',
+  preserveFocus: true,
+  noCopy: true, // the page of the table does not send 'copy'
+  timers: ['tableEditor.follow', 'tableEditor.refresh'],
+  html: (webview, uri) => html(webview, uri),
+  onReveal: (c, p) => { p.reveal(vscode.ViewColumn.Beside, true); },
+  // the page has loaded: it asks for the table itself
+  onReady: () => { if (openedAt) { log('[таблиця] сторінка вкладки завантажилась за ' + ms(openedAt) + ' мс'); openedAt = 0; } enqueue(() => push()); },
+  onMessage: (m, c) => {
+    if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => c.post({ type: 'error', message: String(e && e.message ? e.message : e) }));
     else if (m.type === 'follow') scheduleFollow(Number.isInteger(m.r) ? m.r : null);
     else if (m.type === 'undo' || m.type === 'redo') enqueue(() => history(m.type)).catch(() => {});
-  }, null, subs);
-  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); }, null, subs);
-  return panel;
-}
+  },
+  onViewState: (e) => { if (e.webviewPanel.visible && e.webviewPanel.active) scheduleFollow(followRow); },
+  onReset: () => { clearFollow(); target = null; followRow = null; }
+});
+
+function ensurePanel(context) { return ctl.open(context); }
 
 async function openTable(context, uri, start) {
   let doc;
@@ -285,7 +292,7 @@ async function openTable(context, uri, start) {
   }
   if (!env) { vscode.window.showWarningMessage('Таблицю не знайдено (файл змінився?).'); return; }
   target = { uri: doc.uri, start: env.start, name: env.name };
-  const fresh = !panel;
+  const fresh = !ctl.panel;
   const t0 = Date.now();
   ensurePanel(context);
   // a new panel asks for the table itself ('ready') when its page has loaded: a message sent now would be lost
@@ -311,7 +318,7 @@ function register(context, api) {
     }),
     vscode.commands.registerCommand('tssworkflow.editTable', (uri, start) => openTable(context, uri instanceof vscode.Uri ? uri : null, start).catch((e) => vscode.window.showErrorMessage('Редактор таблиць: ' + (e && e.message ? e.message : e)))),
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (!panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
+      if (!ctl.panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
       debounce('tableEditor.refresh', 250, () => push());
     }),
     vscode.languages.registerCodeLensProvider(SEL, {
@@ -330,7 +337,7 @@ function register(context, api) {
 }
 
 exports.register = register;
-exports.isOpen = () => !!panel; // for the state report (debugState.js)
+exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
 // the caches of the colours and macros of the project are shared with the panel "Preview selection"
 exports.projectColors = projectColors;
 exports.colorsFresh = colorsFresh;

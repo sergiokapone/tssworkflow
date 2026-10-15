@@ -9,13 +9,11 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
-const { EXCLUDE, cancelTimer, cfg, debounce, isTex, panelScope } = require('./util');
+const { EXCLUDE, cfg, isTex } = require('./util');
+const K = require('./webviewKit');
 
-let panel = null;
-let ready = false;
 let extUri = null;
 let roots = []; // folders (besides media/) the page may read pictures from
-let seq = 0;
 let last = null; // { doc, column } of the last .tex editor: where a file opened from the panel goes
 
 const nonce = () => { let t = ''; const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; for (let i = 0; i < 32; i++) t += c[Math.floor(Math.random() * c.length)]; return t; };
@@ -92,16 +90,16 @@ function findPicture(name, doc, gpaths) {
 
 // the page may read pictures only from the folders the panel was given: add the folder of a picture outside of them
 function allowFolder(dir) {
-  if (!panel || roots.some((r) => inside(dir, r))) return;
+  if (!ctl.panel || roots.some((r) => inside(dir, r))) return;
   roots.push(dir);
-  panel.webview.options = Object.assign({}, panel.webview.options, { localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
+  ctl.panel.webview.options = Object.assign({}, ctl.panel.webview.options, { localResourceRoots: [vscode.Uri.joinPath(extUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
 }
 
 // the resolver for P.render: what \includegraphics{name} shows
 function pictureResolver(doc) {
   let gpaths = null;
   return (name) => {
-    if (!panel) return null;
+    if (!ctl.panel) return null;
     if (!gpaths) gpaths = graphicsPaths(doc);
     const r = findPicture(name, doc, gpaths);
     if (!r.file) return { skip: r.skip };
@@ -109,7 +107,7 @@ function pictureResolver(doc) {
     let t = 0;
     try { t = Math.floor(fs.statSync(r.file).mtimeMs); } catch (e) { /* none */ }
     // ?t= : a picture exported again is not taken from the cache of the page
-    return { src: panel.webview.asWebviewUri(vscode.Uri.file(r.file)).toString() + '?t=' + t };
+    return { src: ctl.panel.webview.asWebviewUri(vscode.Uri.file(r.file)).toString() + '?t=' + t };
   };
 }
 
@@ -239,20 +237,20 @@ async function openRef(m) {
 
 // draws the fragment now with what is known of the colours and macros; searches the rest in the background
 async function update() {
-  if (!panel || !ready) return;
+  if (!ctl.isOpen() || !ctl.ready) return;
   const ed = vscode.window.activeTextEditor;
   if (!ed || !isTex(ed.document)) return; // the panel itself or another kind of file: what is shown stays
   const doc = ed.document;
-  const mine = ++seq;
+  const mine = ctl.begin();
   last = { doc, column: ed.viewColumn };
   const fr = fragment(ed);
   const pic = fr.text ? pictureAround(doc, Math.max(0, fr.from - 1)) : '';
   if (pic) fr.text = '\\begin{' + pic + '}\\end{' + pic + '}'; // the code of a picture: a frame, not the code
   const where = path.basename(doc.uri.fsPath) + (fr.from ? ':' + fr.from + (fr.to !== fr.from ? '–' + fr.to : '') : '');
   const send = () => {
-    if (!panel || mine !== seq) return;
+    if (!ctl.live(mine)) return;
     const r = P.render(fr.text, { colors: TE.colorsNow(), steps: cfg().get('selectionPreview.steps', true) !== false, image: pictureResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
-    panel.webview.postMessage({ type: 'render', html: r.html, notes: r.notes, what: fr.what, where, macros: TE.macrosNow(doc) });
+    ctl.panel.webview.postMessage({ type: 'render', html: r.html, notes: r.notes, what: fr.what, where, macros: TE.macrosNow(doc) });
   };
   send();
   if (TE.colorsFresh() && TE.macrosFresh(doc)) return;
@@ -260,49 +258,45 @@ async function update() {
   send(); // the second picture: with the colours and macros of the project
 }
 
-// the page could not use the clipboard itself: the text goes through the extension
-function copyText(m) {
-  if (!m || typeof m.text !== 'string' || m.text.length > 2000000) return;
-  Promise.resolve(vscode.env.clipboard.writeText(m.text)).then(() => { if (panel) panel.webview.postMessage({ type: 'copied', what: String(m.what || '').slice(0, 40) }); }, () => {});
-}
-
-function schedule(delay) {
-  if (!panel) return;
-  debounce('selectionPreview.update', delay, () => { update().catch(() => {}); });
-}
+// the frame of the panel (panel, ready, seq, deferred update, 'ready' / 'copy', panelScope) is webviewKit.createPanelController;
+// this module gives the page, the update (its own: it follows the editor), the messages 'open' / 'ref' and the toggle
+const ctl = K.createPanelController({
+  id: 'selectionPreview',
+  title: 'Перегляд виділеного',
+  preserveFocus: true, // the caret stays in the editor, the panel only appears
+  roots: () => roots.map((r) => vscode.Uri.file(r)),
+  html: (webview, uri) => html(webview, uri),
+  update: () => update(),
+  onReveal: (c, p) => {
+    if (p.visible) { p.dispose(); return; } // the command again hides the panel
+    p.reveal(vscode.ViewColumn.Beside, true);
+    c.schedule(0);
+  },
+  onMessage: (m) => { if (m.type === 'open') openTikz(m).catch(() => {}); else if (m.type === 'ref') openRef(m).catch(() => {}); },
+  onViewState: (e, c) => { if (e.webviewPanel.visible) c.schedule(0); }
+});
 
 function open(context) {
-  if (panel) {
-    if (panel.visible) { panel.dispose(); return; } // the command again hides the panel
-    panel.reveal(vscode.ViewColumn.Beside, true);
-    schedule(0);
-    return;
+  if (!ctl.isOpen()) {
+    extUri = context.extensionUri;
+    roots = ((vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath));
   }
-  // preserveFocus: the caret stays in the editor, the panel only appears
-  extUri = context.extensionUri;
-  roots = ((vscode.workspace.workspaceFolders || []).map((f) => f.uri.fsPath));
-  panel = vscode.window.createWebviewPanel('tssworkflow.selectionPreview', 'Перегляд виділеного', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
-    { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')].concat(roots.map((r) => vscode.Uri.file(r))) });
-  ready = false;
-  panel.webview.html = html(panel.webview, context.extensionUri);
-  const subs = panelScope(panel, () => { cancelTimer('selectionPreview.update'); panel = null; ready = false; seq++; });
-  panel.webview.onDidReceiveMessage((m) => { if (m && m.type === 'ready') { ready = true; schedule(0); } else if (m && m.type === 'open') openTikz(m).catch(() => {}); else if (m && m.type === 'ref') openRef(m).catch(() => {}); else if (m && m.type === 'copy') copyText(m); }, null, subs);
-  panel.onDidChangeViewState((e) => { if (e.webviewPanel.visible) schedule(0); }, null, subs);
+  ctl.open(context);
 }
 
 function register(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('tssworkflow.previewSelection', () => open(context)),
     // the panel follows the selection and the text of the active .tex editor (a moment after the last change)
-    vscode.window.onDidChangeTextEditorSelection((e) => { if (panel && isTex(e.textEditor.document)) schedule(180); }),
-    vscode.window.onDidChangeActiveTextEditor((ed) => { if (panel && ed && isTex(ed.document)) schedule(100); }),
+    vscode.window.onDidChangeTextEditorSelection((e) => { if (ctl.panel && isTex(e.textEditor.document)) ctl.schedule(180); }),
+    vscode.window.onDidChangeActiveTextEditor((ed) => { if (ctl.panel && ed && isTex(ed.document)) ctl.schedule(100); }),
     vscode.workspace.onDidChangeTextDocument((e) => {
       const ed = vscode.window.activeTextEditor;
-      if (panel && ed && e.document === ed.document && isTex(e.document)) schedule(350);
+      if (ctl.panel && ed && e.document === ed.document && isTex(e.document)) ctl.schedule(350);
     })
   );
 }
 
 exports.register = register;
-exports.isOpen = () => !!panel; // for the state report (debugState.js)
+exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
 exports._t = { resolveTikz, pictureAround, findLabelPos };
