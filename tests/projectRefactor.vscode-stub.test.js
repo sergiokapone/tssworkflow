@@ -95,7 +95,7 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
 
 (async () => {
   await run('commands are registered', async () => {
-    assert.deepStrictEqual(Object.keys(C).sort(), ['tssworkflow.buildParts', 'tssworkflow.makeSnapshot', 'tssworkflow.moveChapterDown', 'tssworkflow.moveChapterUp', 'tssworkflow.normalizeProject', 'tssworkflow.notationReport', 'tssworkflow.refreshProblems', 'tssworkflow.renameChapter', 'tssworkflow.replaceInProject', 'tssworkflow.restoreSnapshot']);
+    assert.deepStrictEqual(Object.keys(C).sort(), ['tssworkflow.buildParts', 'tssworkflow.indexTerm', 'tssworkflow.makeSnapshot', 'tssworkflow.moveChapterDown', 'tssworkflow.moveChapterUp', 'tssworkflow.normalizeProject', 'tssworkflow.notationReport', 'tssworkflow.refreshProblems', 'tssworkflow.renameChapter', 'tssworkflow.replaceInProject', 'tssworkflow.restoreSnapshot', 'tssworkflow.termsReport']);
     assert.strictEqual(stub.view.id, 'tssworkflow.problemsView');
   });
 
@@ -205,6 +205,54 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     stub._diags = [];
     assert.deepStrictEqual(p.getChildren(), []);
     assert.ok(/немає/.test(p.view.message));
+  });
+
+  await run('termsReport: used before defined; without the magic comment no index part; with it \\index is added after the definition', async () => {
+    w('Charges/T1.tex', 'Тут вже є напруженість електричного поля.\nА \\emph{заряд} означено тут.\n');
+    w('Magnet/T2.tex', 'Назвемо \\emph{напруженістю} векторну величину.\\index{заряд}\n');
+    await C['tssworkflow.termsReport']();
+    let md = log.docs.at(-1).content;
+    assert.ok(md.includes('Вжито раніше, ніж означено') && md.includes('| напруженістю | Magnet/T2.tex:1 | Charges/T1.tex:1'), md);
+    assert.ok(!md.includes('| заряд |'), 'a term used only after its definition is not reported');
+    assert.ok(md.includes('Вимкнено') && md.includes('Записів `\\index` у проєкті: 1'), 'the index is off without the comment');
+    assert.ok(!r('Magnet/T2.tex').includes('\\index{напруженістю}'), 'nothing is written without the comment');
+    w('main.tex', '% !TEX indexprogram = upmendex\n' + MAIN);
+    ans.warn = ['Додати'];
+    const before = M._t.listSnapshots(proj).length;
+    await C['tssworkflow.termsReport']();
+    md = log.docs.at(-1).content;
+    assert.ok(md.includes('Означені терміни без запису в покажчику') && md.includes('- напруженістю (Magnet/T2.tex:1)') && !md.includes('- заряд'), md);
+    assert.strictEqual(r('Magnet/T2.tex'), 'Назвемо \\emph{напруженістю}\\index{напруженістю} векторну величину.\\index{заряд}\n');
+    assert.strictEqual(M._t.listSnapshots(proj).length, before + 1, 'a snapshot before the change');
+    ans.warn = [];
+    await C['tssworkflow.termsReport']();
+    assert.ok(log.docs.at(-1).content.includes('Немає: кожен означений термін є серед'), 'then every term has an entry');
+    assert.strictEqual(log.warns.filter((m) => m.includes('Додати \\index')).length, 1, 'no second question');
+    w('main.tex', MAIN);
+  });
+
+  await run('indexTerm: \\index after the selection or the word under the cursor, hint without the magic comment', async () => {
+    const line = 'Електричне поле створює заряд.';
+    const edits = [];
+    const mkEd = (sels) => ({
+      document: { languageId: 'latex', getText: (rg) => line.slice(rg.start.character, rg.end.character), getWordRangeAtPosition: (p) => { const m = /[\p{L}]+/gu; let x; while ((x = m.exec(line))) if (x.index <= p.character && p.character <= x.index + x[0].length) return new Range(0, x.index, 0, x.index + x[0].length); return undefined; } },
+      selections: sels,
+      edit: async (fn) => { fn({ replace: (rg, t) => edits.push([rg.start.character, rg.end.character, t]) }); return true; }
+    });
+    const S = (a, b) => ({ isEmpty: a === b, active: { line: 0, character: b }, start: { line: 0, character: a }, end: { line: 0, character: b } });
+    stub.window.activeTextEditor = mkEd([S(0, 15)]);
+    await C['tssworkflow.indexTerm']();
+    assert.deepStrictEqual(edits, [[15, 15, '\\index{Електричне поле}']], 'the selection');
+    assert.ok(log.status.at(-1).includes('indexprogram'), 'no magic comment: the index will not be built');
+    edits.length = 0;
+    stub.window.activeTextEditor = mkEd([S(25, 25)]);
+    await C['tssworkflow.indexTerm']();
+    assert.deepStrictEqual(edits, [[29, 29, '\\index{заряд}']], 'the word under the cursor');
+    edits.length = 0;
+    stub.window.activeTextEditor = mkEd([S(30, 30)]);
+    await C['tssworkflow.indexTerm']();
+    assert.deepStrictEqual(edits, [], 'nothing under the cursor');
+    stub.window.activeTextEditor = null;
   });
 
   console.log('\nprojectRefactor stub end-to-end: all ok');

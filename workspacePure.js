@@ -345,6 +345,23 @@ function plainFromLatexmk(args, defaultExe) {
   return { exe, args: rest };
 }
 
+/* ------------------- the subject index (magic comment) ------------------ */
+// The index is built only when the main file says so in its first lines:  % !TEX indexprogram = upmendex  (TeXworks / TeXstudio magic
+// comment; a name outside INDEX_PROGRAMS is ignored: a project cloned from elsewhere cannot start any program through a comment)
+const INDEX_PROGRAMS = ['upmendex', 'mendex', 'makeindex'];
+function indexProgram(text) {
+  const lines = String(text || '').split(/\r?\n/).slice(0, 60);
+  for (const l of lines) {
+    const m = /^\s*%\s*!\s*(?:TeX|TEX|tex)\s+(?:TS-)?indexprogram\s*=\s*([^\s%]+)/i.exec(l);
+    if (m) return { name: INDEX_PROGRAMS.includes(m[1].toLowerCase()) ? m[1].toLowerCase() : '', raw: m[1] };
+  }
+  return { name: '', raw: '' };
+}
+// latexmk calls makeindex itself; for another program it needs  -e '$makeindex=...'  (one argument, no shell)
+function latexmkIndexArgs(name) {
+  return name && name !== 'makeindex' && INDEX_PROGRAMS.includes(name) ? ['-e', '$makeindex="' + name + ' %O -o %D %S";'] : [];
+}
+
 // the steps of a build with exactly n runs of the engine; with tools, the bibliography is made between the first and the second run
 // (biber when <job>.bcf exists, bibtex when there is no .bcf but the .aux asks for a database): a step has { exe, args, tex, when }
 function buildSteps(o) {
@@ -354,6 +371,8 @@ function buildSteps(o) {
   if (n > 1 && o.tools && o.job) {
     steps.push({ exe: o.biber || 'biber', args: [o.job], tex: false, when: { exists: o.job + '.bcf' } });
     steps.push({ exe: o.bibtex || 'bibtex', args: [o.job], tex: false, when: { missing: o.job + '.bcf', fileHas: { file: o.job + '.aux', text: '\\bibdata' } } });
+    // the subject index: only when the document asks for it (o.index = a name from INDEX_PROGRAMS, see indexProgram), after the first run wrote <job>.idx
+    if (o.index && INDEX_PROGRAMS.includes(o.index)) steps.push({ exe: o.index, args: [o.job], tex: false, when: { exists: o.job + '.idx' } });
   }
   for (let i = 1; i < n; i++) steps.push(run);
   return steps;
@@ -423,6 +442,9 @@ module.exports = {
   statusKind,
   resolvePasses,
   plainFromLatexmk,
+  INDEX_PROGRAMS,
+  indexProgram,
+  latexmkIndexArgs,
   buildSteps,
   stepApplies,
   standalonePlan,

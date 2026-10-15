@@ -5,6 +5,7 @@
  *   Snapshots                                Make snapshot / Restore snapshot (also taken before every project-wide change)
  *   Normalize project                        "Normalize file" for every file of the project
  *   Notation consistency                     \varepsilon / \epsilon, \le / \leq, ... across the project, with unify
+ *   Terms                                    used before defined (\\emph{...}), defined but not in the index; \\index for the selected term
  *   Build parts                              only the chosen \part's of the main file
  *   \cite completion and hover               author, year, title from the .bib files
  *   Panel "Проблеми"                         errors, warnings and overfull boxes of the project as a tree
@@ -13,6 +14,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const X = require('./projectRefactorPure');
+const TERMS = require('./termsPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
 const { EXCLUDE, SEL_ANY, cfg, debounce, errText, info, projectRoot, textOfPath, warn } = require('./util');
@@ -385,6 +387,50 @@ async function notationCmd() {
   info('Уніфіковано: ' + plan.count + ' замін у ' + plan.changes.size + ' файлах.');
 }
 
+/* ================================== terms =================================== */
+// the first lines of the main file decide whether the subject index exists: % !TEX indexprogram = upmendex (workspacePure.indexProgram)
+function indexOfMain(root) {
+  const t = textOfPath(path.join(root, mainSettings().mainFile));
+  return t === null ? { name: '', raw: '' } : P.indexProgram(t);
+}
+
+async function termsCmd() {
+  const root = needRoot();
+  if (!root) return;
+  const ms = mainSettings();
+  const mainText = textOfPath(path.join(root, ms.mainFile));
+  const order = mainText === null ? [] : C.chapterNames(mainText, ms.macro, ms.listMacros);
+  const files = (await projectFiles(root, ['.tex'])).sort(TERMS.byBookOrder(order));
+  const ip = indexOfMain(root);
+  const macros = cfg().get('termMacros', ['\\emph']);
+  const ignore = cfg().get('termsIgnore', []);
+  const rep = TERMS.termsReport(files, { macros: Array.isArray(macros) ? macros : ['\\emph'], ignore: Array.isArray(ignore) ? ignore : [], index: !!ip.name });
+  await reportDoc(TERMS.formatTermsReport(rep, { folder: path.basename(root), macros: Array.isArray(macros) ? macros : [], index: !!ip.name }));
+  if (ip.raw && !ip.name) warn('indexprogram = ' + ip.raw + ': підтримуються upmendex, mendex, makeindex. Покажчик не збирається.');
+  if (!rep.noIndex.length) return;
+  const go = await warn('Додати \\index{…} після першого означення ' + rep.noIndex.length + ' термінів, яких немає в покажчику? Запис береться з написання в означенні, воно може бути не в називному відмінку: перегляньте результат. Знімок проєкту збережеться.', { modal: true }, 'Додати');
+  if (go !== 'Додати') return;
+  const plan = TERMS.indexInsertions(files, rep);
+  if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
+  await takeSnapshot(root, 'перед додаванням \\index до термінів');
+  if (!(await applyChanges(root, plan))) { warn('VS Code не прийняв правки.'); return; }
+  info('Додано \\index до ' + rep.noIndex.length + ' термінів у ' + plan.size + ' файлах. Повернути: «Restore snapshot».');
+}
+
+// \index{...} right after the selected word or phrase (after every selection); without a selection the word under the cursor
+async function indexTermCmd() {
+  const ed = vscode.window.activeTextEditor;
+  if (!ed || !(ed.document.languageId === 'latex' || ed.document.languageId === 'tex')) { info('Виділи термін у файлі .tex.'); return; }
+  const doc = ed.document;
+  const word = /[\p{L}\p{M}][\p{L}\p{M}'’ʼ-]*/u;
+  const ranges = ed.selections.map((sel) => (sel.isEmpty ? doc.getWordRangeAtPosition(sel.active, word) : sel)).filter(Boolean);
+  const items = ranges.map((r) => ({ at: r.end, entry: TERMS.indexEntryFor(doc.getText(r)) })).filter((x) => x.entry);
+  if (!items.length) { info('Виділи термін (або постав курсор у слово).'); return; }
+  await ed.edit((b) => { for (const x of items) b.replace(new vscode.Range(x.at.line, x.at.character, x.at.line, x.at.character), '\\index{' + x.entry + '}'); });
+  const root = projectRoot();
+  if (root && !indexOfMain(root).name) vscode.window.setStatusBarMessage('\\index додано, але покажчик не збиратиметься: у головному файлі немає % !TEX indexprogram = upmendex', 6000);
+}
+
 /* ================================== build parts ============================= */
 async function buildPartsCmd() {
   const root = needRoot();
@@ -555,6 +601,8 @@ function register(context, api) {
     cmd('tssworkflow.restoreSnapshot', restoreSnapshotCmd),
     cmd('tssworkflow.normalizeProject', () => normalizeProjectCmd(api)),
     cmd('tssworkflow.notationReport', notationCmd),
+    cmd('tssworkflow.termsReport', termsCmd),
+    cmd('tssworkflow.indexTerm', indexTermCmd),
     cmd('tssworkflow.buildParts', buildPartsCmd),
     vscode.languages.registerCompletionItemProvider(SEL_ANY, citeCompletion, '{', ','),
     vscode.languages.registerHoverProvider(SEL_ANY, citeHover)

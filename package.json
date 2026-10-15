@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -346,6 +346,14 @@
       {
         "command": "tssworkflow.notationReport",
         "title": "TSS Workflow: Notation consistency across the project (\\varepsilon/\\epsilon, \\le/\\leq, ...)"
+      },
+      {
+        "command": "tssworkflow.termsReport",
+        "title": "TSS Workflow: Terms: used before defined, defined but not in the index"
+      },
+      {
+        "command": "tssworkflow.indexTerm",
+        "title": "TSS Workflow: Add \\index{...} to the selected term"
       },
       {
         "command": "tssworkflow.buildParts",
@@ -1697,6 +1705,24 @@
           "type": "boolean",
           "default": true,
           "description": "Completion of keys inside \\cite{...} from the .bib files of the project (author, year, title are shown and searchable), and a hover with the entry over a key."
+        },
+        "tssworkflow.termMacros": {
+          "type": "array",
+          "default": [
+            "\\emph"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Macros whose argument is a term being defined (\\emph{...}). \"Terms\" takes the first such place in the order of the book as the definition and reports the same words used in the text before it."
+        },
+        "tssworkflow.termsIgnore": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "description": "Words and phrases that \"Terms\" skips (a \\emph used for emphasis, not for a definition)."
         },
         "tssworkflow.notationGroups": {
           "type": "array",

@@ -607,11 +607,14 @@ async function compileMain(openPdf, done, fileOverride) {
     mainFile
   ];
   const n = passesFor('main');
-  if (n === 0) return runBuild({ folder, args, job, label: 'Compile ' + mainFile, openPdf, done }); // latexmk decides
+  // the subject index: % !TEX indexprogram = upmendex in the first lines of the main file (workspacePure.indexProgram)
+  let indexName = '';
+  try { indexName = P.indexProgram(fs.readFileSync(path.join(folder.uri.fsPath, mainFile), 'utf8')).name; } catch (e) { indexName = ''; }
+  if (n === 0) return runBuild({ folder, args: indexName ? args.slice(0, -1).concat(P.latexmkIndexArgs(indexName), args.slice(-1)) : args, job, label: 'Compile ' + mainFile, openPdf, done }); // latexmk decides
   // exactly n runs of the engine, biber / bibtex between the first and the second one
   const plain = P.plainFromLatexmk(args);
   const exe = engineExe(plain.exe);
-  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex') });
+  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex'), index: indexName });
   await runBuild({ folder, args: plain.args, exe, steps, job, label: 'Compile ' + mainFile, openPdf, done });
 }
 
@@ -703,10 +706,11 @@ async function compileCurrent(openPdf, done) {
   const label = 'Compile ' + path.basename(file) + ' (окремо)';
   const folderArg = fo || vscode.TaskScope.Workspace;
   const n = passesFor('separate');
-  if (n === 0) return runBuild({ folder: folderArg, cwd, args, job, label, openPdf, done }); // latexmk decides
+  const indexName = P.indexProgram(doc.getText()).name;
+  if (n === 0) return runBuild({ folder: folderArg, cwd, args: indexName ? args.slice(0, -1).concat(P.latexmkIndexArgs(indexName), args.slice(-1)) : args, job, label, openPdf, done }); // latexmk decides
   const plain = P.plainFromLatexmk(args);
   const exe = engineExe(plain.exe);
-  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex') });
+  const steps = P.buildSteps({ exe, args: plain.args, n, tools: true, job, biber: cfg.get('biber', 'biber'), bibtex: cfg.get('bibtex', 'bibtex'), index: indexName });
   await runBuild({ folder: folderArg, cwd, args: plain.args, exe, steps, job, label, openPdf, done });
 }
 

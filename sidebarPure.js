@@ -95,6 +95,8 @@ const GROUPS = [
     ['renameChapter', 'Перейменувати розділ (папка, файл, посилання)', 'edit'],
     ['replaceInProject', 'Замінити по проєкту (без коментарів і verbatim)', 'replace-all'],
     ['notationReport', 'Узгодженість позначень (\\varepsilon / \\epsilon …)', 'symbol-operator'],
+    ['termsReport', 'Терміни: вжито до означення, немає в покажчику', 'book'],
+    ['indexTerm', 'Додати \\index до виділеного терміна', 'bookmark'],
     ['normalizeProject', 'Нормалізувати весь проєкт', 'tools'],
     ['makeSnapshot', 'Зберегти знімок проєкту', 'device-camera'],
     ['restoreSnapshot', 'Відновити знімок', 'history']

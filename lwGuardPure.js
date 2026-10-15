@@ -10,7 +10,7 @@
 // the programs of a TeX build; everything else in the list is ignored (editors, shells, the listing command itself)
 const TEX_PROGRAMS = new Set([
   'latexmk', 'pdflatex', 'lualatex', 'xelatex', 'latex', 'platex', 'uplatex', 'pdftex', 'luatex', 'luahbtex', 'xetex', 'tectonic',
-  'biber', 'bibtex', 'bibtex8', 'bibtexu', 'makeindex', 'makeglossaries', 'xindy', 'texindy', 'dvipdfmx', 'dvips'
+  'biber', 'bibtex', 'bibtex8', 'bibtexu', 'makeindex', 'upmendex', 'mendex', 'makeglossaries', 'xindy', 'texindy', 'dvipdfmx', 'dvips'
 ]);
 // latexmk is a perl script: `perl /usr/bin/latexmk ...` (also behind sh / env wrappers)
 const WRAPPERS = new Set(['perl', 'sh', 'bash', 'dash', 'zsh', 'env', 'runscript', 'texlua', 'texlua.exe']);
@@ -93,7 +93,7 @@ function describe(busy, job) {
 function listCommand(platform) {
   if (isWin(platform)) {
     // WQL in a single-quoted PowerShell string (quotes doubled): no double quotes, so nothing to escape on the way through the command line
-    const filter = "Name like ''%tex%'' or Name like ''latexmk%'' or Name like ''biber%'' or Name like ''bibtex%'' or Name like ''makeindex%'' or Name like ''xindy%'' or Name like ''tectonic%'' or Name like ''dvi%''";
+    const filter = "Name like ''%tex%'' or Name like ''latexmk%'' or Name like ''biber%'' or Name like ''bibtex%'' or Name like ''makeindex%'' or Name like ''upmendex%'' or Name like ''mendex%'' or Name like ''xindy%'' or Name like ''tectonic%'' or Name like ''dvi%''";
     const script = "Get-CimInstance Win32_Process -Filter '" + filter + "' | Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress";
     return { cmd: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script], parse: parseCim };
   }
