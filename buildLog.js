@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { cfg, execFileT } = require('./util');
 
 /* ------------------------- build log warnings ------------------------ */
@@ -39,14 +40,14 @@ function setLogDiagnostics(folder, items) {
     by.get(fp).push(d);
   }
   for (const [fp, ds] of by) diagLog.set(vscode.Uri.file(fp), ds);
-  outLog.appendLine('[Problems] показано ' + shown + ' у ' + by.size + ' файлах' +
-    (absent.size ? '; пропущено, бо файла немає на диску: ' + [...absent].slice(0, 5).join(', ') : ''));
+  outLog.appendLine(tr('[Problems] показано {0} у {1} файлах', shown, by.size) +
+    (absent.size ? tr('; пропущено, бо файла немає на диску: {0}', [...absent].slice(0, 5).join(', ')) : ''));
 }
 
 // builtin: our own log parser (Overfull, undefined references); pplatex: output of `pplatex -i job.log`
 function builtinLog(folder, job) {
   let log;
-  try { log = fs.readFileSync(path.join(folder, job + '.log'), 'utf8'); } catch (e) { outLog.appendLine('[builtin] немає ' + job + '.log'); return; }
+  try { log = fs.readFileSync(path.join(folder, job + '.log'), 'utf8'); } catch (e) { outLog.appendLine(tr('[builtin] немає {0}.log', job)); return; }
   const items = P.parseLog(log, cfg().get('overfullThreshold', 5)).map((it) => ({
     file: it.file, line: it.line, message: it.message, severity: vscode.DiagnosticSeverity.Warning, source: 'LaTeX log'
   }));
@@ -54,7 +55,7 @@ function builtinLog(folder, job) {
   for (const it of P.parseLogErrors(log)) {
     items.push({ file: it.file, line: it.line, endLine: it.endLine, message: it.message, severity: vscode.DiagnosticSeverity.Error, source: 'LaTeX log' });
   }
-  outLog.appendLine('[builtin] ' + job + '.log: ' + items.length + ' записів');
+  outLog.appendLine(tr('[builtin] {0}.log: {1} записів', job, items.length));
   setLogDiagnostics(folder, items);
 }
 
@@ -62,13 +63,12 @@ function pplatexLog(folder, job) {
   return new Promise((resolve) => {
     const cmd = String(cfg().get('pplatexCommand', 'ppluatex') || 'ppluatex').trim();
     const logPath = path.join(folder, job + '.log');
-    if (!fs.existsSync(logPath)) { outLog.appendLine('[pplatex] немає ' + logPath + ': нічого розбирати'); resolve(); return; }
+    if (!fs.existsSync(logPath)) { outLog.appendLine(tr('[pplatex] немає {0}: нічого розбирати', logPath)); resolve(); return; }
     execFileT(cmd, ['-i', logPath], { cwd: folder, maxBuffer: 32 * 1024 * 1024, windowsHide: true, encoding: 'utf8', timeout: 60000 }, (err, stdout) => {
       if (err && (err.code === 'ENOENT' || !stdout)) {
         if (!pplatexWarned) {
           pplatexWarned = true;
-          vscode.window.showWarningMessage('pplatex не запустився («' + cmd + '»: ' + (err.message || err) +
-            '). Використовую вбудований розбір логу. Перевір PATH або tssworkflow.pplatexCommand.');
+          vscode.window.showWarningMessage(tr('pplatex не запустився («{0}»: {1}). Використовую вбудований розбір логу. Перевір PATH або tssworkflow.pplatexCommand.', cmd, err.message || err));
         }
         builtinLog(folder, job);
         resolve();
@@ -101,7 +101,7 @@ function texlogsieveLog(folder, job) {
   return new Promise((resolve) => {
     const cmd = String(cfg().get('texlogsieveCommand', 'texlogsieve') || 'texlogsieve').trim();
     const logPath = path.join(folder, job + '.log');
-    if (!fs.existsSync(logPath)) { outLog.appendLine('[texlogsieve] немає ' + logPath + ': нічого розбирати'); resolve(); return; }
+    if (!fs.existsSync(logPath)) { outLog.appendLine(tr('[texlogsieve] немає {0}: нічого розбирати', logPath)); resolve(); return; }
     let args = cfg().get('texlogsieveArgs', ['${log}']);
     if (!Array.isArray(args)) args = ['${log}'];
     args = args.map((a) => String(a).replace(/\$\{log\}/g, logPath));
@@ -110,8 +110,7 @@ function texlogsieveLog(folder, job) {
       if (err && (err.code === 'ENOENT' || !stdout)) {
         if (!texlogsieveWarned) {
           texlogsieveWarned = true;
-          vscode.window.showWarningMessage('texlogsieve не запустився («' + cmd + '»: ' + (err.message || err) +
-            '). Використовую вбудований розбір логу. Перевір PATH або tssworkflow.texlogsieveCommand.');
+          vscode.window.showWarningMessage(tr('texlogsieve не запустився («{0}»: {1}). Використовую вбудований розбір логу. Перевір PATH або tssworkflow.texlogsieveCommand.', cmd, err.message || err));
         }
         builtinLog(folder, job);
         resolve();
@@ -150,9 +149,9 @@ function texlogsieveLog(folder, job) {
           }
         } catch (e) { /* no log */ }
       }
-      outLog.appendLine('[texlogsieve] ' + cmd + ' ' + args.join(' ') + ' -> розібрано ' + parsed.length + ', показано ' + items.length +
-        (outside ? ', відкинуто попереджень поза проєктом: ' + outside : '') + (err ? ', код виходу ' + err.code : ''));
-      if (!parsed.length) outLog.appendLine('--- початок виводу texlogsieve ---\n' + String(stdout).slice(0, 1500) + '\n---');
+      outLog.appendLine(tr('[texlogsieve] {0} {1} -> розібрано {2}, показано {3}', cmd, args.join(' '), parsed.length, items.length) +
+        (outside ? tr(', відкинуто попереджень поза проєктом: {0}', outside) : '') + (err ? tr(', код виходу {0}', err.code) : ''));
+      if (!parsed.length) outLog.appendLine(tr('--- початок виводу texlogsieve ---') + '\n' + String(stdout).slice(0, 1500) + '\n---');
       setLogDiagnostics(folder, items);
       showReportInTerminal(stdout, items);
       showReportInOutput(folder, job, report, outside);
@@ -219,10 +218,10 @@ function showReportInTerminal(stdout, items) {
   const nWarn = items.filter((x) => x.severity === vscode.DiagnosticSeverity.Warning).length;
   const problems = nErr + nWarn > 0;
   if (mode === 'onProblems' && !problems && !(tlsTerm && tlsTerm.exitStatus === undefined)) return;
-  const head = '\x1b[1m texlogsieve: ' + (nErr ? '\x1b[31m' + nErr + ' помилок' : '\x1b[32m0 помилок') +
-    '\x1b[0m\x1b[1m, ' + nWarn + ' попереджень (у Problems)\x1b[0m\n\n';
+  const head = '\x1b[1m texlogsieve: ' + (nErr ? '\x1b[31m' + tr('{0} помилок', nErr) : '\x1b[32m' + tr('0 помилок')) +
+    '\x1b[0m\x1b[1m, ' + tr('{0} попереджень (у Problems)', nWarn) + '\x1b[0m\n\n';
   const body = String(stdout).replace(/\x1b\[[0-9;]*m/g, '').replace(/\r/g, '').replace(/\s+$/, '');
-  const text = (head + (body ? colorReport(body) : 'texlogsieve нічого не виводить.') + '\n').replace(/\n/g, '\r\n');
+  const text = (head + (body ? colorReport(body) : tr('texlogsieve нічого не виводить.')) + '\n').replace(/\n/g, '\r\n');
   const term = tlsTerminal();
   tlsWrite(text, true);
   if (mode === 'always' || problems) term.show(true);
@@ -230,7 +229,7 @@ function showReportInTerminal(stdout, items) {
 
 function onBuildFinished(folder, job) {
   diagLog.clear();
-  outLog.appendLine('--- збірка завершена, logParser = ' + cfg().get('logParser', 'builtin') + ' ---');
+  outLog.appendLine(tr('--- збірка завершена, logParser = {0} ---', cfg().get('logParser', 'builtin')));
   if (cfg().get('logParser', 'builtin') === 'pplatex') return pplatexLog(folder, job);
   if (cfg().get('logParser', 'builtin') === 'texlogsieve') return texlogsieveLog(folder, job);
   if (!cfg().get('logWarnings', true)) return undefined;

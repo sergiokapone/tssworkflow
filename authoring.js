@@ -481,7 +481,7 @@ const logFixes = {
         continue;
       }
       // 3) lost characters: make TeX stop with a real line number
-      if (/^Немає гліфів/.test(msg)) {
+      if (/^(Немає гліфів|No glyphs)/.test(msg)) { // the message of logPure.js, in either language
         const root = workspaceRoot(doc);
         const mainPath = root && path.join(root, cfg().get('mainFile', 'main.tex') || 'main.tex');
         if (mainPath && fs.existsSync(mainPath)) {

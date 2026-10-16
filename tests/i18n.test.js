@@ -108,4 +108,52 @@ t('the setting tssworkflow.language: uk (default), en, auto; extension.js applie
   assert.ok(/affectsConfiguration\('tssworkflow\.language'\)/.test(code), 'a change of the setting is applied without a reload');
 });
 
+
+// the build and the log (0.21.1): logPure.js speaks the language too, and what the code recognizes in a message works in both
+const L = require(path.join(ext, 'logPure'));
+const strip = (x) => x.replace(/\x1b\[[0-9;]*m/g, '');
+t('logPure in English and in Ukrainian: the passes, the messages of the parser of the log, the hint for pgf layers, the report of texlogsieve', () => {
+  const log = '(./A.tex\nOverfull \\hbox (12.5pt too wide) in paragraph at lines 3--4\nLaTeX Warning: Reference `eq:x\' on page 1 undefined on input line 7.\n)\n';
+  const entries = [{ kind: 'Error', file: 'A.tex', line: 1, message: 'Oops' }, { kind: 'Warning', file: 'A.tex', line: 2, message: 'W' }];
+  const run = (lang) => {
+    I.setLang(lang);
+    return { pass: [1, 2, 5].map(L.passWord), log: L.parseLog(log, 1).map((x) => x.message), hint: L.logHint("graphics layer 'bg' is not defined"), rep: strip(L.formatTexlogsieveReport(entries, { outside: 3 }).join('\n')) };
+  };
+  const uk = run('uk'), en = run('en');
+  assert.deepStrictEqual(uk.pass, ['прохід', 'проходи', 'проходів']);
+  assert.deepStrictEqual(en.pass, ['pass', 'passes', 'passes']);
+  assert.deepStrictEqual(uk.log, ['Overfull \\hbox: 12.5pt завширшки', 'Невизначене посилання «eq:x» (за логом LaTeX)']);
+  assert.deepStrictEqual(en.log, ['Overfull \\hbox: 12.5pt too wide', 'Undefined reference “eq:x” (from the LaTeX log)']);
+  assert.strictEqual(uk.hint, 'Оголоси шар і додай його в список: \\pgfdeclarelayer{bg} \\pgfsetlayers{bg, background, bg, main}', 'the braces of {{0}} stay');
+  assert.strictEqual(en.hint, 'Declare the layer and add it to the list: \\pgfdeclarelayer{bg} \\pgfsetlayers{bg, background, bg, main}');
+  assert.ok(uk.rep.includes('помилок: 1 · попереджень: 1') && uk.rep.includes('ПОМИЛКИ (1)') && uk.rep.includes('(ще 3 попереджень'), uk.rep);
+  assert.ok(en.rep.includes('errors: 1 · warnings: 1') && en.rep.includes('ERRORS (1)') && en.rep.includes('WARNINGS (1)') && en.rep.includes('(3 more warnings'), en.rep);
+  assert.ok(!cyr.test(en.rep), 'no Ukrainian in the English report');
+});
+
+t('"Missing character": the message is recognized by the quick fix of authoring.js in both languages (it looks at the beginning of the text)', () => {
+  const g = { chars: ['Н'], font: 'cmmi12', page: 6 };
+  I.setLang('uk');
+  const uk = L.missingCharMessage(g, 12);
+  I.setLang('en');
+  const en = L.missingCharMessage(g, 12);
+  assert.ok(uk.startsWith('Немає гліфів у шрифті cmmi12 (стор. 6): Н.') && en.startsWith('No glyphs in the font cmmi12 (p. 6): Н.'));
+  const code = fs.readFileSync(path.join(ext, 'authoring.js'), 'utf8');
+  const m = /if \((\/\^\([^\n]*?\)\/)\.test\(msg\)\)/.exec(code);
+  assert.ok(m, 'the test of the message in authoring.js is found');
+  const re = new Function('return ' + m[1])();
+  assert.ok(re.test(uk) && re.test(en), m[1]);
+  assert.ok(!re.test('Overfull \\hbox: 12pt'), 'and nothing else');
+  assert.ok(/Cyrillic in math mode/.test(L.missingCharMessage({ chars: ['Н'], font: 'cmmi12', page: 1 }, null)), 'the hint for Cyrillic in English');
+  assert.ok(/nullfont/.test(L.missingCharMessage({ chars: ['x'], font: 'nullfont', page: 1 }, null)));
+});
+
+t('a message that is matched in the code by its Ukrainian text is a trap in English: the known places are listed here (add a new one to this test)', () => {
+  // authoring.js: the quick fix of "Missing character" (checked above). projectInfo.js: the quick fix of the typography check looks for "одиницею" in the message of projectInfoPure.js:
+  // those messages are not translated yet; when they are, the quick fix must look at the code of the diagnostic, not at the words
+  const info = fs.readFileSync(path.join(ext, 'projectInfo.js'), 'utf8');
+  const translated = /tr\('[^']*одиницею/.test(fs.readFileSync(path.join(ext, 'projectInfoPure.js'), 'utf8'));
+  assert.ok(!translated || !/\/одиницею\/\.test\(d\.message\)/.test(info), 'projectInfo.js matches a translated message by its words');
+});
+
 console.log(n + ' tests passed');

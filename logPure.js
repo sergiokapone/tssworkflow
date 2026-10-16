@@ -1,4 +1,5 @@
 'use strict';
+const { tr } = require('./i18n');
 /* logPure.js: what comes out of the build: pplatex, texlogsieve, the .log parser, "Missing character", hooks, the pass counter. No vscode. */
 
 /* --------------------------- pplatex output ------------------------- */
@@ -73,16 +74,16 @@ function parseLogErrors(log) {
 // text of the diagnostic; `line` (1-based) is where the log context points, or null
 function missingCharMessage(g, line) {
   const shown = g.chars.slice(0, 12).join(' ') + (g.chars.length > 12 ? ' …' : '');
-  let msg = 'Немає гліфів у шрифті ' + g.font + ' (стор. ' + g.page + '): ' + shown + '.';
+  let msg = tr('Немає гліфів у шрифті {0} (стор. {1}): {2}.', g.font, g.page, shown);
   if (line) {
-    msg += ' Приблизно рядок ' + line + ': там TeX закінчив абзац чи сторінку, а сам символ може бути в колонтитулі, фоні або плаваючому обʼєкті.';
+    msg += tr(' Приблизно рядок {0}: там TeX закінчив абзац чи сторінку, а сам символ може бути в колонтитулі, фоні або плаваючому обʼєкті.', line);
   }
   if (g.chars.some((c) => /[\u0400-\u04FF]/.test(c))) {
-    msg += ' Схоже на кирилицю в математичному режимі: загорни її в \\text{...} або винеси з $...$';
+    msg += tr(' Схоже на кирилицю в математичному режимі: загорни її в \\text{...} або винеси з $...$');
   } else if (g.font === 'nullfont') {
-    msg += ' Символ набрано без шрифту (nullfont): зазвичай це код, що виконується при виводі сторінки (колонтитул, фон, TikZ-накладка), або пакет, що друкує до вибору шрифту. Додай \\tracinglostchars=3: тоді буде помилка з реальним рядком.';
+    msg += tr(' Символ набрано без шрифту (nullfont): зазвичай це код, що виконується при виводі сторінки (колонтитул, фон, TikZ-накладка), або пакет, що друкує до вибору шрифту. Додай \\tracinglostchars=3: тоді буде помилка з реальним рядком.');
   } else {
-    msg += ' Заміни символ або шрифт, у якому цього гліфа немає.';
+    msg += tr(' Заміни символ або шрифт, у якому цього гліфа немає.');
   }
   return msg;
 }
@@ -122,8 +123,8 @@ function attachMissingLines(items, logText) {
 // extra explanation for messages whose cause is well known (empty string when there is none)
 function logHint(message) {
   const m = /graphics layer [`'‘]([^`'’]+)['’]/.exec(String(message));
-  if (m) return 'Оголоси шар і додай його в список: \\pgfdeclarelayer{' + m[1] + '} \\pgfsetlayers{bg, background, ' + m[1] + ', main}';
-  if (/pgf@layerbox/.test(String(message))) return 'Шар pgf у \\pgfsetlayers не оголошено: додай \\pgfdeclarelayer{назва_шару} перед \\pgfsetlayers';
+  if (m) return tr('Оголоси шар і додай його в список: \\pgfdeclarelayer{{0}} \\pgfsetlayers{bg, background, {0}, main}', m[1]);
+  if (/pgf@layerbox/.test(String(message))) return tr('Шар pgf у \\pgfsetlayers не оголошено: додай \\pgfdeclarelayer{назва_шару} перед \\pgfsetlayers');
   return '';
 }
 
@@ -200,9 +201,9 @@ function makePassCounter(startedMs) {
 function passWord(n) {
   const m100 = n % 100;
   const m10 = n % 10;
-  if (m10 === 1 && m100 !== 11) return 'прохід';
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'проходи';
-  return 'проходів';
+  if (m10 === 1 && m100 !== 11) return tr('прохід');
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return tr('проходи');
+  return tr('проходів');
 }
 
 function parseTexlogsieve(text, overfullThreshold) {
@@ -312,13 +313,13 @@ function parseLog(log, minOverfull) {
       const pts = parseFloat(m[1]);
       const ln = parseInt(m[2] || m[3] || m[4] || m[5], 10);
       const f = top();
-      if (f && pts >= minOverfull) issues.push({ file: f, line: ln - 1, severity: 'warning', message: 'Overfull \\hbox: ' + pts + 'pt завширшки' });
+      if (f && pts >= minOverfull) issues.push({ file: f, line: ln - 1, severity: 'warning', message: tr('Overfull \\hbox: {0}pt завширшки', pts) });
       continue;
     }
     m = /^LaTeX Warning: (Reference|Citation) `([^']*)' on page \S+ undefined on input line (\d+)\./.exec(line);
     if (m) {
       const f = top();
-      if (f) issues.push({ file: f, line: parseInt(m[3], 10) - 1, severity: 'warning', message: (m[1] === 'Reference' ? 'Невизначене посилання «' : 'Невизначена цитата «') + m[2] + '» (за логом LaTeX)' });
+      if (f) issues.push({ file: f, line: parseInt(m[3], 10) - 1, severity: 'warning', message: m[1] === 'Reference' ? tr('Невизначене посилання «{0}» (за логом LaTeX)', m[2]) : tr('Невизначена цитата «{0}» (за логом LaTeX)', m[2]) });
       continue;
     }
     // biblatex: Package biblatex Warning: Citation 'key' undefined on input line N.
@@ -326,7 +327,7 @@ function parseLog(log, minOverfull) {
     m = /^Package (?:biblatex|natbib) Warning: Citation [`']([^'`]*)'(?: on page \S+)? undefined on input line (\d+)\./.exec(line);
     if (m) {
       const f = top();
-      if (f) issues.push({ file: f, line: parseInt(m[2], 10) - 1, severity: 'warning', message: 'Невизначена цитата «' + m[1] + '» (за логом LaTeX)' });
+      if (f) issues.push({ file: f, line: parseInt(m[2], 10) - 1, severity: 'warning', message: tr('Невизначена цитата «{0}» (за логом LaTeX)', m[1]) });
       continue;
     }
     if (LOG_MSG_START.test(line)) continue;
@@ -350,8 +351,8 @@ function parseLog(log, minOverfull) {
 function formatTexlogsieveReport(entries, opts) {
   const o = opts || {};
   const SECTIONS = [
-    ['Error', 'ПОМИЛКИ'],
-    ['Warning', 'ПОПЕРЕДЖЕННЯ'],
+    ['Error', tr('ПОМИЛКИ')],
+    ['Warning', tr('ПОПЕРЕДЖЕННЯ')],
     ['Missing', 'MISSING CHARACTERS'],
     ['BadBox', 'OVERFULL / UNDERFULL']
   ];
@@ -367,12 +368,12 @@ function formatTexlogsieveReport(entries, opts) {
   const head = '══ texlogsieve · ' + (o.job ? o.job + '.log' : 'log') + (o.time ? ' · ' + o.time : '') + ' ';
   const out = [head + '═'.repeat(Math.max(3, WIDTH - head.length))];
   const sum = [];
-  if (counts[0]) sum.push('помилок: ' + counts[0]);
-  if (counts[1]) sum.push('попереджень: ' + counts[1]);
+  if (counts[0]) sum.push(tr('помилок: {0}', counts[0]));
+  if (counts[1]) sum.push(tr('попереджень: {0}', counts[1]));
   if (counts[2]) sum.push('missing characters: ' + counts[2]);
   if (counts[3]) sum.push('overfull/underfull: ' + counts[3]);
-  out.push(total ? sum.join(' · ') : '✓ Проблем у файлах проєкту немає');
-  if (o.outside) out.push('(ще ' + o.outside + ' попереджень з пакетів TeX-дерева відкинуто)');
+  out.push(total ? sum.join(' · ') : tr('✓ Проблем у файлах проєкту немає'));
+  if (o.outside) out.push(tr('(ще {0} попереджень з пакетів TeX-дерева відкинуто)', o.outside));
   SECTIONS.forEach(([k, title], i) => {
     const list = by(k).slice().sort((a, b) => {
       if (a.file !== b.file) return a.file < b.file ? -1 : 1;

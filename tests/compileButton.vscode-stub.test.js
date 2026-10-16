@@ -79,6 +79,12 @@ const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
   let r = open();
   eq(r.spawned.length, 0, 'no PDF of the note yet: nothing is opened (main.pdf is another document)');
   ok(r.warnings.length === 1 && /note\.pdf/.test(r.warnings[0]), 'a warning names the PDF: ' + r.warnings);
+  ok(r.warnings[0].startsWith('PDF цього файла (note.pdf) ще немає.'), 'in Ukrainian by default: ' + r.warnings[0]);
+  const I18N = require(path.join(ext, 'i18n'));
+  I18N.setLang('en'); // tssworkflow.language
+  r = open();
+  I18N.setLang('uk');
+  eq(r.warnings[0], 'The PDF of this file (note.pdf) does not exist yet. Build it with the ▶ button (“Build this file separately”); main.pdf is not opened because it is another document.', 'the same warning in English');
   w('Note/note.pdf', 'pdf');
   r = open();
   eq(r.spawned.length, 1); ok(r.spawned[0].args.includes(path.join(proj, 'Note', 'note.pdf')), 'the PDF of the separate file: ' + JSON.stringify(r.spawned[0].args));

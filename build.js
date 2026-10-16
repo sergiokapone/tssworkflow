@@ -8,6 +8,7 @@ const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const features = require('./features');
 const SY = require('./synctex');
 const lwGuard = require('./lwGuard');
@@ -29,12 +30,12 @@ const AUX = new RegExp(
 function target() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) {
-    vscode.window.showWarningMessage('Відкрий .tex розділу або .tikz рисунка.');
+    vscode.window.showWarningMessage(tr('Відкрий .tex розділу або .tikz рисунка.'));
     return null;
   }
   const folder = vscode.workspace.getWorkspaceFolder(ed.document.uri);
   if (!folder) {
-    vscode.window.showWarningMessage('Файл не належить жодній відкритій папці (workspace).');
+    vscode.window.showWarningMessage(tr('Файл не належить жодній відкритій папці (workspace).'));
     return null;
   }
   const file = ed.document.uri.fsPath;
@@ -104,21 +105,21 @@ function renderBuild() {
   const last = building.lastPasses || 0;
   const passTxt = pass ? ' · ' + pass + (last ? '/' + last : '') : '';
   const fixed = !!building.fixedPasses;
-  const tip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.' +
+  const tip = tr('Іде компіляція {0}. Клік зупиняє її.', building.job) +
     (pass ? (fixed
-      ? '\nПрохід LaTeX ' + pass + ' із ' + last + ' (tssworkflow.compilePasses.*)'
-      : '\nПрохід LaTeX ' + pass + (last ? ' із ' + last + ' (стільки було минулого разу; повне число наперед невідоме)' : ' (число проходів ще невідоме: це перша збірка)')) : '');
+      ? '\n' + tr('Прохід LaTeX {0} із {1} (tssworkflow.compilePasses.*)', pass, last)
+      : '\n' + tr('Прохід LaTeX {0}', pass) + (last ? tr(' із {0} (стільки було минулого разу; повне число наперед невідоме)', last) : tr(' (число проходів ще невідоме: це перша збірка)'))) : '');
   // the spinner item is written ONCE per build and never touched again: every property write (even a tooltip with the same
   // value) re-sends the whole entry to the status bar and may rebuild the icon, which restarts its rotation
   if (spinItem && !building.spinShown) {
     spinItem.text = '$(sync~spin)';
-    spinItem.tooltip = 'Іде компіляція ' + building.job + '. Клік зупиняє її.';
+    spinItem.tooltip = tr('Іде компіляція {0}. Клік зупиняє її.', building.job);
     spinItem.command = 'tssworkflow.stopBuild';
     spinItem.show();
     building.spinShown = true;
   }
   const showSecs = vscode.workspace.getConfiguration('tssworkflow').get('buildSeconds', true);
-  const text = building.label + passTxt + (showSecs ? ' · ' + secs + ' с' : '');
+  const text = building.label + passTxt + (showSecs ? ' · ' + tr('{0} с', secs) : '');
   if (buildItem.text !== text) buildItem.text = text; // no write when nothing changed
   if (building.tip !== tip) { building.tip = tip; buildItem.tooltip = tip; }
   if (!building.textShown) {
@@ -136,20 +137,20 @@ function showResult(b, outcome) {
   const secs = Math.max(1, Math.round((Date.now() - b.started) / 1000));
   let ms = 4000;
   if (outcome.stopped) {
-    buildItem.text = '$(circle-slash) ' + b.label + ': зупинено';
+    buildItem.text = '$(circle-slash) ' + b.label + tr(': зупинено');
     buildItem.backgroundColor = undefined;
     buildItem.command = undefined;
     ms = 3000;
   } else if (outcome.ok) {
     const n = b.counter ? b.counter.pass : 0;
-    buildItem.text = '$(check) ' + b.label + ': готово за ' + secs + ' с' + (n > 1 ? ' (' + n + ' ' + P.passWord(n) + ')' : '');
+    buildItem.text = '$(check) ' + b.label + tr(': готово за {0} с', secs) + (n > 1 ? ' (' + n + ' ' + P.passWord(n) + ')' : '');
     buildItem.backgroundColor = undefined;
     buildItem.command = undefined;
   } else {
-    buildItem.text = '$(error) ' + b.label + ': помилки (код ' + outcome.code + ')';
+    buildItem.text = '$(error) ' + b.label + tr(': помилки (код {0})', outcome.code);
     buildItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
     buildItem.command = 'workbench.actions.view.problems';
-    buildItem.tooltip = 'Відкрити Problems';
+    buildItem.tooltip = tr('Відкрити Problems');
     ms = 10000;
   }
   buildItem.show();
@@ -173,7 +174,7 @@ function endBuild(id, outcome) {
 }
 
 function stopBuild() {
-  if (!building) { vscode.window.setStatusBarMessage('Компіляція не запущена.', 2000); return; }
+  if (!building) { vscode.window.setStatusBarMessage(tr('Компіляція не запущена.'), 2000); return; }
   const b = building;
   b.stopping = true;
   try { if (b.execution) b.execution.terminate(); } catch (e) { /* already gone */ }
@@ -184,9 +185,9 @@ function stopBuild() {
 function busyWarning() {
   const secs = building ? Math.round((Date.now() - building.started) / 1000) : 0;
   vscode.window.showWarningMessage(
-    'Компіляція «' + (building ? building.label : '') + '» ще триває (' + secs + ' с). Дочекайся завершення, щоб логи не перемішались.',
-    'Зупинити'
-  ).then((pick) => { if (pick === 'Зупинити') stopBuild(); });
+    tr('Компіляція «{0}» ще триває ({1} с). Дочекайся завершення, щоб логи не перемішались.', building ? building.label : '', secs),
+    tr('Зупинити')
+  ).then((pick) => { if (pick === tr('Зупинити')) stopBuild(); });
 }
 
 // compile the saved chapter / figure (used by the "Auto" switch); ignores the root and driver files
@@ -220,7 +221,7 @@ function launchExternal(pdf, ctx, argsKey) {
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const cmd = String(cfg.get('externalViewerCommand', 'SumatraPDF') || '').trim();
   if (!cmd) {
-    vscode.window.showWarningMessage('Вкажи програму для PDF у налаштуванні tssworkflow.externalViewerCommand.');
+    vscode.window.showWarningMessage(tr('Вкажи програму для PDF у налаштуванні tssworkflow.externalViewerCommand.'));
     return;
   }
   let args = argsKey === 'externalSyncArgs'
@@ -235,8 +236,7 @@ function launchExternal(pdf, ctx, argsKey) {
   }));
   if (!hasPdf) args.push(pdf);
   const fail = (err) => vscode.window.showErrorMessage(
-    'Не вдалося запустити «' + cmd + '»: ' + (err && err.message ? err.message : err) +
-    '. Перевір, що програма є в PATH, або зміни tssworkflow.externalViewerCommand.'
+    tr('Не вдалося запустити «{0}»: {1}. Перевір, що програма є в PATH, або зміни tssworkflow.externalViewerCommand.', cmd, err && err.message ? err.message : err)
   );
   try {
     const child = cp.spawn(cmd, args, { cwd: path.dirname(pdf), detached: true, stdio: 'ignore' });
@@ -273,7 +273,7 @@ function activePdf() {
           const own = path.join(plan.cwd, plan.job + '.pdf');
           if (fs.existsSync(own)) pdf = own;
           else {
-            return { warn: 'PDF цього файла (' + path.basename(own) + ') ще немає. Збери його кнопкою ▶ («Зібрати цей файл окремо»); main.pdf не відкриваю, бо це інший документ.' };
+            return { warn: tr('PDF цього файла ({0}) ще немає. Збери його кнопкою ▶ («Зібрати цей файл окремо»); main.pdf не відкриваю, бо це інший документ.', path.basename(own)) };
           }
         } catch (e) { /* the usual way below */ }
       }
@@ -293,7 +293,7 @@ async function openPdfExternal(sync) {
   const r = activePdf();
   if (r.warn) { vscode.window.showWarningMessage(r.warn); return; }
   if (!r.pdf) {
-    vscode.window.showWarningMessage('PDF не знайдено. Спершу збери документ кнопкою ▷.');
+    vscode.window.showWarningMessage(tr('PDF не знайдено. Спершу збери документ кнопкою ▷.'));
     return;
   }
   if (sync === true) {
@@ -337,18 +337,17 @@ function checkPdfAssociation() {
   if (hasPdfAssociation(vscode.workspace.getConfiguration('workbench').get('editorAssociations'))) return;
   assocPrompted = true;
   vscode.window.showWarningMessage(
-    'Для *.pdf не задано вьюер (workbench.editorAssociations), тому PDF збоку може не відкритись. ' +
-    'Прив\'язати *.pdf до вьюера LaTeX Workshop у користувацьких налаштуваннях?',
-    'Застосувати', 'Не питати'
+    tr('Для *.pdf не задано вьюер (workbench.editorAssociations), тому PDF збоку може не відкритись. Прив\'язати *.pdf до вьюера LaTeX Workshop у користувацьких налаштуваннях?'),
+    tr('Застосувати'), tr('Не питати')
   ).then(async (pick) => {
-    if (pick === 'Застосувати') {
+    if (pick === tr('Застосувати')) {
       try {
         await applyPdfAssociation();
-        vscode.window.showInformationMessage('Готово: *.pdf відкривається вьюером LaTeX Workshop. Збери ще раз кнопкою ▷.');
+        vscode.window.showInformationMessage(tr('Готово: *.pdf відкривається вьюером LaTeX Workshop. Збери ще раз кнопкою ▷.'));
       } catch (err) {
-        vscode.window.showErrorMessage('Не вдалося записати налаштування: ' + (err && err.message ? err.message : err));
+        vscode.window.showErrorMessage(tr('Не вдалося записати налаштування: {0}', err && err.message ? err.message : err));
       }
-    } else if (pick === 'Не питати') {
+    } else if (pick === tr('Не питати')) {
       extCtx.globalState.update('noPdfAssocPrompt', true);
     }
   });
@@ -356,7 +355,7 @@ function checkPdfAssociation() {
 
 // diagnostics for "the PDF does not open / opens twice": settings that decide it and the tabs before and after opening.
 // Written to Output -> TSS Workflow after every build that opens a PDF
-function pdfDiag(stage) {
+function pdfDiag(stage, full) {
   if (!LOG) return;
   try {
     const val = (sec, key) => {
@@ -366,9 +365,9 @@ function pdfDiag(stage) {
     };
     const lw = vscode.extensions.getExtension(LW_ID);
     const lines = ['--- PDF diag: ' + stage + ' ---'];
-    if (stage.indexOf('до') === 0) {
+    if (full) {
       const folder = (vscode.workspace.workspaceFolders || [])[0];
-      lines.push('LaTeX Workshop: ' + (lw ? lw.packageJSON.version + (lw.isActive ? ' (active)' : ' (not active)') : 'не встановлено'));
+      lines.push('LaTeX Workshop: ' + (lw ? lw.packageJSON.version + (lw.isActive ? ' (active)' : ' (not active)') : tr('не встановлено')));
       lines.push('workspace trusted: ' + vscode.workspace.isTrusted + ', folder: ' + (folder ? folder.uri.fsPath : '-') +
         ', .vscode: ' + (folder ? fs.existsSync(path.join(folder.uri.fsPath, '.vscode')) : '-'));
       lines.push(val('workbench', 'editorAssociations'));
@@ -379,18 +378,18 @@ function pdfDiag(stage) {
       lines.push(val('tssworkflow', 'pdfBeside'));
     }
     const tg = vscode.window.tabGroups;
-    if (!tg) lines.push('tabGroups API недоступний у цій версії VS Code');
+    if (!tg) lines.push(tr('tabGroups API недоступний у цій версії VS Code'));
     else {
       for (const g of tg.all) {
-        lines.push('група ' + g.viewColumn + (g.isActive ? ' (активна)' : '') + ': ' + (g.tabs.map((t) => {
+        lines.push(tr('група {0}', g.viewColumn) + (g.isActive ? tr(' (активна)') : '') + ': ' + (g.tabs.map((t) => {
           const inp = t.input || {};
           return t.label + ' [' + (inp.viewType || (inp.uri ? 'file' : '?')) + ']';
-        }).join(', ') || 'порожня'));
+        }).join(', ') || tr('порожня')));
       }
     }
     LOG.appendLine(lines.join('\n'));
   } catch (err) {
-    LOG.appendLine('PDF diag: помилка ' + (err && err.message ? err.message : err));
+    LOG.appendLine(tr('PDF diag: помилка {0}', err && err.message ? err.message : err));
   }
 }
 
@@ -404,7 +403,7 @@ async function openInLatexWorkshop(pdf) {
   // no `% !TeX root`) leaves the viewer on the previous PDF, e.g. the standalone one: then the PDF that was just built is opened
   // by its path, the way the external viewer does it
   if (ed && !P.lwRootResolvable(ed.document.getText())) {
-    LOG.appendLine('PDF: LaTeX Workshop не знайде корінь для ' + path.basename(ed.document.uri.fsPath) + ' (немає \\documentclass і % !TeX root): відкриваю ' + pdf + ' за шляхом');
+    LOG.appendLine(tr('PDF: LaTeX Workshop не знайде корінь для {0} (немає \\documentclass і % !TeX root): відкриваю {1} за шляхом', path.basename(ed.document.uri.fsPath), pdf));
     checkPdfAssociation();
     const beside = vscode.workspace.getConfiguration('tssworkflow').get('pdfBeside', true);
     vscode.commands.executeCommand('vscode.open', vscode.Uri.file(pdf), beside ? { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false } : { preview: false });
@@ -415,12 +414,12 @@ async function openInLatexWorkshop(pdf) {
     // 'latex-workshop.tab' opens the viewer tab regardless of latex-workshop.view.pdf.viewer (which may be 'external' in the
     // user settings when the project has no .vscode/settings.json); 'latex-workshop.view' obeys that setting
     const cmd = cmds.includes('latex-workshop.tab') ? 'latex-workshop.tab' : 'latex-workshop.view';
-    if (!cmds.includes(cmd)) throw new Error('LaTeX Workshop не встановлено або не активний');
+    if (!cmds.includes(cmd)) throw new Error(tr('LaTeX Workshop не встановлено або не активний'));
     await vscode.commands.executeCommand(cmd);
     // the viewer takes focus: give it back to the text
     if (ed && col) await vscode.window.showTextDocument(ed.document, { viewColumn: col, preserveFocus: false, selection: ed.selection });
   } catch (err) {
-    vscode.window.showWarningMessage('PDF через LaTeX Workshop не відкрився: ' + (err && err.message ? err.message : err) + '. Відкриваю звичайним способом.');
+    vscode.window.showWarningMessage(tr('PDF через LaTeX Workshop не відкрився: {0}. Відкриваю звичайним способом.', err && err.message ? err.message : err));
     vscode.commands.executeCommand('vscode.open', vscode.Uri.file(pdf), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false });
   }
 }
@@ -505,8 +504,8 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
       lastPdf = path.join(cwd, job + '.pdf');
       if (openPdf) {
         const viewer = cfg.get('pdfViewer', 'vscode');
-        pdfDiag('до відкриття PDF (' + viewer + ')');
-        debounce('build.pdfDiag', 3000, () => pdfDiag('через 3 с після відкриття'));
+        pdfDiag(tr('до відкриття PDF ({0})', viewer), true);
+        debounce('build.pdfDiag', 3000, () => pdfDiag(tr('через 3 с після відкриття')));
         if (viewer === 'external') {
           launchExternal(lastPdf, {});
         } else if (viewer === 'latexworkshop' || (viewer === 'vscode' && vscode.extensions.getExtension(LW_ID))) {
@@ -523,7 +522,7 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
         }
       }
     } else {
-      vscode.window.showWarningMessage('Компіляція ' + job + ' завершилась з помилками (код ' + ev.exitCode + '). Дивись вкладку Problems.');
+      vscode.window.showWarningMessage(tr('Компіляція {0} завершилась з помилками (код {1}). Дивись вкладку Problems.', job, ev.exitCode));
     }
   });
   const startTask = async (at) => {
@@ -555,8 +554,8 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
       if (building && building.id === id) building.execution = execution;
     } catch (err) {
       sub.dispose();
-      vscode.window.showErrorMessage('Не вдалося запустити ' + ((stepList[idx] && stepList[idx].exe) || exe || cfg.get('latexmk', 'latexmk')) + ': ' + (err && err.message ? err.message : err));
-      finish({ ok: false, code: 'запуск' });
+      vscode.window.showErrorMessage(tr('Не вдалося запустити {0}: {1}', (stepList[idx] && stepList[idx].exe) || exe || cfg.get('latexmk', 'latexmk'), err && err.message ? err.message : err));
+      finish({ ok: false, code: tr('запуск') });
     }
   };
   await startTask();
@@ -589,14 +588,14 @@ async function compileMain(openPdf, done, fileOverride) {
   const ed = vscode.window.activeTextEditor;
   const folder = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
   if (!folder) {
-    vscode.window.showWarningMessage('Відкрий папку проєкту (workspace).');
+    vscode.window.showWarningMessage(tr('Відкрий папку проєкту (workspace).'));
     if (done) done();
     return;
   }
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const mainFile = fileOverride || cfg.get('mainFile', 'main.tex') || 'main.tex';
   if (!fs.existsSync(path.join(folder.uri.fsPath, mainFile))) {
-    vscode.window.showWarningMessage('Не знайдено ' + mainFile + ' у корені проєкту (налаштування tssworkflow.mainFile).');
+    vscode.window.showWarningMessage(tr('Не знайдено {0} у корені проєкту (налаштування tssworkflow.mainFile).', mainFile));
     if (done) done();
     return;
   }
@@ -622,9 +621,9 @@ async function compileMain(openPdf, done, fileOverride) {
 // Root files (main.tex, alone.tex ...) are not checked: ▷ / F5 on them build the whole document
 function warnDocumentClass(doc) {
   const name = path.basename(doc.uri.fsPath);
-  const btn = 'Зібрати цей файл окремо';
+  const btn = tr('Зібрати цей файл окремо');
   vscode.window.showWarningMessage(
-    '«' + name + '» містить \\documentclass: це окремий документ, а не розділ чи рисунок, тож його не можна підставити в драйвер і зібрати кнопкою ▷ (F5). Збірку не запущено.',
+    tr('«{0}» містить \\documentclass: це окремий документ, а не розділ чи рисунок, тож його не можна підставити в драйвер і зібрати кнопкою ▷ (F5). Збірку не запущено.', name),
     btn
   ).then((pick) => { if (pick === btn) compileCurrent(true); });
 }
@@ -634,9 +633,9 @@ const docClassWarned = new Set(); // Auto-compile warns once per file and sessio
 function warnPackageFile(doc, openPdf, done) {
   const name = path.basename(doc.uri.fsPath);
   const mainFile = vscode.workspace.getConfiguration('tssworkflow').get('mainFile', 'main.tex') || 'main.tex';
-  const btn = 'Зібрати ' + mainFile;
+  const btn = tr('Зібрати {0}', mainFile);
   vscode.window.showWarningMessage(
-    '«' + name + '» це клас чи пакет: його не можна зібрати окремо, лише разом з документом, що його підключає.',
+    tr('«{0}» це клас чи пакет: його не можна зібрати окремо, лише разом з документом, що його підключає.', name),
     btn
   ).then((pick) => {
     if (pick === btn) compileMain(openPdf, done);
@@ -679,31 +678,31 @@ async function compileCurrent(openPdf, done) {
   const ed = vscode.window.activeTextEditor;
   const finish = () => { if (done) done(); };
   if (!ed || !/\.(?:tex|ltx)$/i.test(ed.document.uri.fsPath)) {
-    vscode.window.showInformationMessage('Відкрий .tex-файл з \\documentclass, який треба зібрати окремо.');
+    vscode.window.showInformationMessage(tr('Відкрий .tex-файл з \\documentclass, який треба зібрати окремо.'));
     return finish();
   }
   const doc = ed.document;
   const file = doc.uri.fsPath;
   if (P.isPackageFile(file)) return warnPackageFile(doc, openPdf, done);
   if (!P.hasDocumentClass(doc.getText())) {
-    const asChapter = 'Зібрати як розділ (▷)';
-    const whole = 'Зібрати весь документ';
+    const asChapter = tr('Зібрати як розділ (▷)');
+    const whole = tr('Зібрати весь документ');
     const pick = await vscode.window.showWarningMessage(
-      '«' + path.basename(file) + '» не має \\documentclass, тож окремо його не зібрати: немає преамбули.',
+      tr('«{0}» не має \\documentclass, тож окремо його не зібрати: немає преамбули.', path.basename(file)),
       asChapter, whole
     );
     if (pick === asChapter) return compile(openPdf, done);
     if (pick === whole) return compileMain(openPdf, done);
     return finish();
   }
-  if (doc.isDirty && !(await doc.save())) { vscode.window.showWarningMessage('Не вдалося зберегти файл перед збіркою.'); return finish(); }
+  if (doc.isDirty && !(await doc.save())) { vscode.window.showWarningMessage(tr('Не вдалося зберегти файл перед збіркою.')); return finish(); }
   openPdf = openPdfFor('separate', openPdf);
   const cfg = vscode.workspace.getConfiguration('tssworkflow');
   const fo = vscode.workspace.getWorkspaceFolder(doc.uri);
   const { cwd, args, job } = P.standalonePlan(file, fo ? fo.uri.fsPath : null, {
     workDir: cfg.get('compileCurrent.workDir', 'file'), engine: cfg.get('compileCurrent.engine', 'lualatex'), force: cfg.get('forceRebuild', true)
   });
-  const label = 'Compile ' + path.basename(file) + ' (окремо)';
+  const label = tr('Compile {0} (окремо)', path.basename(file));
   const folderArg = fo || vscode.TaskScope.Workspace;
   const n = passesFor('separate');
   const indexName = P.indexProgram(doc.getText()).name;
@@ -734,7 +733,7 @@ function clean(withPdf) {
   const t = target();
   if (!t) return;
   // files that LaTeX Workshop is writing right now must not be deleted from under it
-  const pre = lwGuard.guard({ cwd: t.folder.uri.fsPath, folder: t.folder.uri.fsPath, job: t.job, what: 'прибирання' });
+  const pre = lwGuard.guard({ cwd: t.folder.uri.fsPath, folder: t.folder.uri.fsPath, job: t.job, what: tr('прибирання') });
   if (!pre) return doClean(t, withPdf);
   pre.then((ok) => {
     if (!ok) return;
@@ -762,8 +761,8 @@ function doClean(t, withPdf) {
   if (fs.existsSync(minted)) {
     try { fs.rmSync(minted, { recursive: true, force: true }); removed++; } catch (e) { failed.push('_minted-' + t.job); }
   }
-  let msg = t.job + ': видалено ' + removed + (withPdf ? ' (разом з PDF)' : ' (PDF залишено)');
-  if (failed.length) msg += '. Не вдалося видалити: ' + failed.join(', ');
+  let msg = tr('{0}: видалено {1}', t.job, removed) + (withPdf ? tr(' (разом з PDF)') : tr(' (PDF залишено)'));
+  if (failed.length) msg += tr('. Не вдалося видалити: {0}', failed.join(', '));
   vscode.window.showInformationMessage(msg);
 }
 
