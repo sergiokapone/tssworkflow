@@ -6,6 +6,7 @@
  *   the tree of the "Проблеми" panel; names and pruning of project snapshots */
 const C = require('./chaptersPure');
 const { escRe } = require('./corePure');
+const { tr } = require('./i18n');
 
 
 /* ================================ chapters ================================= */
@@ -257,16 +258,16 @@ function notationReport(files, groups) {
 }
 
 function formatNotationReport(rep, o) {
-  const lines = ['# Узгодженість позначень' + (o && o.folder ? ' · ' + o.folder : ''), ''];
+  const lines = [tr('# Узгодженість позначень') + (o && o.folder ? ' · ' + o.folder : ''), ''];
   const mixed = rep.filter((r) => r.mixed);
-  lines.push(mixed.length ? 'Змішано у ' + mixed.length + ' з ' + rep.length + ' груп.' : '✅ Змішаних позначень немає.');
+  lines.push(mixed.length ? tr('Змішано у {0} з {1} груп.', mixed.length, rep.length) : tr('✅ Змішаних позначень немає.'));
   lines.push('');
   for (const r of rep) {
-    lines.push('## ' + (r.mixed ? '⚠️ ' : '✅ ') + r.name);
+    lines.push('## ' + (r.mixed ? '⚠️ ' : '✅ ') + tr(r.name));
     for (const v of r.variants) {
       const files = [...v.perFile].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([f, n]) => f + ' (' + n + ')').join(', ');
-      const where = v.places && v.places.length ? ' · напр. ' + v.places.map((x) => x.path + ':' + x.line).join(', ') : '';
-      lines.push('- `' + v.label + '`: ' + v.count + (files ? ' — ' + files + (v.perFile.size > 5 ? ', …' : '') : '') + where);
+      const where = v.places && v.places.length ? tr(' · напр. {0}', v.places.map((x) => x.path + ':' + x.line).join(', ')) : '';
+      lines.push('- `' + tr(v.label) + '`: ' + v.count + (files ? ' — ' + files + (v.perFile.size > 5 ? ', …' : '') : '') + where);
     }
     lines.push('');
   }
@@ -367,10 +368,10 @@ const CITE_CTX = /\\[A-Za-z]*cite[A-Za-z]*\*?(?:\[[^\]]*\]){0,2}\{([^{}]*)$/;
 function groupProblems(diags) {
   const isBox = (d) => /^(Over|Under)full /i.test(d.message);
   const groups = [
-    { id: 'error', label: 'Помилки', items: [] },
-    { id: 'warning', label: 'Попередження', items: [] },
+    { id: 'error', label: tr('Помилки'), items: [] },
+    { id: 'warning', label: tr('Попередження'), items: [] },
     { id: 'box', label: 'Overfull / underfull', items: [] },
-    { id: 'other', label: 'Підказки й нотатки', items: [] }
+    { id: 'other', label: tr('Підказки й нотатки'), items: [] }
   ];
   for (const d of diags) {
     const g = isBox(d) ? 'box' : d.severity === 'error' ? 'error' : d.severity === 'warning' ? 'warning' : 'other';

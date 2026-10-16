@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.20.6",
+  "version": "0.21.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1065,6 +1065,17 @@
           "type": "boolean",
           "default": true,
           "description": "Add a blank line above and below a framed heading"
+        },
+        "tssworkflow.language": {
+          "type": "string",
+          "default": "uk",
+          "enum": ["uk", "en", "auto"],
+          "enumDescriptions": [
+            "Ukrainian messages and reports (as before)",
+            "English messages and reports where a translation exists (the project reports, snapshots, rename and move of chapters, replace in project, notation, terms); the rest stays Ukrainian for now",
+            "English unless the display language of VS Code is Ukrainian"
+          ],
+          "description": "Language of the messages, prompts and reports of the extension. Partly translated: see the changelog for what is covered."
         },
         "tssworkflow.mainFile": {
           "type": "string",

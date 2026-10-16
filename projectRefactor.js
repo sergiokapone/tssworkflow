@@ -14,6 +14,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const X = require('./projectRefactorPure');
+const { tr } = require('./i18n');
 const TERMS = require('./termsPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
@@ -27,7 +28,7 @@ let ctx = null;
 
 function needRoot() {
   const r = projectRoot();
-  if (!r) warn('Відкрий папку проєкту (workspace).');
+  if (!r) warn(tr('Відкрий папку проєкту (workspace).'));
   return r;
 }
 
@@ -126,34 +127,34 @@ function writeManifest(m) {
 async function makeSnapshotCmd() {
   const root = needRoot();
   if (!root) return;
-  const label = await vscode.window.showInputBox({ prompt: 'Назва знімка (можна порожню)', value: '' });
+  const label = await vscode.window.showInputBox({ prompt: tr('Назва знімка (можна порожню)'), value: '' });
   if (label === undefined) return;
   const m = await takeSnapshot(root, label.trim());
-  info('Знімок збережено: ' + m.files.length + ' файлів (' + m.id + '). Відновити: «Restore snapshot».');
+  info(tr('Знімок збережено: {0} файлів ({1}). Відновити: «Restore snapshot».', m.files.length, m.id));
 }
 
 async function restoreSnapshotCmd() {
   const root = needRoot();
   if (!root) return;
   const list = listSnapshots(root);
-  if (!list.length) { info('Знімків цього проєкту ще немає. Вони створюються перед перейменуванням розділу, заміною по проєкту, нормалізацією проєкту й командою «Make snapshot».'); return; }
+  if (!list.length) { info(tr('Знімків цього проєкту ще немає. Вони створюються перед перейменуванням розділу, заміною по проєкту, нормалізацією проєкту й командою «Make snapshot».')); return; }
   const pick = await vscode.window.showQuickPick(list.map((m) => ({
-    label: m.label || '(без назви)',
+    label: m.label || tr('(без назви)'),
     description: new Date(m.date).toLocaleString(),
-    detail: m.files.length + ' файлів' + (m.moves && m.moves.length ? ' · з перейменуванням папок' : ''),
+    detail: tr('{0} файлів', m.files.length) + (m.moves && m.moves.length ? tr(' · з перейменуванням папок') : ''),
     m
-  })), { placeHolder: 'Який знімок відновити?' });
+  })), { placeHolder: tr('Який знімок відновити?') });
   if (!pick) return;
   const m = pick.m;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) {
-    const s = await warn('Є незбережені файли. Їх треба зберегти перед відновленням.', 'Зберегти все');
-    if (s !== 'Зберегти все') return;
+    const s = await warn(tr('Є незбережені файли. Їх треба зберегти перед відновленням.'), tr('Зберегти все'));
+    if (s !== tr('Зберегти все')) return;
     await vscode.workspace.saveAll(false);
   }
-  const go = await warn('Відновити знімок «' + (m.label || m.id) + '»? ' + m.files.length + ' файлів буде перезаписано' +
-    (m.moves && m.moves.length ? ', папки повернуться на старі місця' : '') + '. Поточний стан теж збережеться як знімок.', { modal: true }, 'Відновити');
-  if (go !== 'Відновити') return;
-  await takeSnapshot(root, 'перед відновленням ' + m.id);
+  const go = await warn(tr('Відновити знімок «{0}»? {1} файлів буде перезаписано', m.label || m.id, m.files.length) +
+    (m.moves && m.moves.length ? tr(', папки повернуться на старі місця') : '') + tr('. Поточний стан теж збережеться як знімок.'), { modal: true }, tr('Відновити'));
+  if (go !== tr('Відновити')) return;
+  await takeSnapshot(root, tr('перед відновленням {0}', m.id));
   try {
     for (const mv of (m.moves || []).slice().reverse()) {
       const from = path.join(root, mv.to);
@@ -166,9 +167,9 @@ async function restoreSnapshotCmd() {
       fs.mkdirSync(path.dirname(dest), { recursive: true });
       fs.copyFileSync(src, dest);
     }
-  } catch (e) { warn('Не вдалося відновити знімок: ' + errText(e)); return; }
+  } catch (e) { warn(tr('Не вдалося відновити знімок: {0}', errText(e))); return; }
   await vscode.commands.executeCommand('tssworkflow.refreshChapters');
-  info('Знімок відновлено: ' + m.files.length + ' файлів.');
+  info(tr('Знімок відновлено: {0} файлів.', m.files.length));
 }
 
 /* ================================ rename chapter ============================ */
@@ -187,7 +188,7 @@ async function chapterFromArg(root, arg, title) {
     if (rel.length >= 2 && !rel[0].startsWith('..')) return rel[0];
   }
   const names = chapterFolders(root);
-  if (!names.length) { warn('У проєкті немає папок розділів X/X.tex.'); return null; }
+  if (!names.length) { warn(tr('У проєкті немає папок розділів X/X.tex.')); return null; }
   const p = await vscode.window.showQuickPick(names, { placeHolder: title });
   return p || null;
 }
@@ -195,16 +196,16 @@ async function chapterFromArg(root, arg, title) {
 async function renameChapterCmd(arg) {
   const root = needRoot();
   if (!root) return;
-  const oldName = await chapterFromArg(root, arg, 'Який розділ перейменувати?');
+  const oldName = await chapterFromArg(root, arg, tr('Який розділ перейменувати?'));
   if (!oldName) return;
   const folders = fs.readdirSync(root).map((d) => d.toLowerCase());
   const newName = await vscode.window.showInputBox({
-    prompt: 'Нова назва розділу «' + oldName + '» (папка, файл, списки в головному файлі, посилання)',
+    prompt: tr('Нова назва розділу «{0}» (папка, файл, списки в головному файлі, посилання)', oldName),
     value: oldName,
     validateInput: (v) => {
-      if (!X.validChapterName(v)) return 'Лише латинські літери, цифри, _ і -, починати з літери';
-      if (v === oldName) return 'Те саме ім’я';
-      if (folders.includes(v.toLowerCase())) return 'Така папка чи файл уже є';
+      if (!X.validChapterName(v)) return tr('Лише латинські літери, цифри, _ і -, починати з літери');
+      if (v === oldName) return tr('Те саме ім’я');
+      if (folders.includes(v.toLowerCase())) return tr('Така папка чи файл уже є');
       return null;
     }
   });
@@ -213,14 +214,14 @@ async function renameChapterCmd(arg) {
   const files = await projectFiles(root, TEXT_EXTS);
   const plan = X.renameChapterTexts(files, oldName, newName, ms);
   const list = [...plan.changes.keys()];
-  const ok = await warn('Перейменувати розділ «' + oldName + '» → «' + newName + '»? Папка ' + oldName + '/ і файл ' + oldName + '.tex перейменуються; ' +
-    'змін у ' + list.length + ' файлах' + (list.length ? ' (' + list.slice(0, 4).join(', ') + (list.length > 4 ? ', …' : '') + ')' : '') +
-    ': у списках головного файла ' + plan.stat.main + ', шляхів ' + plan.stat.paths + ', посилань ' + plan.stat.refs + '. Знімок проєкту збережеться.', { modal: true }, 'Перейменувати');
-  if (ok !== 'Перейменувати') return;
+  const ok = await warn(tr('Перейменувати розділ «{0}» → «{1}»? Папка {0}/ і файл {0}.tex перейменуються; ', oldName, newName) +
+    tr('змін у {0} файлах', list.length) + (list.length ? ' (' + list.slice(0, 4).join(', ') + (list.length > 4 ? ', …' : '') + ')' : '') +
+    tr(': у списках головного файла {0}, шляхів {1}, посилань {2}. Знімок проєкту збережеться.', plan.stat.main, plan.stat.paths, plan.stat.refs), { modal: true }, tr('Перейменувати'));
+  if (ok !== tr('Перейменувати')) return;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
-  const snap = await takeSnapshot(root, 'перед перейменуванням ' + oldName + ' → ' + newName);
+  const snap = await takeSnapshot(root, tr('перед перейменуванням {0} → {1}', oldName, newName));
   try {
-    if (!(await applyChanges(root, plan.changes))) throw new Error('VS Code не прийняв правки тексту');
+    if (!(await applyChanges(root, plan.changes))) throw new Error(tr('VS Code не прийняв правки тексту'));
     const dirEdit = new vscode.WorkspaceEdit();
     dirEdit.renameFile(vscode.Uri.file(path.join(root, oldName)), vscode.Uri.file(path.join(root, newName)));
     if (!(await vscode.workspace.applyEdit(dirEdit))) fs.renameSync(path.join(root, oldName), path.join(root, newName));
@@ -232,7 +233,7 @@ async function renameChapterCmd(arg) {
     writeManifest(snap);
   } catch (e) {
     writeManifest(snap);
-    warn('Перейменування не завершено: ' + errText(e) + '. Стан можна повернути командою «Restore snapshot».');
+    warn(tr('Перейменування не завершено: {0}. Стан можна повернути командою «Restore snapshot».', errText(e)));
     return;
   }
   // what is left: the old name as a word in code, and other files of the folder that carry it in their name
@@ -244,28 +245,28 @@ async function renameChapterCmd(arg) {
   }
   const others = (() => { try { return fs.readdirSync(path.join(root, newName)).filter((n) => n.startsWith(oldName) && n !== newName + '.tex'); } catch (e) { return []; } })();
   await vscode.commands.executeCommand('tssworkflow.refreshChapters');
-  info('Розділ перейменовано: ' + oldName + ' → ' + newName + '.' +
-    (left.length ? ' Слово «' + oldName + '» лишилось у коді: ' + left.slice(0, 3).join(', ') + (left.length > 3 ? ', …' : '') + ' (перевір).' : '') +
-    (others.length ? ' У папці є файли з старою назвою: ' + others.slice(0, 3).join(', ') + '.' : ''));
+  info(tr('Розділ перейменовано: {0} → {1}.', oldName, newName) +
+    (left.length ? tr(' Слово «{0}» лишилось у коді: {1} (перевір).', oldName, left.slice(0, 3).join(', ') + (left.length > 3 ? ', …' : '')) : '') +
+    (others.length ? tr(' У папці є файли з старою назвою: {0}.', others.slice(0, 3).join(', ')) : ''));
 }
 
 async function moveChapterCmd(arg, dir) {
   const root = needRoot();
   if (!root) return;
-  const name = await chapterFromArg(root, arg, 'Який розділ пересунути?');
+  const name = await chapterFromArg(root, arg, tr('Який розділ пересунути?'));
   if (!name) return;
   const ms = mainSettings();
   const abs = path.join(root, ms.mainFile);
   const text = textOfPath(abs);
-  if (text === null) { warn('Не знайдено ' + ms.mainFile + ' (налаштування tssworkflow.mainFile).'); return; }
+  if (text === null) { warn(tr('Не знайдено {0} (налаштування tssworkflow.mainFile).', ms.mainFile)); return; }
   const r = X.moveChapter(text, name, dir, ms.macro, ms.listMacros);
-  if (r.error === 'notfound') { warn('Розділу «' + name + '» немає у списках головного файла (він не підключений).'); return; }
-  if (r.error === 'first') { info('«' + name + '» уже перший.'); return; }
-  if (r.error === 'last') { info('«' + name + '» уже останній.'); return; }
+  if (r.error === 'notfound') { warn(tr('Розділу «{0}» немає у списках головного файла (він не підключений).', name)); return; }
+  if (r.error === 'first') { info(tr('«{0}» уже перший.', name)); return; }
+  if (r.error === 'last') { info(tr('«{0}» уже останній.', name)); return; }
   if (r.error) return;
-  if (!(await applyChanges(root, new Map([[ms.mainFile, r.text]])))) { warn('Не вдалося змінити ' + ms.mainFile); return; }
+  if (!(await applyChanges(root, new Map([[ms.mainFile, r.text]])))) { warn(tr('Не вдалося змінити {0}', ms.mainFile)); return; }
   await vscode.commands.executeCommand('tssworkflow.refreshChapters');
-  vscode.window.setStatusBarMessage('«' + name + '» ' + (dir < 0 ? 'вище' : 'нижче') + ' за «' + r.with + '»', 4000);
+  vscode.window.setStatusBarMessage(dir < 0 ? tr('«{0}» вище за «{1}»', name, r.with) : tr('«{0}» нижче за «{1}»', name, r.with), 4000);
 }
 
 /* ============================= replace in project =========================== */
@@ -283,7 +284,7 @@ const reportLinks = {
         if (abs !== root && !abs.startsWith(root + path.sep)) continue; // only inside the project
         if (!fs.existsSync(abs)) continue;
         const link = new vscode.DocumentLink(new vscode.Range(i, r.start, i, r.start + r.len), vscode.Uri.file(abs).with({ fragment: 'L' + r.line + (r.col ? ',' + r.col : '') }));
-        link.tooltip = 'Відкрити ' + r.rel + ', рядок ' + r.line + (r.col ? ', стовпець ' + r.col : '');
+        link.tooltip = r.col ? tr('Відкрити {0}, рядок {1}, стовпець {2}', r.rel, r.line, r.col) : tr('Відкрити {0}, рядок {1}', r.rel, r.line);
         links.push(link);
       }
     }
@@ -296,7 +297,7 @@ const reportLens = {
   provideCodeLenses(doc) {
     const rp = reports.get(doc.uri.toString());
     if (!rp || !rp.regen) return [];
-    return [new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), { title: '↻ Оновити звіт', command: 'tssworkflow._refreshReport', arguments: [doc.uri.toString()] })];
+    return [new vscode.CodeLens(new vscode.Range(0, 0, 0, 0), { title: tr('↻ Оновити звіт'), command: 'tssworkflow._refreshReport', arguments: [doc.uri.toString()] })];
   }
 };
 
@@ -310,10 +311,10 @@ async function refreshReport(uri) {
     const whole = new vscode.Range(0, 0, rp.doc.lineCount, 0);
     const edit = new vscode.WorkspaceEdit();
     edit.replace(rp.doc.uri, rp.doc.validateRange ? rp.doc.validateRange(whole) : whole, md);
-    if (!(await vscode.workspace.applyEdit(edit))) { warn('VS Code не прийняв оновлення звіту.'); return; }
-    vscode.window.setStatusBarMessage('Звіт оновлено', 3000);
+    if (!(await vscode.workspace.applyEdit(edit))) { warn(tr('VS Code не прийняв оновлення звіту.')); return; }
+    vscode.window.setStatusBarMessage(tr('Звіт оновлено'), 3000);
   } catch (e) {
-    warn('Не вдалося оновити звіт: ' + errText(e));
+    warn(tr('Не вдалося оновити звіт: {0}', errText(e)));
   } finally { refreshing.delete(String(uri)); }
 }
 
@@ -344,39 +345,39 @@ async function scanReplace(root, find, repl, o) {
   }
   return { changes, per, total, hits };
 }
-const replaceMd = (find, repl, sc) => '# Збіги «' + find + '» → «' + repl + '»\n\n' + sc.per.join('\n') + '\n\n```\n' + sc.hits.slice(0, 200).join('\n') + '\n```\n';
+const replaceMd = (find, repl, sc) => tr('# Збіги «{0}» → «{1}»', find, repl) + '\n\n' + sc.per.join('\n') + '\n\n```\n' + sc.hits.slice(0, 200).join('\n') + '\n```\n';
 
 async function replaceInProjectCmd() {
   const root = needRoot();
   if (!root) return;
   const ed = vscode.window.activeTextEditor;
   const sel = ed && !ed.selection.isEmpty && ed.selection.isSingleLine ? ed.document.getText(ed.selection) : '';
-  const find = await vscode.window.showInputBox({ prompt: 'Що замінити в проєкті (коментарі й verbatim не чіпаються)', value: sel });
+  const find = await vscode.window.showInputBox({ prompt: tr('Що замінити в проєкті (коментарі й verbatim не чіпаються)'), value: sel });
   if (!find) return;
-  const repl = await vscode.window.showInputBox({ prompt: 'На що замінити (у режимі регулярного виразу: $1, $2, $&)', value: '' });
+  const repl = await vscode.window.showInputBox({ prompt: tr('На що замінити (у режимі регулярного виразу: $1, $2, $&)'), value: '' });
   if (repl === undefined) return;
   const opts = await vscode.window.showQuickPick([
-    { label: 'Регулярний вираз', key: 'regex', picked: false },
-    { label: 'Макрос цілком (\\vect не збігається з \\vectX)', key: 'wholeMacro', picked: true },
-    { label: 'Враховувати регістр', key: 'caseSensitive', picked: true }
-  ], { canPickMany: true, placeHolder: 'Параметри пошуку' });
+    { label: tr('Регулярний вираз'), key: 'regex', picked: false },
+    { label: tr('Макрос цілком (\\vect не збігається з \\vectX)'), key: 'wholeMacro', picked: true },
+    { label: tr('Враховувати регістр'), key: 'caseSensitive', picked: true }
+  ], { canPickMany: true, placeHolder: tr('Параметри пошуку') });
   if (!opts) return;
   const has = (k) => opts.some((o) => o.key === k);
   const o = { regex: has('regex'), wholeMacro: has('wholeMacro'), caseSensitive: has('caseSensitive') };
   const sc = await scanReplace(root, find, repl, o);
-  if (sc.error) { warn('Некоректний вираз: ' + sc.error); return; }
+  if (sc.error) { warn(tr('Некоректний вираз: {0}', sc.error)); return; }
   const { changes, per, total } = sc;
-  if (!total) { info('Збігів не знайдено.'); return; }
-  const msg = 'Знайдено ' + total + ' збігів у ' + changes.size + ' файлах (' + per.slice(0, 3).join(', ') + (per.length > 3 ? ', …' : '') + '). Замінити? Знімок проєкту збережеться.';
-  const pick = await warn(msg, 'Замінити', 'Показати список');
-  if (pick === 'Показати список') {
-    await reportDoc(replaceMd(find, repl, sc), root, async () => { const again = await scanReplace(root, find, repl, o); return again.error ? '# Збіги\n\nНекоректний вираз: ' + again.error + '\n' : again.total ? replaceMd(find, repl, again) : '# Збіги «' + find + '» → «' + repl + '»\n\nЗбігів не знайдено.\n'; });
-    if ((await info('Замінити ' + total + ' збігів?', 'Замінити')) !== 'Замінити') return;
-  } else if (pick !== 'Замінити') return;
+  if (!total) { info(tr('Збігів не знайдено.')); return; }
+  const msg = tr('Знайдено {0} збігів у {1} файлах ({2}). Замінити? Знімок проєкту збережеться.', total, changes.size, per.slice(0, 3).join(', ') + (per.length > 3 ? ', …' : ''));
+  const pick = await warn(msg, tr('Замінити'), tr('Показати список'));
+  if (pick === tr('Показати список')) {
+    await reportDoc(replaceMd(find, repl, sc), root, async () => { const again = await scanReplace(root, find, repl, o); return again.error ? tr('# Збіги\n\nНекоректний вираз: {0}\n', again.error) : again.total ? replaceMd(find, repl, again) : tr('# Збіги «{0}» → «{1}»\n\nЗбігів не знайдено.\n', find, repl); });
+    if ((await info(tr('Замінити {0} збігів?', total), tr('Замінити'))) !== tr('Замінити')) return;
+  } else if (pick !== tr('Замінити')) return;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
-  await takeSnapshot(root, 'перед заміною ' + find + ' → ' + repl);
-  if (!(await applyChanges(root, changes))) { warn('VS Code не прийняв правки.'); return; }
-  info('Замінено ' + total + ' у ' + changes.size + ' файлах. Повернути: «Restore snapshot».');
+  await takeSnapshot(root, tr('перед заміною {0} → {1}', find, repl));
+  if (!(await applyChanges(root, changes))) { warn(tr('VS Code не прийняв правки.')); return; }
+  info(tr('Замінено {0} у {1} файлах. Повернути: «Restore snapshot».', total, changes.size));
 }
 
 /* ============================= normalize project ============================ */
@@ -409,15 +410,14 @@ async function normalizeProjectCmd(api) {
     const neu = res.lines.join(eol);
     if (neu !== f.text) changes.set(f.path, neu);
   }
-  if (!changes.size) { info('Нормалізація проєкту: змін немає (' + files.length + ' файлів перевірено).'); return; }
+  if (!changes.size) { info(tr('Нормалізація проєкту: змін немає ({0} файлів перевірено).', files.length)); return; }
   const list = [...changes.keys()];
-  const go = await warn('Нормалізувати ' + changes.size + ' з ' + files.length + ' файлів (' + list.slice(0, 3).join(', ') + (list.length > 3 ? ', …' : '') +
-    ') кроками з налаштувань «Normalize file»? Знімок проєкту збережеться.', { modal: true }, 'Нормалізувати');
-  if (go !== 'Нормалізувати') return;
+  const go = await warn(tr('Нормалізувати {0} з {1} файлів ({2}) кроками з налаштувань «Normalize file»? Знімок проєкту збережеться.', changes.size, files.length, list.slice(0, 3).join(', ') + (list.length > 3 ? ', …' : '')), { modal: true }, tr('Нормалізувати'));
+      if (go !== tr('Нормалізувати')) return;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
-  await takeSnapshot(root, 'перед нормалізацією проєкту');
-  if (!(await applyChanges(root, changes))) { warn('VS Code не прийняв правки.'); return; }
-  info('Нормалізовано ' + changes.size + ' файлів. Повернути: «Restore snapshot».');
+  await takeSnapshot(root, tr('перед нормалізацією проєкту'));
+  if (!(await applyChanges(root, changes))) { warn(tr('VS Code не прийняв правки.')); return; }
+  info(tr('Нормалізовано {0} файлів. Повернути: «Restore snapshot».', changes.size));
 }
 
 /* ============================== notation consistency ======================== */
@@ -435,22 +435,22 @@ async function notationCmd() {
   const mixed = rep.filter((r) => r.mixed);
   if (!mixed.length) return;
   const g = await vscode.window.showQuickPick(mixed.map((r) => ({
-    label: r.name, description: r.variants.map((v) => v.label + ' ' + v.count).join(' · '), r
-  })), { placeHolder: 'Уніфікувати позначення? (Esc: лише звіт)' });
+    label: tr(r.name), description: r.variants.map((v) => tr(v.label) + ' ' + v.count).join(' · '), r
+  })), { placeHolder: tr('Уніфікувати позначення? (Esc: лише звіт)') });
   if (!g) return;
   const best = g.r.variants.slice().sort((a, b) => b.count - a.count)[0];
   const t = await vscode.window.showQuickPick(g.r.variants.map((v) => ({
-    label: v.label, description: v.count + ' разів' + (v === best ? ' · найчастіше' : ''), v
-  })), { placeHolder: 'До якого запису привести решту?' });
+    label: tr(v.label), description: tr('{0} разів', v.count) + (v === best ? tr(' · найчастіше') : ''), v
+  })), { placeHolder: tr('До якого запису привести решту?') });
   if (!t) return;
   const plan = X.notationUnify(files, g.r.group, t.v.label);
-  if (!plan.count) { info('Нічого міняти.'); return; }
-  const go = await warn('Замінити ' + plan.count + ' записів на ' + t.v.label + ' у ' + plan.changes.size + ' файлах? Знімок проєкту збережеться.', { modal: true }, 'Замінити');
-  if (go !== 'Замінити') return;
+  if (!plan.count) { info(tr('Нічого міняти.')); return; }
+  const go = await warn(tr('Замінити {0} записів на {1} у {2} файлах? Знімок проєкту збережеться.', plan.count, tr(t.v.label), plan.changes.size), { modal: true }, tr('Замінити'));
+  if (go !== tr('Замінити')) return;
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
-  await takeSnapshot(root, 'перед уніфікацією ' + t.v.label);
-  if (!(await applyChanges(root, plan.changes))) { warn('VS Code не прийняв правки.'); return; }
-  info('Уніфіковано: ' + plan.count + ' замін у ' + plan.changes.size + ' файлах.');
+  await takeSnapshot(root, tr('перед уніфікацією {0}', tr(t.v.label)));
+  if (!(await applyChanges(root, plan.changes))) { warn(tr('VS Code не прийняв правки.')); return; }
+  info(tr('Уніфіковано: {0} замін у {1} файлах.', plan.count, plan.changes.size));
 }
 
 /* ================================== terms =================================== */
@@ -480,16 +480,16 @@ async function termsCmd() {
   if (!root) return;
   const { files, ip, rep, md } = await termsCompute(root);
   await reportDoc(md, root, async () => (await termsCompute(root)).md);
-  if (ip.raw && !ip.name) warn('indexprogram = ' + ip.raw + ': підтримуються upmendex, mendex, makeindex. Покажчик не збирається.');
+  if (ip.raw && !ip.name) warn(tr('indexprogram = {0}: підтримуються upmendex, mendex, makeindex. Покажчик не збирається.', ip.raw));
   if (!rep.noIndex.length) return;
-  const go = await warn('Додати \\index{…} після першого означення ' + rep.noIndex.length + ' термінів, яких немає в покажчику? «Додати» бере запис з написання в означенні (воно може бути не в називному відмінку), «Уточнити форми…» питає запис для кожного терміна. Знімок проєкту збережеться.', { modal: true }, 'Додати', 'Уточнити форми…');
-  if (go !== 'Додати' && go !== 'Уточнити форми…') return;
+  const go = await warn(tr('Додати \\index{…} після першого означення {0} термінів, яких немає в покажчику? «Додати» бере запис з написання в означенні (воно може бути не в називному відмінку), «Уточнити форми…» питає запис для кожного терміна. Знімок проєкту збережеться.', rep.noIndex.length), { modal: true }, tr('Додати'), tr('Уточнити форми…'));
+  if (go !== tr('Додати') && go !== tr('Уточнити форми…')) return;
   let entries = null;
-  if (go === 'Уточнити форми…') {
+  if (go === tr('Уточнити форми…')) {
     entries = new Map();
     for (const t of rep.noIndex) {
       const v = await vscode.window.showInputBox({
-        prompt: 'Запис покажчика для «' + t.term + '» (' + t.def.path + ':' + t.def.line + '). Впиши називний відмінок. Порожньо: пропустити цей термін; Esc: скасувати все',
+        prompt: tr('Запис покажчика для «{0}» ({1}:{2}). Впиши називний відмінок. Порожньо: пропустити цей термін; Esc: скасувати все', t.term, t.def.path, t.def.line),
         value: t.term,
         ignoreFocusOut: true
       });
@@ -497,28 +497,28 @@ async function termsCmd() {
       const e = TERMS.indexEntryFor(v);
       if (e) entries.set(t.term, v.trim());
     }
-    if (!entries.size) { info('Жодного запису не додано.'); return; }
+    if (!entries.size) { info(tr('Жодного запису не додано.')); return; }
   }
   const plan = TERMS.indexInsertions(files, rep, entries);
-  if (!plan.size) { info('Нічого додавати.'); return; }
+  if (!plan.size) { info(tr('Нічого додавати.')); return; }
   if (vscode.workspace.textDocuments.some((d) => d.isDirty && !d.isUntitled)) await vscode.workspace.saveAll(false);
-  await takeSnapshot(root, 'перед додаванням \\index до термінів');
-  if (!(await applyChanges(root, plan))) { warn('VS Code не прийняв правки.'); return; }
-  info('Додано \\index до ' + (entries ? entries.size : rep.noIndex.length) + ' термінів у ' + plan.size + ' файлах. Повернути: «Restore snapshot».');
+  await takeSnapshot(root, tr('перед додаванням \\index до термінів'));
+  if (!(await applyChanges(root, plan))) { warn(tr('VS Code не прийняв правки.')); return; }
+  info(tr('Додано \\index до {0} термінів у {1} файлах. Повернути: «Restore snapshot».', entries ? entries.size : rep.noIndex.length, plan.size));
 }
 
 // \index{...} right after the selected word or phrase (after every selection); without a selection the word under the cursor
 async function indexTermCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !(ed.document.languageId === 'latex' || ed.document.languageId === 'tex')) { info('Виділи термін у файлі .tex.'); return; }
+  if (!ed || !(ed.document.languageId === 'latex' || ed.document.languageId === 'tex')) { info(tr('Виділи термін у файлі .tex.')); return; }
   const doc = ed.document;
   const word = /[\p{L}\p{M}][\p{L}\p{M}'’ʼ-]*/u;
   const ranges = ed.selections.map((sel) => (sel.isEmpty ? doc.getWordRangeAtPosition(sel.active, word) : sel)).filter(Boolean);
   const items = ranges.map((r) => ({ at: r.end, entry: TERMS.indexEntryFor(doc.getText(r)) })).filter((x) => x.entry);
-  if (!items.length) { info('Виділи термін (або постав курсор у слово).'); return; }
+  if (!items.length) { info(tr('Виділи термін (або постав курсор у слово).')); return; }
   await ed.edit((b) => { for (const x of items) b.replace(new vscode.Range(x.at.line, x.at.character, x.at.line, x.at.character), '\\index{' + x.entry + '}'); });
   const root = projectRoot();
-  if (root && !indexOfMain(root).name) vscode.window.setStatusBarMessage('\\index додано, але покажчик не збиратиметься: у головному файлі немає % !TEX indexprogram = upmendex', 6000);
+  if (root && !indexOfMain(root).name) vscode.window.setStatusBarMessage(tr('\\index додано, але покажчик не збиратиметься: у головному файлі немає % !TEX indexprogram = upmendex'), 6000);
 }
 
 /* ================================== build parts ============================= */
@@ -528,18 +528,18 @@ async function buildPartsCmd() {
   const ms = mainSettings();
   const abs = path.join(root, ms.mainFile);
   const text = textOfPath(abs);
-  if (text === null) { warn('Не знайдено ' + ms.mainFile + ' (налаштування tssworkflow.mainFile).'); return; }
+  if (text === null) { warn(tr('Не знайдено {0} (налаштування tssworkflow.mainFile).', ms.mainFile)); return; }
   const parts = C.chapterStructure(text, ms.macro, ms.listMacros);
-  if (parts.length < 2) { info('У ' + ms.mainFile + ' менше двох частин (\\part): збирай розділ чи весь документ.'); return; }
+  if (parts.length < 2) { info(tr('У {0} менше двох частин (\\part): збирай розділ чи весь документ.', ms.mainFile)); return; }
   const picks = await vscode.window.showQuickPick(parts.map((p, i) => ({
-    label: p.title || '(розділи до першої \\part)', description: p.names.length + ' розд.: ' + p.names.slice(0, 4).join(', ') + (p.names.length > 4 ? ', …' : ''), i
-  })), { canPickMany: true, placeHolder: 'Які частини зібрати?' });
+    label: p.title || tr('(розділи до першої \\part)'), description: tr('{0} розд.: {1}', p.names.length, p.names.slice(0, 4).join(', ') + (p.names.length > 4 ? ', …' : '')), i
+  })), { canPickMany: true, placeHolder: tr('Які частини зібрати?') });
   if (!picks || !picks.length) return;
   const base = path.basename(ms.mainFile, path.extname(ms.mainFile));
   const outRel = base + '-parts.tex';
   const filtered = X.filterMainForParts(text, ms.macro, ms.listMacros, picks.map((p) => p.i));
-  try { fs.writeFileSync(path.join(root, outRel), filtered, 'utf8'); } catch (e) { warn('Не вдалося записати ' + outRel + ': ' + errText(e)); return; }
-  vscode.window.setStatusBarMessage('Збірка частин: ' + picks.map((p) => p.label).join(', '), 5000);
+  try { fs.writeFileSync(path.join(root, outRel), filtered, 'utf8'); } catch (e) { warn(tr('Не вдалося записати {0}: {1}', outRel, errText(e))); return; }
+  vscode.window.setStatusBarMessage(tr('Збірка частин: {0}', picks.map((p) => p.label).join(', ')), 5000);
   await vscode.commands.executeCommand('tssworkflow._compileFile', { file: outRel, openPdf: true });
 }
 
@@ -652,7 +652,7 @@ class ProblemsProvider {
             const ii = new vscode.TreeItem((d.line + 1) + ': ' + d.message, vscode.TreeItemCollapsibleState.None);
             ii.id = fi.id + ':' + k + ':' + d.line;
             ii.tooltip = d.message + (d.source ? ' · ' + d.source : '');
-            ii.command = { command: 'vscode.open', title: 'Відкрити', arguments: [vscode.Uri.file(d.abs), { selection: new vscode.Range(d.line, 0, d.line, 0), preview: false }] };
+            ii.command = { command: 'vscode.open', title: tr('Відкрити'), arguments: [vscode.Uri.file(d.abs), { selection: new vscode.Range(d.line, 0, d.line, 0), preview: false }] };
             return { item: ii };
           })
         };
@@ -661,8 +661,8 @@ class ProblemsProvider {
     });
     if (this.view) {
       const n = list.filter((d) => d.severity === 'error' || d.severity === 'warning').length;
-      this.view.badge = n ? { value: n, tooltip: 'Помилок і попереджень: ' + n } : undefined;
-      this.view.message = list.length ? undefined : '✓ Проблем (TSS Workflow, лог LaTeX) немає';
+      this.view.badge = n ? { value: n, tooltip: tr('Помилок і попереджень: {0}', n) } : undefined;
+      this.view.message = list.length ? undefined : tr('✓ Проблем (TSS Workflow, лог LaTeX) немає');
     }
     return items;
   }

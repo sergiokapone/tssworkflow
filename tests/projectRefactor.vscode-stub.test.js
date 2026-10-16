@@ -424,6 +424,57 @@ const run = async (name, fn) => { await fn(); console.log('ok  ' + name); };
     assert.strictEqual(doc.content, keep, 'a closed document is not touched');
   });
 
+  await run('English: the same commands speak English (buttons, messages, prompts, reports, the label of the snapshot, the lens); back to Ukrainian everything is as before', async () => {
+    const I = require(path.join(ext, 'i18n'));
+    I.setLang('en');
+    try {
+      const REP = 'start\n\\zzz x\nmore\n\\zzz y\n';
+      w('Rep/Rep.tex', REP);
+      ans.input = ['\\zzz', '\\yyy'];
+      ans.pick = [(items) => items.filter((i) => i.picked)];
+      ans.warn = ['Show the list'];
+      ans.info = [undefined];
+      const w0 = log.warns.length, n0 = (log.inputs || []).length;
+      await C['tssworkflow.replaceInProject']();
+      assert.deepStrictEqual((log.inputs || []).slice(n0).map((o) => o.prompt), ['What to replace in the project (comments and verbatim are not touched)', 'Replace with (in the regular expression mode: $1, $2, $&)']);
+      assert.strictEqual(log.warns[w0], 'Found 2 matches in 1 files (Rep/Rep.tex (2)). Replace? A snapshot of the project will be saved.');
+      const doc = stub._last;
+      assert.ok(doc.content.startsWith('# Matches “\\zzz” → “\\yyy”\n'), doc.content.slice(0, 60));
+      assert.strictEqual(stub.lensProv.provideCodeLenses(doc)[0].command.title, '↻ Refresh the report');
+      assert.ok(stub.linkProv.provideDocumentLinks(doc)[0].tooltip === 'Open Rep/Rep.tex, line 2', 'the tooltip of the link');
+      assert.strictEqual(r('Rep/Rep.tex'), REP, 'declined in the second question: nothing replaced');
+      // Replace for real: the English button is understood, the snapshot gets an English label
+      ans.input = ['\\zzz', '\\yyy'];
+      ans.pick = [(items) => items.filter((i) => i.picked)];
+      ans.warn = ['Replace'];
+      await C['tssworkflow.replaceInProject']();
+      assert.strictEqual(r('Rep/Rep.tex'), 'start\n\\yyy x\nmore\n\\yyy y\n');
+      assert.strictEqual(log.infos.at(-1), 'Replaced 2 in 1 files. Restore: “Restore snapshot”.');
+      assert.ok(M._t.listSnapshots(proj).some((m) => /before replacing/.test(m.label || '')), 'the label of the snapshot is English');
+      // the Terms report and the Notation report
+      await C['tssworkflow.termsReport']();
+      assert.ok(stub._last.content.startsWith('# Terms') && stub._last.content.includes('## Used before defined'), stub._last.content.slice(0, 80));
+      ans.pick = [undefined];
+      await C['tssworkflow.notationReport']();
+      assert.ok(stub._last.content.startsWith('# Consistency of notation') && !/[А-Яа-яІіЇїЄєҐґ]/.test(stub._last.content.replace(/напруженість[^\n]*/g, '')) , 'no Ukrainian left in the notation report: ' + stub._last.content.slice(0, 200));
+      // an error message with an argument
+      ans.input = ['(', ''];
+      ans.pick = [(items) => items.filter((i) => i.picked).concat([{ key: 'regex' }])];
+      const w1 = log.warns.length;
+      await C['tssworkflow.replaceInProject']();
+      assert.ok(/^Invalid expression: /.test(log.warns[w1]), log.warns[w1]);
+    } finally { I.setLang('uk'); fs.rmSync(path.join(proj, 'Rep'), { recursive: true, force: true }); }
+    // Ukrainian again: the same message in Ukrainian
+    ans.input = ['\\zzz', '\\yyy'];
+    ans.pick = [(items) => items.filter((i) => i.picked)];
+    ans.warn = [undefined];
+    w('Rep/Rep.tex', 'a\n\\zzz\n');
+    const w2 = log.warns.length;
+    await C['tssworkflow.replaceInProject']();
+    assert.ok(log.warns[w2].startsWith('Знайдено 1 збігів у 1 файлах'), log.warns[w2]);
+    fs.rmSync(path.join(proj, 'Rep'), { recursive: true, force: true });
+  });
+
   await run('indexTerm: \\index after the selection or the word under the cursor, hint without the magic comment', async () => {
     const line = 'Електричне поле створює заряд.';
     const edits = [];

@@ -16,6 +16,7 @@
  *   byBookOrder(order)             a comparator of files [{ path }] by the chapter folders of main.tex
  *   fileLineRefs(line)             \"A/A.tex:12\" places in one line of a report: [{ start, len, rel, line, col }] (for clickable links; col is undefined without \":column\") */
 const { codePart } = require('./corePure');
+const { tr } = require('./i18n');
 
 const blank = (s) => s.replace(/[^\r\n]/g, ' ');
 
@@ -207,23 +208,23 @@ function indexInsertions(files, rep, entries) {
 
 function formatTermsReport(rep, o) {
   const opt = o || {};
-  const L = ['# Терміни' + (opt.folder ? ' — ' + opt.folder : ''), ''];
-  L.push('Означення: ' + (opt.macros && opt.macros.length ? opt.macros.join(', ') : '\\emph') + ' (налаштування `tssworkflow.termMacros`). Означених термінів: ' + rep.terms.length + '. Слова порівнюються за початком (напруженість / напруженості); чергування голосних у корені (потік / потоку) не враховано.', '');
-  L.push('## Вжито раніше, ніж означено', '');
-  if (!rep.early.length) L.push('Немає: жоден термін не трапляється в тексті до свого першого означення.', '');
+  const L = [tr('# Терміни') + (opt.folder ? ' — ' + opt.folder : ''), ''];
+  L.push(tr('Означення: {0} (налаштування `tssworkflow.termMacros`). Означених термінів: {1}. Слова порівнюються за початком (напруженість / напруженості); чергування голосних у корені (потік / потоку) не враховано, для цього є налаштування `tssworkflow.termsForms`.', opt.macros && opt.macros.length ? opt.macros.join(', ') : '\\emph', rep.terms.length), '');
+  L.push(tr('## Вжито раніше, ніж означено'), '');
+  if (!rep.early.length) L.push(tr('Немає: жоден термін не трапляється в тексті до свого першого означення.'), '');
   else {
-    L.push('| Термін | Означено | Перше раніше вживання | Разів |', '|---|---|---|---|');
+    L.push(tr('| Термін | Означено | Перше раніше вживання | Разів |'), '|---|---|---|---|');
     for (const e of rep.early.slice(0, 300)) L.push('| ' + e.term + ' | ' + e.def.path + ':' + e.def.line + ' | ' + e.first.path + ':' + e.first.line + ' — ' + e.first.text.replace(/\|/g, '\\|') + ' | ' + e.count + ' |');
-    if (rep.early.length > 300) L.push('', '…і ще ' + (rep.early.length - 300) + '.');
-    L.push('', 'Хибні спрацювання (слово вжито в іншому значенні, `\\emph` для виділення, а не означення) прибираються налаштуванням `tssworkflow.termsIgnore`.', '');
+    if (rep.early.length > 300) L.push('', tr('…і ще {0}.', rep.early.length - 300));
+    L.push('', tr('Хибні спрацювання (слово вжито в іншому значенні, `\\emph` для виділення, а не означення) прибираються налаштуванням `tssworkflow.termsIgnore`.'), '');
   }
   if (opt.index) {
-    L.push('## Означені терміни без запису в покажчику', '');
-    if (!rep.noIndex.length) L.push('Немає: кожен означений термін є серед ' + rep.indexEntries + ' записів `\\index`.', '');
+    L.push(tr('## Означені терміни без запису в покажчику'), '');
+    if (!rep.noIndex.length) L.push(tr('Немає: кожен означений термін є серед {0} записів `\\index`.', rep.indexEntries), '');
     else for (const t of rep.noIndex.slice(0, 300)) L.push('- ' + t.term + ' (' + t.def.path + ':' + t.def.line + ')');
     L.push('');
   } else {
-    L.push('## Покажчик', '', 'Вимкнено: у перших рядках головного файла немає `% !TEX indexprogram = upmendex` (`makeindex`, `mendex`). Записів `\\index` у проєкті: ' + rep.indexEntries + '.', '');
+    L.push(tr('## Покажчик'), '', tr('Вимкнено: у перших рядках головного файла немає `% !TEX indexprogram = upmendex` (`makeindex`, `mendex`). Записів `\\index` у проєкті: {0}.', rep.indexEntries), '');
   }
   return L.join('\n');
 }

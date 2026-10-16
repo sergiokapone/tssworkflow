@@ -5,6 +5,7 @@ const P = require('./corePure');
 const features = require('./features');
 const { EXCLUDE, PIC_EXTS, debounce } = require('./util');
 const build = require('./build');
+const { setLang } = require('./i18n');
 
 /* ------------------------------------------------------------------ *
  * 1. Clickable file names
@@ -396,6 +397,10 @@ async function offerProjectSettings(context) {
 }
 
 function activate(context) {
+  // the language of the messages and reports (i18n.js): the setting tssworkflow.language, "auto" follows the language of VS Code
+  const applyLanguage = () => setLang(vscode.workspace.getConfiguration('tssworkflow').get('language', 'uk'), vscode.env.language);
+  applyLanguage();
+  context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.language')) applyLanguage(); }));
   const provider = {
     provideDocumentLinks(doc) {
       const links = [];
