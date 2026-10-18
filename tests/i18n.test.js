@@ -82,7 +82,8 @@ t('the placeholders of a translation are those of its key; no translation is emp
   for (const [k, v] of Object.entries(EN)) {
     assert.strictEqual(ph(v), ph(k), 'placeholders differ: ' + JSON.stringify(k.slice(0, 60)));
     assert.ok(typeof v === 'string' && v.trim() && v !== k, 'empty or untranslated: ' + JSON.stringify(k.slice(0, 60)));
-    if (cyr.test(v)) assert.ok(/напруженість \/ напруженості/.test(v), 'Ukrainian left in the translation: ' + JSON.stringify(v.slice(0, 80)));
+    // Ukrainian stays only where it is an example of Ukrainian text: words of the Terms report, the title of the section of the quiz questions that is looked for in the document
+    if (cyr.test(v)) assert.ok(/напруженість \/ напруженості|Контрольні запитання/.test(v), 'Ukrainian left in the translation: ' + JSON.stringify(v.slice(0, 80)));
     assert.strictEqual(/^\s/.test(v), /^\s/.test(k), 'a leading space is kept: ' + JSON.stringify(k.slice(0, 40)));
     assert.strictEqual(/\s$/.test(v), /\s$/.test(k), 'a trailing space is kept: ' + JSON.stringify(k.slice(0, 40)));
     assert.strictEqual((v.match(/\n/g) || []).length, (k.match(/\n/g) || []).length, 'the line breaks of a report are kept: ' + JSON.stringify(k.slice(0, 40)));
@@ -148,12 +149,23 @@ t('"Missing character": the message is recognized by the quick fix of authoring.
   assert.ok(/nullfont/.test(L.missingCharMessage({ chars: ['x'], font: 'nullfont', page: 1 }, null)));
 });
 
-t('a message that is matched in the code by its Ukrainian text is a trap in English: the known places are listed here (add a new one to this test)', () => {
-  // authoring.js: the quick fix of "Missing character" (checked above). projectInfo.js: the quick fix of the typography check looks for "одиницею" in the message of projectInfoPure.js:
-  // those messages are not translated yet; when they are, the quick fix must look at the code of the diagnostic, not at the words
+t('no code recognizes a diagnostic or a message by its Ukrainian words (that breaks in English); the quick fix of "Missing character" looks at both languages', () => {
+  // a line that tests/matches a message (message, msg, d.message) against a literal with Cyrillic: only the quick fix of logPure's "Missing character" (authoring.js), which knows both languages
+  const bad = [];
+  for (const f of sources) {
+    fs.readFileSync(path.join(ext, f), 'utf8').split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*)/.test(line) || !cyr.test(line)) return;
+      const arg = /\.(startsWith|includes|indexOf|endsWith)\(\s*'[^']*[А-Яа-яІіЇїЄєҐґ]/.test(line) && /\b(message|msg)\b/.test(line);
+      const regexOnMessage = /\/[^\/\n]*[А-Яа-яІіЇїЄєҐґ][^\/\n]*\/[a-z]*\.test\(\s*(String\()?\s*(d\.)?(message|msg)\b/.test(line);
+      const onMessage = arg || regexOnMessage;
+      if (/MORFOLOGIK|HUNSPELL/.test(line)) return; // settingsCitations.js: the messages of other extensions (LTeX, spell checkers), in their own language
+      if ((onMessage || regexOnMessage) && !/No glyphs/.test(line)) bad.push(f + ':' + (i + 1) + ': ' + line.trim().slice(0, 100));
+    });
+  }
+  assert.deepStrictEqual(bad, [], 'recognized by words: ' + bad.join(' | '));
   const info = fs.readFileSync(path.join(ext, 'projectInfo.js'), 'utf8');
-  const translated = /tr\('[^']*одиницею/.test(fs.readFileSync(path.join(ext, 'projectInfoPure.js'), 'utf8'));
-  assert.ok(!translated || !/\/одиницею\/\.test\(d\.message\)/.test(info), 'projectInfo.js matches a translated message by its words');
+  assert.ok(!/одиницею/.test(info), 'projectInfo.js no longer looks for the word of the message of projectInfoPure.js');
+  assert.ok(/isNumberUnitSpace\(text\)/.test(info), 'it looks at the text of the diagnostic');
 });
 
 
@@ -189,6 +201,45 @@ t('the buttons of files and labels that the code compares with the answer are di
   assert.ok(en.every(Boolean), en.join(','));
   assert.strictEqual(new Set(en).size, en.length, en.join(', '));
   assert.ok(!en.includes(EN['Замінити']) && !en.includes(EN['Відкрити']), 'and not the buttons of the other commands that can be on the screen together');
+});
+
+
+t('no key of tr() has a backslash that is silently dropped by JavaScript (\\) is one backslash, \) is ")" : the key must say what it means', () => {
+  const bad = [];
+  for (const f of sources) {
+    const text = fs.readFileSync(path.join(ext, f), 'utf8');
+    for (const m of text.matchAll(/(?<![\w.$])tr\(\s*('(?:[^'\\\n]|\\.)*')/g)) {
+      if (/\\[^\\n't"xu]/.test(m[1].replace(/\\\\/g, ''))) bad.push(f + ': ' + m[1].slice(0, 60));
+    }
+  }
+  assert.deepStrictEqual(bad, [], 'an escape that means nothing: ' + bad.join(' | '));
+});
+
+// project statistics, typography, the mixed macros (0.21.4): projectInfoPure.js speaks the language too
+const PIP = require(path.join(ext, 'projectInfoPure'));
+t('projectInfoPure in English and in Ukrainian: the hints of typography, the mixed macros, the names of the built-in counters, the title of the part before the first heading; the codes and the places do not depend on the language', () => {
+  const lines = ['Довжина 5 мм і 2,5 кг.', 'див. рис. 5 та 12 тис. грн', 'Слово тест\\ref{a} і \\vec x та \\vect y та \\vec z', 'Це слово xаос тут -- тире', 'Дефіс - тут'];
+  const opts = { mixedMacros: [['vec', 'vect']] };
+  const run = (lang) => { I.setLang(lang); return PIP.typographyChecks(lines, opts).map((r) => ({ line: r.line, col: r.col, len: r.len, code: r.code, message: r.message })); };
+  const uk = run('uk'), en = run('en');
+  assert.deepStrictEqual(en.map((r) => [r.line, r.col, r.len, r.code]), uk.map((r) => [r.line, r.col, r.len, r.code]), 'only the texts differ');
+  const msg = (x, code, i) => x.filter((r) => r.code === code)[i || 0].message;
+  assert.strictEqual(msg(uk, 'typo-nbsp', 0), 'Між числом і одиницею — нерозривний пробіл («~» або «\\,»)');
+  assert.strictEqual(msg(en, 'typo-nbsp', 0), 'Between a number and a unit — a non-breaking space (“~” or “\\,”)');
+  assert.strictEqual(msg(en, 'typo-nbsp', 2), 'After the abbreviation “рис.” — a non-breaking space (“~”)');
+  assert.ok(en.some((r) => r.message === 'Between a number and “тис.” — a non-breaking space (“~”)'), JSON.stringify(en.map((r) => r.message)));
+  assert.ok(en.some((r) => r.code === 'typo-dash' && r.message === 'A hyphen instead of a dash: “ --- ” is used in the text'));
+  const mixed = (x) => x.filter((r) => r.code === 'typo-mixed-macro').map((r) => r.message);
+  assert.ok(mixed(uk).length > 0 && mixed(en).length === mixed(uk).length, 'the mixed macros are found');
+  assert.ok(mixed(uk)[0].startsWith('У файлі змішано \\vec ') && /^The file mixes \\vec? \(\d+\) and \\vec?t? \(\d+\); the more frequent one is \\vec/.test(mixed(en)[0]), mixed(en)[0]);
+  I.setLang('uk');
+  assert.deepStrictEqual(Object.keys(PIP.builtinCounters({})), ['Задач', 'Контр. запитань']);
+  I.setLang('en');
+  assert.deepStrictEqual(Object.keys(PIP.builtinCounters({})), ['Problems', 'Quiz questions']);
+  const fs1 = PIP.fileStats('Текст до заголовка зі словами.\n\\section{Назва}\nІнший текст.', {}, PIP.builtinCounters({}));
+  assert.ok(fs1.rows.some((r) => r.title === '(before the first heading)'), JSON.stringify(fs1.rows.map((r) => r.title)));
+  I.setLang('uk');
+  assert.ok(PIP.fileStats('Текст до заголовка зі словами.\n\\section{Назва}\nІнший текст.', {}, PIP.builtinCounters({})).rows.some((r) => r.title === '(до першого заголовка)'));
 });
 
 console.log(n + ' tests passed');

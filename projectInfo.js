@@ -10,6 +10,7 @@ const X = require('./projectInfoPure');
 const M = require('./macros');
 const { EXCLUDE, SEL_ANY, cfg, debounce, info } = require('./util');
 const PI = require('./projectIndex');
+const { tr } = require('./i18n');
 
 let api = null;
 const QF = vscode.CodeActionKind.QuickFix;
@@ -76,17 +77,17 @@ async function unusedEquations() {
     const lines = api.textOf(f).split(/\r?\n/);
     for (const it of X.numberedEquations(lines, used)) if (it.candidate) rows.push({ f, lines, it });
   }
-  if (!rows.length) { info('Нумерованих формул без посилань не знайдено.'); return; }
+  if (!rows.length) { info(tr('Нумерованих формул без посилань не знайдено.')); return; }
   rows.sort((a, b) => a.f.fsPath.localeCompare(b.f.fsPath) || a.it.line - b.it.line);
   const qp = vscode.window.createQuickPick();
   qp.canSelectMany = true;
   qp.matchOnDescription = true;
-  qp.title = 'Нумеровані формули без посилань: ' + rows.length;
-  qp.placeholder = 'Відмітьте формули, які зробити зірочковими (без номера й мітки), Enter. Esc нічого не змінює';
+  qp.title = tr('Нумеровані формули без посилань: {0}', rows.length);
+  qp.placeholder = tr('Відмітьте формули, які зробити зірочковими (без номера й мітки), Enter. Esc нічого не змінює');
   qp.items = rows.map((r) => ({
     label: '\\begin{' + r.it.env + '}  ' + (r.lines[r.it.line + 1] || '').trim().slice(0, 60),
     description: relPath(r.f.fsPath) + ':' + (r.it.line + 1),
-    detail: r.it.labels.length ? 'мітка ' + r.it.labels.join(', ') + ' ніде не використана' : 'без мітки',
+    detail: r.it.labels.length ? tr('мітка {0} ніде не використана', r.it.labels.join(', ')) : tr('без мітки'),
     r
   }));
   // moving over an item shows the formula in the editor
@@ -104,7 +105,7 @@ async function unusedEquations() {
     const eol = lines.length && /\r\n/.test(api.textOf(f)) ? '\r\n' : '\n';
     we.replace(f, new vscode.Range(it.line, 0, it.endLine, lines[it.endLine].length), X.starEquation(lines, it).join(eol));
   }
-  if (await vscode.workspace.applyEdit(we)) info('Перетворено формул: ' + chosen.length + '. Файли змінено, але не збережено.');
+  if (await vscode.workspace.applyEdit(we)) info(tr('Перетворено формул: {0}. Файли змінено, але не збережено.', chosen.length));
 }
 
 /* ---------------------------- statistics ---------------------------- */
@@ -112,7 +113,7 @@ const mdCell = (s) => String(s).replace(/\|/g, '\\|');
 
 async function projectStats() {
   const folder = (vscode.workspace.workspaceFolders || [])[0];
-  if (!folder) { info('Відкрий папку проєкту.'); return; }
+  if (!folder) { info(tr('Відкрий папку проєкту.')); return; }
   const root = folder.uri.fsPath;
   const extra = cfg().get('statsCounters', {}) || {};
   // built-in columns: problems and items of the control-questions section (stats.*), shown as — when there are none
@@ -141,11 +142,11 @@ async function projectStats() {
   files.map((u) => u.fsPath).sort().forEach(add);
 
   const extraNames = builtinNames.concat(Object.keys(extra).filter((n) => !builtinNames.includes(n)));
-  const head = ['Розділ', 'Слів', 'Формул (нум. / ненум.)', 'Рисунків', 'Таблиць', 'tikz', 'Цитувань'].concat(extraNames);
+  const head = [tr('Розділ'), tr('Слів'), tr('Формул (нум. / ненум.)'), tr('Рисунків'), tr('Таблиць'), 'tikz', tr('Цитувань')].concat(extraNames);
   const cell = (st, n) => { const v = st.extra[n] || 0; return !v && builtinNames.includes(n) ? '—' : v; };
   const row = (title, st) => '| ' + [title, st.words, st.eqNum + ' / ' + st.eqStar, st.figures, st.tables, st.tikz, st.cites]
     .concat(extraNames.map((n) => cell(st, n))).join(' | ') + ' |';
-  const out = ['# Статистика проєкту', '', '| ' + head.join(' | ') + ' |', '|' + head.map((h, i) => (i ? '---:' : ':---')).join('|') + '|'];
+  const out = [tr('# Статистика проєкту'), '', '| ' + head.join(' | ') + ' |', '|' + head.map((h, i) => (i ? '---:' : ':---')).join('|') + '|'];
   let total = X.emptyStats();
   for (const u of ordered) {
     const fs0 = X.fileStats(api.textOf(u), extra, builtin);
@@ -155,8 +156,8 @@ async function projectStats() {
     out.push(row('**' + mdCell(relPath(u.fsPath)) + '**', t));
     for (const r of fs0.rows) out.push(row('&emsp;' + (r.level === 1 ? '▸ ' : '') + mdCell(r.title), r.st));
   }
-  out.push(row('**Разом**', total));
-  out.push('', '_Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`. «Задач»: `\\begin{problem}` (`stats.problemEnvs`); «Контр. запитань»: пункти середовищ `quizlist` (`stats.questionEnvs`; якщо перелік порожній, пункти списків у секції із заголовком «Контрольні запитання…», `stats.questionTitle`); — означає, що таких немає.' + (leftOut ? ' Не враховано файлів: ' + leftOut + ' (`stats.exclude`).' : '') + '_');
+  out.push(row('**' + tr('Разом') + '**', total));
+  out.push('', '_' + tr('Слова рахуються в тексті без формул, коментарів, verbatim і tikz; аргументи `\\label`, `\\ref`, `\\cite`, `\\includegraphics` не рахуються. Додаткові лічильники: налаштування `tssworkflow.statsCounters`. «{0}»: `\\begin{problem}` (`stats.problemEnvs`); «{1}»: пункти середовищ `quizlist` (`stats.questionEnvs`; якщо перелік порожній, пункти списків у секції із заголовком «Контрольні запитання…», `stats.questionTitle`); — означає, що таких немає.', tr('Задач'), tr('Контр. запитань')) + (leftOut ? tr(' Не враховано файлів: {0} (`stats.exclude`).', leftOut) : '') + '_');
   const doc = await vscode.workspace.openTextDocument({ language: 'markdown', content: out.join('\n') + '\n' });
   await vscode.window.showTextDocument(doc, { preview: false });
 }
@@ -190,7 +191,7 @@ class TodoTree {
       if (this.view) {
         const n = this.cache.reduce((a, g) => a + g.items.length, 0);
         this.view.description = n ? String(n) : '';
-        this.view.message = n ? undefined : 'Позначок ' + todoKeywords().join(' / ') + ' у коментарях не знайдено';
+        this.view.message = n ? undefined : tr('Позначок {0} у коментарях не знайдено', todoKeywords().join(' / '));
       }
     }
     return this.cache;
@@ -209,9 +210,9 @@ class TodoTree {
       return t;
     }
     const t = new vscode.TreeItem(el.it.kw + (el.it.text ? ': ' + el.it.text : ''), vscode.TreeItemCollapsibleState.None);
-    t.description = 'рядок ' + (el.it.line + 1);
+    t.description = tr('рядок {0}', el.it.line + 1);
     t.iconPath = new vscode.ThemeIcon(/^(FIXME|XXX|HACK)$/.test(el.it.kw) ? 'bug' : 'checklist');
-    t.command = { command: 'vscode.open', title: 'Відкрити', arguments: [el.file, { selection: new vscode.Range(el.it.line, 0, el.it.line, 0) }] };
+    t.command = { command: 'vscode.open', title: tr('Відкрити'), arguments: [el.file, { selection: new vscode.Range(el.it.line, 0, el.it.line, 0) }] };
     return t;
   }
 }
@@ -222,14 +223,15 @@ async function todoList() {
   for (const g of groups) for (const it of g.items) {
     picks.push({ label: it.kw + (it.text ? ': ' + it.text : ''), description: relPath(g.file.fsPath) + ':' + (it.line + 1), file: g.file, line: it.line });
   }
-  if (!picks.length) { info('Позначок ' + todoKeywords().join(' / ') + ' не знайдено.'); return; }
-  const pick = await vscode.window.showQuickPick(picks, { matchOnDescription: true, placeHolder: 'TODO / FIXME у проєкті: ' + picks.length });
+  if (!picks.length) { info(tr('Позначок {0} не знайдено.', todoKeywords().join(' / '))); return; }
+  const pick = await vscode.window.showQuickPick(picks, { matchOnDescription: true, placeHolder: tr('TODO / FIXME у проєкті: {0}', picks.length) });
   if (pick) await openAt(pick.file, pick.line);
 }
 
 /* ------------------------ quick fixes for typography ----------------- */
 // which hints "fix all" touches: tssworkflow.fixAllCodes (default only the non-breaking spaces)
-const TYPO_FIXABLE = { 'typo-nbsp': 'нерозривні пробіли', 'typo-dash': 'дефіс замість тире', 'typo-mixed-script': 'кирилиця й латиниця в одному слові' };
+const TYPO_FIXABLE = { 'typo-nbsp': true, 'typo-dash': true, 'typo-mixed-script': true };
+const typoName = (code) => ({ 'typo-nbsp': tr('нерозривні пробіли'), 'typo-dash': tr('дефіс замість тире'), 'typo-mixed-script': tr('кирилиця й латиниця в одному слові') }[code]);
 const fixCodes = () => {
   const v = cfg().get('fixAllCodes', ['typo-nbsp']);
   return Array.isArray(v) ? v.filter((c) => TYPO_FIXABLE[c]) : ['typo-nbsp'];
@@ -244,12 +246,12 @@ function planEdit(doc, plan) {
 // "Fix typography hints in file": the same edits as source.fixAll.tssworkflow, from the command palette
 async function fixTypographyHints() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !/\.(tex|tikz)$/i.test(ed.document.fileName)) { info('Відкрий .tex-файл.'); return; }
+  if (!ed || !/\.(tex|tikz)$/i.test(ed.document.fileName)) { info(tr('Відкрий .tex-файл.')); return; }
   const codes = fixCodes();
   const plan = X.typoFixPlan(linesOfDoc(ed.document), { codes });
-  if (!plan.length) { info('Нічого виправляти: ' + (codes.length ? codes.join(', ') : 'tssworkflow.fixAllCodes порожній') + '.'); return; }
+  if (!plan.length) { info(tr('Нічого виправляти: {0}.', codes.length ? codes.join(', ') : tr('tssworkflow.fixAllCodes порожній'))); return; }
   await vscode.workspace.applyEdit(planEdit(ed.document, plan));
-  info('Типографічних зауважень виправлено: ' + plan.length + ' (' + codes.join(', ') + ').');
+  info(tr('Типографічних зауважень виправлено: {0} ({1}).', plan.length, codes.join(', ')));
 }
 
 const typoFixes = {
@@ -268,19 +270,19 @@ const typoFixes = {
         out.push(a);
       };
       if (code === 'typo-nbsp') {
-        replace('Замінити пробіл на «~»', text.replace(/[ \u00a0]/, '~'), true);
-        if (/одиницею/.test(d.message)) replace('Замінити пробіл на «\\,» (вузький)', text.replace(/[ \u00a0]/, '\\,'));
+        replace(tr('Замінити пробіл на «~»'), text.replace(/[ \u00a0]/, '~'), true);
+        if (X.isNumberUnitSpace(text)) replace(tr('Замінити пробіл на «\\,» (вузький)'), text.replace(/[ \u00a0]/, '\\,'));
       } else if (code === 'typo-dash') {
-        replace('Замінити на « --- »', ' --- ', true);
+        replace(tr('Замінити на « --- »'), ' --- ', true);
       } else if (code === 'typo-mixed-script') {
         const f = X.fixHomoglyphs(text);
-        if (f) replace('Замінити латинські літери на кириличні: «' + f + '»', f, true);
+        if (f) replace(tr('Замінити латинські літери на кириличні: «{0}»', f), f, true);
       } else if (code === 'label-unused') {
         const lines = doc.getText().split(/\r?\n/);
         const ln = d.range.start.line;
         const it = X.numberedEquations(lines, await usedLabels()).find((x) => x.line <= ln && ln <= x.endLine && x.candidate);
         if (it) {
-          const a = new vscode.CodeAction('Зробити ' + it.env + '* без номера й мітки', QF);
+          const a = new vscode.CodeAction(tr('Зробити {0}* без номера й мітки', it.env), QF);
           a.diagnostics = [d];
           a.edit = new vscode.WorkspaceEdit();
           a.edit.replace(doc.uri, new vscode.Range(it.line, 0, it.endLine, lines[it.endLine].length), X.starEquation(lines, it).join(eolOf(doc)));
@@ -293,7 +295,7 @@ const typoFixes = {
     for (const code of kinds) {
       const plan = X.typoFixPlan(linesOfDoc(doc), { codes: [code] });
       if (plan.length < 2) continue;
-      const a = new vscode.CodeAction('Виправити всі в файлі (' + TYPO_FIXABLE[code] + '): ' + plan.length, QF);
+      const a = new vscode.CodeAction(tr('Виправити всі в файлі ({0}): {1}', typoName(code), plan.length), QF);
       a.edit = planEdit(doc, plan);
       out.push(a);
     }
@@ -301,7 +303,7 @@ const typoFixes = {
     if (ctx.only && ctx.only.contains(FIXALL)) {
       const plan = X.typoFixPlan(linesOfDoc(doc), { codes: fixCodes() });
       if (plan.length) {
-        const a = new vscode.CodeAction('TSS Workflow: виправити типографічні зауваження (' + plan.length + ')', FIXALL);
+        const a = new vscode.CodeAction(tr('TSS Workflow: виправити типографічні зауваження ({0})', plan.length), FIXALL);
         a.edit = planEdit(doc, plan);
         out.push(a);
       }
@@ -318,13 +320,13 @@ async function macroInfo() {
     const r = ed.document.getWordRangeAtPosition(ed.selection.active, /\\[A-Za-z@]+/);
     if (r) name = ed.document.getText(r).slice(1);
   }
-  const typed = await vscode.window.showInputBox({ prompt: 'Назва макросу (без \\)', value: name });
+  const typed = await vscode.window.showInputBox({ prompt: tr('Назва макросу (без \\)'), value: name });
   if (!typed) return;
   name = typed.trim().replace(/^\\/, '');
   const { cmds, envs } = await M._allMacros(ed && ed.document);
   const e = cmds.get(name) || envs.get(name);
   if (e) {
-    const b = await info('\\' + name + ' визначено в ' + path.basename(e.file) + ':' + (e.line + 1) + ': ' + e.src.split('\n')[0].slice(0, 120), 'Відкрити');
+    const b = await info(tr('\\{0} визначено в {1}:{2}: {3}', name, path.basename(e.file), e.line + 1, e.src.split('\n')[0].slice(0, 120)), tr('Відкрити'));
     if (b) await openAt(vscode.Uri.file(e.file), e.line);
     return;
   }
@@ -335,17 +337,17 @@ async function macroInfo() {
   for (const f of await vscode.workspace.findFiles('**/*.{tex,cls,sty,ltx,tikz}', EXCLUDE, 2000)) {
     api.textOf(f).split(/\r?\n/).forEach((l, i) => { if (defRe.test(P.codePart(l))) hits.push({ f, line: i, text: l.trim().slice(0, 160) }); });
   }
-  api.log('[macros] \\' + name + ' не знайдено сканером. Скановані джерела (' + sources.length + '): ' + (sources.map((s) => path.basename(s)).join(', ') || 'немає'));
-  hits.forEach((h) => api.log('[macros]   схоже визначення: ' + relPath(h.f.fsPath) + ':' + (h.line + 1) + '  ' + h.text));
+  api.log(tr('[macros] \\{0} не знайдено сканером. Скановані джерела ({1}): {2}', name, sources.length, sources.map((s) => path.basename(s)).join(', ') || tr('немає')));
+  hits.forEach((h) => api.log(tr('[macros]   схоже визначення: {0}:{1}  {2}', relPath(h.f.fsPath), h.line + 1, h.text)));
   if (hits.length) {
     const inSources = hits.some((h) => sources.includes(h.f.fsPath));
-    const msg = '\\' + name + ': сканер макросів не розпізнав визначення, хоча схожі рядки є (' + hits.length + '), перше: ' + relPath(hits[0].f.fsPath) + ':' + (hits[0].line + 1) +
-      (inSources ? '. Конструкція, найімовірніше, не підтримується сканером.' : '. Цей файл не входить у скановані джерела: додай його в tssworkflow.macroFiles.');
-    const b = await info(msg, 'Відкрити', 'Output');
-    if (b === 'Відкрити') await openAt(hits[0].f, hits[0].line);
+    const msg = tr('\\{0}: сканер макросів не розпізнав визначення, хоча схожі рядки є ({1}), перше: {2}:{3}', name, hits.length, relPath(hits[0].f.fsPath), hits[0].line + 1) +
+      (inSources ? tr('. Конструкція, найімовірніше, не підтримується сканером.') : tr('. Цей файл не входить у скановані джерела: додай його в tssworkflow.macroFiles.'));
+    const b = await info(msg, tr('Відкрити'), 'Output');
+    if (b === tr('Відкрити')) await openAt(hits[0].f, hits[0].line);
     else if (b === 'Output') api.showLog();
   } else {
-    const b = await info('\\' + name + ' не знайдено в проєкті. Скановано джерел: ' + sources.length + '. Якщо клас лежить поза проєктом, вкажи його в tssworkflow.macroFiles.', 'Output');
+    const b = await info(tr('\\{0} не знайдено в проєкті. Скановано джерел: {1}. Якщо клас лежить поза проєктом, вкажи його в tssworkflow.macroFiles.', name, sources.length), 'Output');
     if (b) api.showLog();
   }
 }

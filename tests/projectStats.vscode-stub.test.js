@@ -53,6 +53,21 @@ const ok = (c, m) => { assert.ok(c, m); n++; };
   ok(row(md, 'Разом')[col] === '9', 'the total: Alpha 3 + Preface 3 + Tests 3: ' + row(md, 'Разом'));
   ok(!/Не враховано файлів/.test(md), 'nothing is left out: no note');
 
+  // the same table in English (tssworkflow.language): the headers, the names of the built-in counters, the total, the note under the table
+  const I18N = require(path.join(ext, 'i18n'));
+  I18N.setLang('en');
+  try {
+    const en = await run();
+    const hEn = en.split('\n').find((l) => l.startsWith('| Chapter')).split('|').map((c) => c.trim()).filter(Boolean);
+    ok(en.startsWith('# Statistics of the project'), 'the title: ' + en.split('\n')[0]);
+    ok(JSON.stringify(hEn.slice(0, 7)) === JSON.stringify(['Chapter', 'Words', 'Equations (numbered / unnumbered)', 'Figures', 'Tables', 'tikz', 'Citations']) && hEn.includes('Quiz questions'), 'the headers: ' + hEn);
+    const cEn = hEn.indexOf('Quiz questions');
+    ok(row(en, 'Alpha/Alpha.tex')[cEn] === '3' && row(en, 'Total')[cEn] === '9', 'the numbers do not depend on the language: ' + row(en, 'Total'));
+    ok(/“Quiz questions”: the items of the `quizlist` environments/.test(en) && /“Problems”: `\\begin\{problem\}`/.test(en), 'the note names the translated columns');
+    const fixed = en.split('\n').filter((l) => l.startsWith('# ') || l.startsWith('| Chapter') || l.startsWith('| **Total') || l.startsWith('_')).join('\n'); // not the rows: the titles of the sections are the text of the project
+    ok(!/[А-Яа-яІіЇїЄєҐґ]/.test(fixed.replace(/Контрольні запитання…/g, '')), 'no Ukrainian in the title, the header, the total and the note: ' + fixed.slice(0, 200));
+  } finally { I18N.setLang('uk'); }
+
   // the old way: the title of a section
   cfgv['stats.questionEnvs'] = [];
   md = await run();

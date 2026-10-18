@@ -2,6 +2,7 @@
 /* Pure helpers (no vscode API) for: .aux parsing, project statistics, TODO scan,
  * extra typography checks, numbered equations nobody refers to. Tested by tests/projectInfo.test.js. */
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { escRe } = require('./corePure');
 
 /* ------------------------------ .aux ------------------------------- */
@@ -157,9 +158,9 @@ function builtinCounters(opts) {
   let titleRe;
   try { titleRe = new RegExp(String(o.questionTitle || DEFAULT_QUESTION_TITLE), 'iu'); } catch (e) { titleRe = new RegExp(DEFAULT_QUESTION_TITLE, 'iu'); }
   const out = {};
-  if (envs.length) { const re = envsRe(envs); out['Задач'] = (t) => countRe(t, re); }
+  if (envs.length) { const re = envsRe(envs); out[tr('Задач')] = (t) => countRe(t, re); }
   const qEnvs = (Array.isArray(o.questionEnvs) ? o.questionEnvs : ['quizlist']).map(String).filter(Boolean);
-  out['Контр. запитань'] = qEnvs.length ? (t) => countEnvItems(t, qEnvs) : (t) => countQuestionItems(t, titleRe);
+  out[tr('Контр. запитань')] = qEnvs.length ? (t) => countEnvItems(t, qEnvs) : (t) => countQuestionItems(t, titleRe);
   return out;
 }
 
@@ -237,7 +238,7 @@ function fileStats(text, extra, fns) {
   const part = (from, to) => lines.slice(from, to).join('\n');
   if (heads.length) {
     const intro = textStats(part(0, heads[0].line), extra, fns);
-    if (intro.words || intro.eqNum || intro.eqStar || intro.figures || Object.values(intro.extra).some(Boolean)) rows.push({ title: '(до першого заголовка)', level: 0, st: intro });
+    if (intro.words || intro.eqNum || intro.eqStar || intro.figures || Object.values(intro.extra).some(Boolean)) rows.push({ title: tr('(до першого заголовка)'), level: 0, st: intro });
     heads.forEach((h, i) => rows.push({
       title: h.title, level: h.level, kind: h.kind, line: h.line,
       st: textStats(part(h.line, i + 1 < heads.length ? heads[i + 1].line : lines.length), extra, fns)
@@ -341,16 +342,16 @@ function typographyChecks(lines, opts) {
     const push = (col, len, c, message) => out.push({ line: i, col, len, code: c, message });
     let r;
     UNIT_RE.lastIndex = 0;
-    while ((r = UNIT_RE.exec(t))) push(r.index, r[0].length, 'typo-nbsp', 'Між числом і одиницею — нерозривний пробіл («~» або «\\,»)');
+    while ((r = UNIT_RE.exec(t))) push(r.index, r[0].length, 'typo-nbsp', tr('Між числом і одиницею — нерозривний пробіл («~» або «\\,»)'));
     ABBR_RE.lastIndex = 0;
-    while ((r = ABBR_RE.exec(t))) if (/[\d\\(\[]/.test(code[r.index + r[0].length] || '')) push(r.index, r[0].length, 'typo-nbsp', 'Після скорочення «' + r[1] + '.» — нерозривний пробіл («~»)');
+    while ((r = ABBR_RE.exec(t))) if (/[\d\\(\[]/.test(code[r.index + r[0].length] || '')) push(r.index, r[0].length, 'typo-nbsp', tr('Після скорочення «{0}.» — нерозривний пробіл («~»)', r[1]));
     ABBR_AFTER_RE.lastIndex = 0;
-    while ((r = ABBR_AFTER_RE.exec(t))) push(r.index, r[0].length, 'typo-nbsp', 'Між числом і «' + r[3] + '» — нерозривний пробіл («~»)');
+    while ((r = ABBR_AFTER_RE.exec(t))) push(r.index, r[0].length, 'typo-nbsp', tr('Між числом і «{0}» — нерозривний пробіл («~»)', r[3]));
     DASH_RE.lastIndex = 0;
-    while ((r = DASH_RE.exec(t))) push(r.index, r[0].length, 'typo-dash', 'Дефіс замість тире: у тексті ставиться « --- »');
+    while ((r = DASH_RE.exec(t))) push(r.index, r[0].length, 'typo-dash', tr('Дефіс замість тире: у тексті ставиться « --- »'));
     const wre = /\p{L}+/gu;
     while ((r = wre.exec(t))) {
-      if (CYR.test(r[0]) && LAT.test(r[0])) push(r.index, r[0].length, 'typo-mixed-script', 'Слово «' + r[0] + '» змішує кирилицю й латиницю');
+      if (CYR.test(r[0]) && LAT.test(r[0])) push(r.index, r[0].length, 'typo-mixed-script', tr('Слово «{0}» змішує кирилицю й латиницю', r[0]));
     }
   });
   // \vec in some places and \vect in others
@@ -372,7 +373,7 @@ function typographyChecks(lines, opts) {
       const major = 1 - minority;
       for (const f of found[minority]) {
         out.push({ line: f.line, col: f.col, len: f.len, code: 'typo-mixed-macro',
-          message: 'У файлі змішано \\' + pair[0] + ' (' + found[0].length + ') і \\' + pair[1] + ' (' + found[1].length + '); частіше — \\' + pair[major] });
+          message: tr('У файлі змішано \\{0} ({1}) і \\{2} ({3}); частіше — \\{4}', pair[0], found[0].length, pair[1], found[1].length, pair[major]) });
       }
     }
   }
@@ -482,8 +483,18 @@ function applyTypoFixes(lines, opts) {
   return { lines: out, count: plan.length };
 }
 
+// is `text` (the text of a diagnostic of typography) a number and a unit with a space, "5 мм"? The quick fix offers the thin space \\, for those only;
+// the message of the diagnostic is not looked at (it is translated)
+function isNumberUnitSpace(text) {
+  const t = String(text);
+  UNIT_RE.lastIndex = 0;
+  const m = UNIT_RE.exec(t);
+  UNIT_RE.lastIndex = 0;
+  return !!m && m[0].length === t.length;
+}
+
 module.exports = {
   parseAux, auxInputs, countWords, countEnvItems, excludedPath, textStats, fileStats, addStats, emptyStats, scanTodos,
   countListItems, countQuestionItems, builtinCounters, DEFAULT_QUESTION_TITLE,
-  typographyChecks, typoFixPlan, applyTypoFixes, fixHomoglyphs, numberedEquations, starEquation, stripComments
+  typographyChecks, isNumberUnitSpace, typoFixPlan, applyTypoFixes, fixHomoglyphs, numberedEquations, starEquation, stripComments
 };

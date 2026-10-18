@@ -132,6 +132,12 @@ const typo = (lines, o) => X.typographyChecks(lines, o || {}).map((x) => x.code 
 test('typography: space between a number and a unit', () => {
   eq(typo(['Довжина 5 см і 3~кг і 2\\,с і 7 сторін.']), ['typo-nbsp:5 см']);
 });
+test('typography: isNumberUnitSpace tells a number and a unit from the other nbsp hints by the text (not by the words of the message)', () => {
+  const lines = ['Довжина 5 мм і 2,5 кг.', 'див. рис. 5 та 12 тис. грн', 'У 1990 рр. і 5 ст.'];
+  const got = X.typographyChecks(lines, {}).filter((r) => r.code === 'typo-nbsp').map((r) => { const t = lines[r.line].substr(r.col, r.len); return [t, X.isNumberUnitSpace(t)]; });
+  eq(got, [['5 мм', true], ['2,5 кг', true], ['рис. ', false], ['12 тис.', false], ['1990 рр.', false], ['5 ст.', false]]);
+  eq([X.isNumberUnitSpace('5 мм'), X.isNumberUnitSpace('5\u00a0мм'), X.isNumberUnitSpace('5 ммx'), X.isNumberUnitSpace('5 мм '), X.isNumberUnitSpace(''), X.isNumberUnitSpace(null)], [true, true, false, false, false, false]);
+});
 test('typography: abbreviations before a number or a reference', () => {
   eq(typo(['див. рис. 3 і п. \\ref{x}, але ст. Київ']), ['typo-nbsp:рис. ', 'typo-nbsp:п. ']);
 });
