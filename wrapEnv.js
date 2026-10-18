@@ -7,6 +7,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const P = require('./wrapEnvPure');
+const { tr } = require('./i18n');
 const MP = require('./macrosPure');
 const { pickTyped, sep } = require('./pickTyped');
 const { cfg, info, warn, texFiles } = require('./util');
@@ -52,24 +53,24 @@ async function buildItems(doc) {
   };
 
   const recent = ((state && state.get(RECENT_KEY)) || []).filter((r) => r && r.name);
-  add('Останні', recent.map((r) => item(r.name, r.rest)));
+  add(tr('Останні'), recent.map((r) => item(r.name, r.rest)));
 
   const proj = await projectEnvs(doc);
-  add('Проєкт (.cls / .sty)', proj.map((e) => item(e.name, P.argsOfMacro(e), {
+  add(tr('Проєкт (.cls / .sty)'), proj.map((e) => item(e.name, P.argsOfMacro(e), {
     detail: (e.doc ? e.doc.split('\n')[0] + ' · ' : '') + MP.signature(e).slice(e.name.length) + (e.file ? '  ' + path.basename(e.file) + ':' + (e.line + 1) : '')
   })));
 
   const mine = (cfg().get('wrapEnv.extra', []) || []).map((s) => P.parseEnvInput(s)).filter(Boolean);
-  add('Мої (tssworkflow.wrapEnv.extra)', mine.map((p) => item(p.name, p.rest)));
+  add(tr('Мої (tssworkflow.wrapEnv.extra)'), mine.map((p) => item(p.name, p.rest)));
 
   // used in the project (and in the open buffer, which may be newer than the cache), most used first
   const std = new Map(P.STANDARD_ENVS.map((s) => [s.name, s]));
   const counts = new Map(await projectCounts());
   for (const [n, c] of P.countEnvs(doc.getText())) if (!counts.has(n)) counts.set(n, c);
   const used = [...counts].filter(([n]) => !std.has(n)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  add('Ще в проєкті', used.map(([n, c]) => item(n, '', { detail: c + '×' })));
+  add(tr('Ще в проєкті'), used.map(([n, c]) => item(n, '', { detail: c + '×' })));
 
-  add('Стандартні', P.STANDARD_ENVS.map((s) => item(s.name, s.rest, { detail: s.desc })));
+  add(tr('Стандартні'), P.STANDARD_ENVS.map((s) => item(s.name, s.rest, { detail: tr(s.desc) })));
   return groups;
 }
 
@@ -109,7 +110,7 @@ async function wrapEnv() {
   const sels = ed.selections.filter((s) => !s.isEmpty);
 
   const env = await pickTyped(await buildItems(doc),
-    (sels.length ? 'Обгорнути виділене' : 'Вставити порожнє середовище') + ': вибери зі списку або введи своє, напр. minipage{0.5\\linewidth}', parseTyped);
+    sels.length ? tr('Обгорнути виділене: вибери зі списку або введи своє, напр. minipage{0.5\\linewidth}') : tr('Вставити порожнє середовище: вибери зі списку або введи своє, напр. minipage{0.5\\linewidth}'), parseTyped);
   if (!env) return;
 
   const prefixes = cfg().get('wrapEnv.label', true) ? cfg().get('labelPrefixes', {}) : {};
@@ -129,7 +130,7 @@ async function wrapEnv() {
     .sort((a, b) => a.start.compareTo(b.start))
     .map((s) => P.wrapLines(lines, { line: s.start.line, character: s.start.character }, { line: s.end.line, character: s.end.character },
       { name: env.name, rest: env.rest, unit, indent, label: P.labelFor(env.name, prefixes, doc.getText(s)) }));
-  if (P.overlaps(edits)) { warn('Два виділення на одному рядку: обгорнути їх окремо не вийде. Виділи кожне на своїх рядках.'); return; }
+  if (P.overlaps(edits)) { warn(tr('Два виділення на одному рядку: обгорнути їх окремо не вийде. Виділи кожне на своїх рядках.')); return; }
 
   const eol = doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
   const ok = await ed.edit((b) => {
@@ -137,7 +138,7 @@ async function wrapEnv() {
       b.replace(new vscode.Range(e.startLine, 0, e.endLine, lines[e.endLine].length), e.lines.join(eol));
     }
   });
-  if (!ok) { info('Не вдалося змінити документ.'); return; }
+  if (!ok) { info(tr('Не вдалося змінити документ.')); return; }
 
   // the lines of the earlier edits move the later ones
   let shift = 0;

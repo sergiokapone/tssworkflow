@@ -6,6 +6,7 @@
  * on \alpha wraps the whole \alpha), and with no word a command with an empty argument is inserted. */
 const vscode = require('vscode');
 const P = require('./wrapCmdPure');
+const { tr } = require('./i18n');
 const { pickTyped, sep } = require('./pickTyped');
 const { cfg, debounce, isTex } = require('./util');
 
@@ -34,10 +35,10 @@ async function buildItems(doc) {
     fresh.forEach((it) => seen.add(it.pick.name));
     if (fresh.length) groups.push(sep(title), ...fresh);
   };
-  add('Останні', ((state && state.get(RECENT_KEY)) || []).filter((r) => r && r.name).map((r) => item(r)));
-  add('Проєкт (.cls / .sty)', (await projectCmds(doc)).map((c) => item(c)));
-  add('Мої (tssworkflow.wrapCmd.extra)', (cfg().get('wrapCmd.extra', []) || []).map(P.parseCmdInput).filter(Boolean).map((c) => item(c)));
-  add('Стандартні', P.STANDARD_CMDS.map((c) => item(c, { detail: c.desc })));
+  add(tr('Останні'), ((state && state.get(RECENT_KEY)) || []).filter((r) => r && r.name).map((r) => item(r)));
+  add(tr('Проєкт (.cls / .sty)'), (await projectCmds(doc)).map((c) => item(c)));
+  add(tr('Мої (tssworkflow.wrapCmd.extra)'), (cfg().get('wrapCmd.extra', []) || []).map(P.parseCmdInput).filter(Boolean).map((c) => item(c)));
+  add(tr('Стандартні'), P.STANDARD_CMDS.map((c) => item(c, { detail: tr(c.desc) })));
   return groups;
 }
 
@@ -116,7 +117,7 @@ async function wrapCmd() {
   const { ranges, words } = targets(ed);
 
   const spec = await pickTyped(await buildItems(doc),
-    (words ? (ranges.length ? 'Обгорнути слово біля курсора' : 'Вставити команду') : 'Обгорнути виділене') + ' в команду: вибери зі списку або введи, напр. textcolor{red}', parseTyped);
+    words ? (ranges.length ? tr('Обгорнути слово біля курсора в команду: вибери зі списку або введи, напр. textcolor{red}') : tr('Вставити команду в команду: вибери зі списку або введи, напр. textcolor{red}')) : tr('Обгорнути виділене в команду: вибери зі списку або введи, напр. textcolor{red}'), parseTyped);
   if (!spec) return;
 
   if (!ranges.length) { await ed.insertSnippet(snippetFor(spec)); await remember(spec); return; }
@@ -132,17 +133,17 @@ async function formatSelection(name) {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
   const { ranges } = targets(ed);
-  if (!ranges.length) { vscode.window.showInformationMessage('Виділи текст (або постав курсор на слово), який треба оформити.'); return; }
+  if (!ranges.length) { vscode.window.showInformationMessage(tr('Виділи текст (або постав курсор на слово), який треба оформити.')); return; }
   let spec = typeof name === 'string' ? P.formatSpec(name) : null;
   if (!spec) {
     const items = [];
     let group = '';
     for (const f of P.FORMAT_MENU) {
-      if (f.group !== group) { group = f.group; items.push(sep(group)); }
-      items.push({ label: f.label, description: '\\' + f.name + '{…}', spec: P.formatSpec(f.name) });
+      if (f.group !== group) { group = f.group; items.push(sep(tr(group))); }
+      items.push({ label: tr(f.label), description: '\\' + f.name + '{…}', spec: P.formatSpec(f.name) });
     }
-    items.push(sep(''), { label: '$(list-selection) Інша команда…', description: 'увесь список', other: true });
-    const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Оформити виділене', matchOnDescription: true });
+    items.push(sep(''), { label: tr('$(list-selection) Інша команда…'), description: tr('увесь список'), other: true });
+    const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Оформити виділене'), matchOnDescription: true });
     if (!pick) return;
     if (pick.other) { await vscode.commands.executeCommand('tssworkflow.wrapCmd'); return; }
     spec = pick.spec;
@@ -160,8 +161,8 @@ const selectionLens = {
     const at = new vscode.Range(ed.selection.start.line, 0, ed.selection.start.line, 0);
     const quick = P.FORMAT_MENU.filter((f) => f.quick).sort((a, b) => a.quick - b.quick);
     const icon = { textbf: '$(bold) ', textit: '$(italic) ' };
-    return quick.map((f) => new vscode.CodeLens(at, { title: (icon[f.name] || '') + f.label, command: 'tssworkflow.formatSelection', arguments: [f.name], tooltip: '\\' + f.name + '{…}' }))
-      .concat(new vscode.CodeLens(at, { title: '$(chevron-down) Формат', command: 'tssworkflow.formatSelection', tooltip: 'Оформити виділене: список команд' }));
+    return quick.map((f) => new vscode.CodeLens(at, { title: (icon[f.name] || '') + tr(f.label), command: 'tssworkflow.formatSelection', arguments: [f.name], tooltip: '\\' + f.name + '{…}' }))
+      .concat(new vscode.CodeLens(at, { title: tr('$(chevron-down) Формат'), command: 'tssworkflow.formatSelection', tooltip: tr('Оформити виділене: список команд') }));
   }
 };
 
@@ -171,12 +172,12 @@ const selectionActions = {
     if (!['lightbulb', 'both'].includes(hintMode()) || !range || range.isEmpty) return [];
     const kind = vscode.CodeActionKind.RefactorRewrite.append('tssworkflow');
     const out = P.FORMAT_MENU.filter((f) => f.quick || f.name === 'emph').map((f) => {
-      const a = new vscode.CodeAction('TSS: ' + f.label + ' \\' + f.name + '{…}', kind);
-      a.command = { title: f.label, command: 'tssworkflow.formatSelection', arguments: [f.name] };
+      const a = new vscode.CodeAction('TSS: ' + tr(f.label) + ' \\' + f.name + '{…}', kind);
+      a.command = { title: tr(f.label), command: 'tssworkflow.formatSelection', arguments: [f.name] };
       return a;
     });
-    const more = new vscode.CodeAction('TSS: Оформити виділене…', kind);
-    more.command = { title: 'Формат', command: 'tssworkflow.formatSelection' };
+    const more = new vscode.CodeAction(tr('TSS: Оформити виділене…'), kind);
+    more.command = { title: tr('Формат'), command: 'tssworkflow.formatSelection' };
     return out.concat(more);
   }
 };

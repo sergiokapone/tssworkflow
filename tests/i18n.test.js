@@ -56,10 +56,28 @@ t('tr in English: the translation, with the arguments; a key without a translati
 
 t('every tr(\'...\') of the code has its English text (the keys are written in the code as plain literals, so that this check sees them)', () => {
   assert.ok(used.size > 100, 'the keys are found: ' + used.size);
-  const allowed = dynamic.filter((d) => !/^projectRefactor(Pure)?\.js: tr\((r\.name|v\.label|t\.v\.label)\)/.test(d)); // the names and labels of the built-in groups of notation, see the next test
+  const allowed = dynamic.filter((d) => !/^(projectRefactor(Pure)?\.js: tr\((r\.name|v\.label|t\.v\.label)\)|wrapCmd\.js: tr\((c\.desc|f\.label|group)\)|wrapEnv\.js: tr\(s\.desc\))/.test(d)); // the names and labels of the built-in groups of notation and the tables of the commands and environments of the quick picks: see tableTexts()
   assert.deepStrictEqual(allowed, [], 'tr() with something other than a literal in the first place: ' + allowed.join('; '));
   const missing = [...used.keys()].filter((k) => !Object.prototype.hasOwnProperty.call(EN, k));
   assert.deepStrictEqual(missing, [], 'no English text for: ' + missing.map((k) => JSON.stringify(k.slice(0, 60))).join(', '));
+});
+
+// the Ukrainian descriptions that sit in tables (wrapCmdPure.js, wrapEnvPure.js) and are translated where they are shown: tr(c.desc), tr(f.label), tr(group), tr(s.desc)
+const tableTexts = () => {
+  const C = require(path.join(ext, 'wrapCmdPure')), E = require(path.join(ext, 'wrapEnvPure'));
+  const out = new Set();
+  C.STANDARD_CMDS.forEach((c) => c.desc && out.add(c.desc));
+  C.FORMAT_MENU.forEach((f) => { out.add(f.label); out.add(f.group); });
+  E.STANDARD_ENVS.forEach((e) => e.desc && out.add(e.desc));
+  return [...out].filter((x) => cyr.test(x));
+};
+t('every description in the tables of the commands and environments (the quick picks of Wrap in command / environment, Format) has an English text', () => {
+  const tx = tableTexts();
+  assert.ok(tx.length > 80, 'the tables are read: ' + tx.length);
+  const missing = tx.filter((k) => !Object.prototype.hasOwnProperty.call(EN, k));
+  assert.deepStrictEqual(missing, [], 'no English text for: ' + missing.join(' | '));
+  const C = require(path.join(ext, 'wrapCmdPure')), E = require(path.join(ext, 'wrapEnvPure'));
+  assert.ok(C.STANDARD_CMDS.every((c) => !c.desc || !cyr.test(c.desc) || EN[c.desc]) && E.STANDARD_ENVS.every((e) => !e.desc || !cyr.test(e.desc) || EN[e.desc]));
 });
 
 const builtIn = () => {
@@ -73,7 +91,7 @@ t('the Ukrainian names of the built-in groups of notation and of their variants 
 });
 
 t('the dictionary has no unused key (a key that nothing asks for is a leftover of a changed message)', () => {
-  const groupNames = new Set(builtIn());
+  const groupNames = new Set(builtIn().concat(tableTexts()));
   const unused = Object.keys(EN).filter((k) => !used.has(k) && !groupNames.has(k));
   assert.deepStrictEqual(unused, [], 'unused keys: ' + unused.map((k) => JSON.stringify(k.slice(0, 60))).join(', '));
 });

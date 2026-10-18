@@ -1,6 +1,7 @@
 'use strict';
 /* workspacePure.js: project .vscode/settings.json, the main file and PATH search, \documentclass in a file, the picture preview in the hover. No vscode. */
 const { codePart } = require('./texBasePure');
+const { tr } = require('./i18n');
 
 /* ------------------- project .vscode/settings.json template --------- */
 // What a project should carry itself (style of the text, build job). Machine-specific values (paths to programs,
@@ -240,19 +241,19 @@ function findInPath(cmd, o) {
 function formatEnvReport(rows, o) {
   const opt = o || {};
   const mark = { ok: '✅', missing: '❌', optional: '○' };
-  const lines = ['# TSS Workflow: Doctor (перевірка середовища)', ''];
-  if (opt.folder) lines.push('Папка: `' + opt.folder + '`', '');
+  const lines = [tr('# TSS Workflow: Doctor (перевірка середовища)'), ''];
+  if (opt.folder) lines.push(tr('Папка: `{0}`', opt.folder), '');
   const hints = rows.some((r) => r.hint && r.state !== 'ok');
-  lines.push(hints ? '| Що | Стан | Де / версія | Навіщо | Що робити |' : '| Що | Стан | Де / версія | Навіщо |', hints ? '|---|---|---|---|---|' : '|---|---|---|---|');
+  lines.push(hints ? tr('| Що | Стан | Де / версія | Навіщо | Що робити |') : tr('| Що | Стан | Де / версія | Навіщо |'), hints ? '|---|---|---|---|---|' : '|---|---|---|---|');
   for (const r of rows) {
     lines.push('| ' + r.name + ' | ' + mark[r.state] + ' | ' + (r.detail || '') + ' | ' + (r.what || '') + ' |' + (hints ? ' ' + (r.state === 'ok' ? '' : (r.hint || '')) + ' |' : ''));
   }
   const bad = rows.filter((r) => r.state === 'missing');
   lines.push('');
   lines.push(bad.length
-    ? '**Бракує потрібного (' + bad.length + '):** ' + bad.map((r) => r.name).join(', ') + '. Додай програму в `PATH` (і перезапусти VS Code) або вкажи повний шлях у налаштуванні розширення.'
-    : '**Усе потрібне для поточних налаштувань знайдено.**');
-  lines.push('', '✅ знайдено · ❌ немає, а потрібно за поточними налаштуваннями · ○ немає, але зараз не потрібно');
+    ? tr('**Бракує потрібного ({0}):** {1}. Додай програму в `PATH` (і перезапусти VS Code) або вкажи повний шлях у налаштуванні розширення.', bad.length, bad.map((r) => r.name).join(', '))
+    : tr('**Усе потрібне для поточних налаштувань знайдено.**'));
+  lines.push('', tr('✅ знайдено · ❌ немає, а потрібно за поточними налаштуваннями · ○ немає, але зараз не потрібно'));
   return lines.join('\n') + '\n';
 }
 

@@ -116,7 +116,7 @@ async function runCommand({ ext, module, id, text, selections, pick, cfg, files,
     if (req === './macros') return { _allMacros: async () => ({ cmds: cmds || new Map(), envs: envs || new Map() }) };
     return orig.call(this, req, ...rest);
   };
-  for (const k of Object.keys(require.cache)) if (k.startsWith(ext) && /\.js$/.test(k)) delete require.cache[k];
+  for (const k of Object.keys(require.cache)) if (k.startsWith(ext) && /\.js$/.test(k) && !/[\\/]i18n(En)?\.js$/.test(k)) delete require.cache[k]; // i18n.js stays: a test sets the language (setLang) before it runs a command
   const mem = {};
   require(path.join(ext, module)).register({ subscriptions: [], globalState: { get: (k) => mem[k], update: async (k, v) => { mem[k] = v; } } });
   try { await h.handlers[id](...(args || [])); } finally { Module._load = orig; }
