@@ -9,6 +9,7 @@ const os = require('os');
 const X = require('./authoringPure');
 const { EXCLUDE, cfg, info, run, warn } = require('./util');
 const { posix } = require('./corePure');
+const { tr } = require('./i18n');
 
 const IMG_EXT = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif'];
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
@@ -98,9 +99,9 @@ const dropProvider = {
         sn.value += one.value; // already escaped
       });
       const k = editKind();
-      return k ? new vscode.DocumentDropEdit(sn, 'Вставити як рисунок', k) : new vscode.DocumentDropEdit(sn);
+      return k ? new vscode.DocumentDropEdit(sn, tr('Вставити як рисунок'), k) : new vscode.DocumentDropEdit(sn);
     } catch (err) {
-      warn('Не вдалося вставити рисунок: ' + (err && err.message ? err.message : err));
+      warn(tr('Не вдалося вставити рисунок: {0}', err && err.message ? err.message : err));
       return undefined;
     }
   }
@@ -122,9 +123,9 @@ const pasteProvider = {
       const stem = X.uniqueStem(existingNames(dir), X.pasteName(new Date()), ext);
       fs.writeFileSync(path.join(dir, stem + ext), Buffer.from(bytes));
       const sn = figureSnippet(doc, ranges[0].start, stem);
-      return [new vscode.DocumentPasteEdit(sn, 'Вставити як рисунок', editKind())];
+      return [new vscode.DocumentPasteEdit(sn, tr('Вставити як рисунок'), editKind())];
     } catch (err) {
-      warn('Не вдалося вставити рисунок з буфера: ' + (err && err.message ? err.message : err));
+      warn(tr('Не вдалося вставити рисунок з буфера: {0}', err && err.message ? err.message : err));
       return undefined;
     }
   }
@@ -134,13 +135,13 @@ const pasteProvider = {
 async function newChapter() {
   const ed = vscode.window.activeTextEditor;
   const root = workspaceRoot(ed && ed.document);
-  if (!root) { warn('Відкрий папку проєкту.'); return; }
+  if (!root) { warn(tr('Відкрий папку проєкту.')); return; }
   const name = await vscode.window.showInputBox({
-    prompt: 'Імʼя розділу: назва папки й файла (латиниця, цифри, - і _)',
-    validateInput: (v) => (/^[A-Za-z][A-Za-z0-9_-]*$/.test(v || '') ? (fs.existsSync(path.join(root, v)) ? 'Така папка вже є' : null) : 'Лише латиниця, цифри, - і _; починати з літери')
+    prompt: tr('Імʼя розділу: назва папки й файла (латиниця, цифри, - і _)'),
+    validateInput: (v) => (/^[A-Za-z][A-Za-z0-9_-]*$/.test(v || '') ? (fs.existsSync(path.join(root, v)) ? tr('Така папка вже є') : null) : tr('Лише латиниця, цифри, - і _; починати з літери'))
   });
   if (!name) return;
-  const title = await vscode.window.showInputBox({ prompt: 'Заголовок розділу (\\chapter{…})', value: name });
+  const title = await vscode.window.showInputBox({ prompt: tr('Заголовок розділу (\\chapter{…})'), value: name });
   if (title === undefined) return;
   const mainFile = cfg().get('mainFile', 'main.tex') || 'main.tex';
   const vars = { name, title: title || name, root: '../' + mainFile };
@@ -153,7 +154,7 @@ async function newChapter() {
       const TP = require('./templatesPure');
       body = TP.applyTemplate(t.body, Object.assign(TP.builtinVars(new Date(), String(cfg().get('templateAuthor', '') || '')), vars)).text;
     } else {
-      warn('Шаблон розділу «' + tplName + '» не знайдено або це шаблон із кількох файлів: узято chapterTemplate з налаштувань.');
+      warn(tr('Шаблон розділу «{0}» не знайдено або це шаблон із кількох файлів: узято chapterTemplate з налаштувань.', tplName));
     }
   }
   if (body === undefined) body = X.fillTemplate(listOf(cfg().get('chapterTemplate'), X.DEFAULT_CHAPTER_TEMPLATE), vars);
@@ -165,7 +166,7 @@ async function newChapter() {
     for (const sub of ['Pictures', 'tikz']) fs.writeFileSync(path.join(dir, sub, '.gitkeep'), '');
     fs.writeFileSync(file, body.replace(/\r?\n/g, '\n'), 'utf8');
   } catch (err) {
-    warn('Не вдалося створити розділ: ' + (err && err.message ? err.message : err));
+    warn(tr('Не вдалося створити розділ: {0}', err && err.message ? err.message : err));
     return;
   }
   const macro = cfg().get('chapterIncludeMacro', '\\includechapter') || '\\includechapter';
@@ -179,7 +180,7 @@ async function newChapter() {
       we.replace(mdoc.uri, new vscode.Range(0, 0, mdoc.lineCount, 0), r.text);
       await vscode.workspace.applyEdit(we);
       await mdoc.save();
-      note = ' і додано ' + macro + '{' + name + '} у ' + mainFile;
+      note = tr(' і додано {0}{{1}} у {2}', macro, name, mainFile);
     } else if (!r.ok) {
       // no `\includechapter{…}` lines: the chapters may be in comma lists, `\multiinclude{A, B}[]` (chapterListMacros)
       const CP = require('./chaptersPure');
@@ -190,8 +191,8 @@ async function newChapter() {
       if (slots.length === 1) slot = slots[0];
       else if (slots.length > 1) {
         const pick = await vscode.window.showQuickPick(
-          slots.map((sl) => ({ label: sl.part || 'Без частини', description: sl.macro + ' · розділів: ' + sl.names.length, detail: sl.names.length ? 'останній: ' + sl.names[sl.names.length - 1] : 'список порожній', sl })),
-          { placeHolder: 'У який список додати розділ «' + name + '»? (Esc: лише створити файли)' });
+          slots.map((sl) => ({ label: sl.part || tr('Без частини'), description: sl.macro + tr(' · розділів: {0}', sl.names.length), detail: sl.names.length ? tr('останній: {0}', sl.names[sl.names.length - 1]) : tr('список порожній'), sl })),
+          { placeHolder: tr('У який список додати розділ «{0}»? (Esc: лише створити файли)', name) });
         slot = pick ? pick.sl : null;
       }
       if (slot) {
@@ -199,16 +200,16 @@ async function newChapter() {
         we.replace(mdoc.uri, new vscode.Range(0, 0, mdoc.lineCount, 0), CP.addToListAt(text, slot, name));
         await vscode.workspace.applyEdit(we);
         await mdoc.save();
-        note = ' і додано в кінець списку ' + slot.macro + (slot.part ? ' (частина «' + slot.part + '»)' : '') + ' у ' + mainFile;
+        note = tr(' і додано в кінець списку {0}', slot.macro) + (slot.part ? tr(' (частина «{0}»)', slot.part) : '') + tr(' у {0}', mainFile);
       } else {
         await vscode.env.clipboard.writeText(macro + '{' + name + '}');
-        note = '; у ' + mainFile + (slots.length ? ' розділ не додано до жодного списку' : ' немає рядків ' + macro + '{…} і списків') + ', тому рядок «' + macro + '{' + name + '}» скопійовано в буфер';
+        note = slots.length ? tr('; у {0} розділ не додано до жодного списку, тому рядок «{1}{{2}}» скопійовано в буфер', mainFile, macro, name) : tr('; у {0} немає рядків {1}{…} і списків, тому рядок «{1}{{2}}» скопійовано в буфер', mainFile, macro, name);
       }
     }
   }
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
   await vscode.window.showTextDocument(doc);
-  info('Розділ «' + name + '» створено' + note + '.');
+  info(tr('Розділ «{0}» створено', name) + note + '.');
 }
 
 /* ================================== \iffalse =================================== */
@@ -242,8 +243,8 @@ async function toggleIffalse() {
   const bal = X.ifBalance(lines.slice(s, e + 1));
   if (bal !== 0) {
     const pick = await vscode.window.showWarningMessage(
-      'У виділеному ' + (bal > 0 ? 'є \\if без \\fi' : 'є \\fi без \\if') + ': \\iffalse може зламати збірку. Усе одно обгорнути?', 'Усе одно', 'Скасувати');
-    if (pick !== 'Усе одно') return;
+      bal > 0 ? tr('У виділеному є \\if без \\fi: \\iffalse може зламати збірку. Усе одно обгорнути?') : tr('У виділеному є \\fi без \\if: \\iffalse може зламати збірку. Усе одно обгорнути?'), tr('Усе одно'), tr('Скасувати'));
+    if (pick !== tr('Усе одно')) return;
   }
   await ed.edit((b) => {
     b.insert(new vscode.Position(e, doc.lineAt(e).text.length), eol + indent + X.IF_CLOSE);
@@ -261,12 +262,12 @@ async function unicodeToLatex() {
   const from = doc.offsetAt(range.start);
   const to = doc.offsetAt(range.end);
   const r = X.unicodeToLatex(full, from, to);
-  if (!r.count) { info('Unicode-символів для заміни не знайдено.'); return; }
+  if (!r.count) { info(tr('Unicode-символів для заміни не знайдено.')); return; }
   await ed.edit((b) => b.replace(range, r.text));
-  vscode.window.setStatusBarMessage('Unicode → LaTeX: замінено ' + r.count + (r.chem ? ' (з них \\ce: ' + r.chem + ')' : ''), 3000);
+  vscode.window.setStatusBarMessage(tr('Unicode → LaTeX: замінено {0}', r.count) + (r.chem ? tr(' (з них \\ce: {0})', r.chem) : ''), 3000);
   if (r.chem && !unicodeToLatex.warned && !/mhchem/.test(full)) {
     unicodeToLatex.warned = true;
-    info('Хімічні формули огорнуто в \\ce{}: у преамбулі має бути \\usepackage[version=4]{mhchem}.');
+    info(tr('Хімічні формули огорнуто в \\ce{}: у преамбулі має бути \\usepackage[version=4]{mhchem}.'));
   }
 }
 
@@ -274,7 +275,7 @@ async function unicodeToLatex() {
 function fetchBibtex(doi) {
   return new Promise((resolve, reject) => {
     const get = (url, n) => {
-      if (n > 6) { reject(new Error('забагато перенаправлень')); return; }
+      if (n > 6) { reject(new Error(tr('забагато перенаправлень'))); return; }
       const lib = url.startsWith('http:') ? require('http') : require('https');
       const req = lib.get(url, { headers: { Accept: 'application/x-bibtex; charset=utf-8', 'User-Agent': 'tssworkflow-vscode' }, timeout: 15000 }, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
@@ -282,13 +283,13 @@ function fetchBibtex(doi) {
           get(new URL(res.headers.location, url).toString(), n + 1);
           return;
         }
-        if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode + (res.statusCode === 404 ? ' (DOI не знайдено)' : ''))); return; }
+        if (res.statusCode !== 200) { res.resume(); reject(new Error('HTTP ' + res.statusCode + (res.statusCode === 404 ? tr(' (DOI не знайдено)') : ''))); return; }
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
       });
       req.on('error', reject);
-      req.on('timeout', () => req.destroy(new Error('тайм-аут')));
+      req.on('timeout', () => req.destroy(new Error(tr('тайм-аут'))));
     };
     get('https://doi.org/' + doi.split('/').map(encodeURIComponent).join('/'), 0);
   });
@@ -297,16 +298,16 @@ function fetchBibtex(doi) {
 async function bibFromDoi() {
   const ed = vscode.window.activeTextEditor;
   const root = workspaceRoot(ed && ed.document);
-  if (!root) { warn('Відкрий папку проєкту.'); return; }
-  const input = await vscode.window.showInputBox({ prompt: 'DOI або посилання doi.org', placeHolder: '10.1002/andp.19053221004' });
+  if (!root) { warn(tr('Відкрий папку проєкту.')); return; }
+  const input = await vscode.window.showInputBox({ prompt: tr('DOI або посилання doi.org'), placeHolder: '10.1002/andp.19053221004' });
   if (!input) return;
   const doi = X.normalizeDoi(input);
-  if (!doi) { warn('Не схоже на DOI (очікується 10.xxxx/…).'); return; }
+  if (!doi) { warn(tr('Не схоже на DOI (очікується 10.xxxx/…).')); return; }
   let raw;
   try {
     raw = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'DOI → BibTeX…' }, () => fetchBibtex(doi));
   } catch (err) {
-    warn('Не вдалося отримати запис: ' + (err && err.message ? err.message : err));
+    warn(tr('Не вдалося отримати запис: {0}', err && err.message ? err.message : err));
     return;
   }
   // which .bib file
@@ -316,7 +317,7 @@ async function bibFromDoi() {
     const found = await vscode.workspace.findFiles('**/*.bib', EXCLUDE, 20);
     if (found.length === 1) bibUri = found[0];
     else if (found.length > 1) {
-      const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { placeHolder: 'У який .bib додати запис?' });
+      const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { placeHolder: tr('У який .bib додати запис?') });
       if (!pick) return;
       bibUri = pick.uri;
     } else {
@@ -327,10 +328,10 @@ async function bibFromDoi() {
   const bdoc = await vscode.workspace.openTextDocument(bibUri);
   const entry0 = X.formatBibtex(raw);
   const key0 = X.bibKeyOf(entry0);
-  if (!key0) { warn('Відповідь не схожа на запис BibTeX:\n' + raw.slice(0, 200)); return; }
+  if (!key0) { warn(tr('Відповідь не схожа на запис BibTeX:\n{0}', raw.slice(0, 200))); return; }
   const existing = X.bibKeys(bdoc.getText());
   if (bdoc.getText().toLowerCase().includes(doi.toLowerCase())) {
-    warn('Запис з цим DOI вже є в ' + vscode.workspace.asRelativePath(bibUri) + '.');
+    warn(tr('Запис з цим DOI вже є в {0}.', vscode.workspace.asRelativePath(bibUri)));
     return;
   }
   const key = X.uniqueKey(key0, existing);
@@ -345,29 +346,29 @@ async function bibFromDoi() {
   if (ed && ed.document.uri.fsPath !== bibUri.fsPath && /^(latex|tex)$/.test(ed.document.languageId)) {
     await ed.edit((b) => b.replace(ed.selection, '\\cite{' + key + '}'));
   }
-  info('Додано ' + key + ' у ' + vscode.workspace.asRelativePath(bibUri) + (key !== key0 ? ' (ключ змінено, бо ' + key0 + ' уже є)' : '') + '.');
+  info(tr('Додано {0} у {1}', key, vscode.workspace.asRelativePath(bibUri)) + (key !== key0 ? tr(' (ключ змінено, бо {0} уже є)', key0) : '') + '.');
 }
 
 /* ================================== latexdiff ==================================== */
 async function latexdiffCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !/^(latex|tex)$/.test(ed.document.languageId)) { warn('Відкрий .tex файл розділу.'); return; }
+  if (!ed || !/^(latex|tex)$/.test(ed.document.languageId)) { warn(tr('Відкрий .tex файл розділу.')); return; }
   const doc = ed.document;
   if (doc.isDirty) await doc.save();
   const root = workspaceRoot(doc);
   const rel = posix(path.relative(root, doc.uri.fsPath));
   let log;
   try { log = await run('git', ['log', '-n', '40', '--format=%h%x09%s%x09%cr', '--', rel], { cwd: root }); } catch (err) {
-    warn('git недоступний або це не репозиторій: ' + (err && err.message ? err.message : err));
+    warn(tr('git недоступний або це не репозиторій: {0}', err && err.message ? err.message : err));
     return;
   }
-  const items = [{ label: 'HEAD', description: 'останній коміт', rev: 'HEAD' }]
+  const items = [{ label: 'HEAD', description: tr('останній коміт'), rev: 'HEAD' }]
     .concat(X.parseGitLog(log).map((c) => ({ label: c.hash, description: c.subject, detail: c.when, rev: c.hash })));
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'З якою ревізією порівняти ' + path.basename(doc.uri.fsPath) + '?' });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('З якою ревізією порівняти {0}?', path.basename(doc.uri.fsPath)) });
   if (!pick) return;
   let oldText;
   try { oldText = await run('git', ['show', pick.rev + ':' + rel], { cwd: root }); } catch (err) {
-    warn('У ревізії ' + pick.rev + ' цього файла немає: ' + ((err && err.stderr) || err.message || err));
+    warn(tr('У ревізії {0} цього файла немає: {1}', pick.rev, (err && err.stderr) || err.message || err));
     return;
   }
   const tmp = path.join(os.tmpdir(), 'tss-old-' + path.basename(doc.uri.fsPath));
@@ -378,7 +379,7 @@ async function latexdiffCmd() {
   try {
     diff = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'latexdiff…' }, () => run(cmd, args, { cwd: root }));
   } catch (err) {
-    warn('latexdiff не спрацював (' + (err && err.code === 'ENOENT' ? 'не знайдено «' + cmd + '», він є в TeX Live' : (err.stderr || err.message || err).toString().slice(0, 300)) + ').');
+    warn(tr('latexdiff не спрацював ({0}).', err && err.code === 'ENOENT' ? tr('не знайдено «{0}», він є в TeX Live', cmd) : (err.stderr || err.message || err).toString().slice(0, 300)));
     return;
   } finally {
     try { fs.unlinkSync(tmp); } catch (e) { /* ignore */ }
@@ -396,10 +397,10 @@ async function latexdiffCmd() {
   const od = await vscode.workspace.openTextDocument(vscode.Uri.file(outPath));
   await vscode.window.showTextDocument(od, { preview: false });
   if (isChapter) {
-    info('Зміни від ' + pick.rev + ' записано в ' + outStem + '/' + outStem + '.tex. Збираю як розділ…');
+    info(tr('Зміни від {0} записано в {1}/{1}.tex. Збираю як розділ…', pick.rev, outStem));
     vscode.commands.executeCommand('tssworkflow.compilePdf');
   } else {
-    info('latexdiff записано в ' + vscode.workspace.asRelativePath(outPath) + '. Це не розділ-папка, тому збирати його треба самому.');
+    info(tr('latexdiff записано в {0}. Це не розділ-папка, тому збирати його треба самому.', vscode.workspace.asRelativePath(outPath)));
   }
 }
 
@@ -416,9 +417,8 @@ function refreshStale() {
   if (!X.isStale(auxM, lastSave)) { staleItem.hide(); return; }
   const t = new Date(auxM);
   const hhmm = String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
-  staleItem.text = '$(history) refs застарілі';
-  staleItem.tooltip = 'Посилання (\\ref), зміст і номери беруться з ' + job + '.aux, оновленого о ' + hhmm +
-    ', а файли змінено пізніше. Клік: зібрати весь документ.';
+  staleItem.text = tr('$(history) refs застарілі');
+  staleItem.tooltip = tr('Посилання (\\ref), зміст і номери беруться з {0}.aux, оновленого о {1}, а файли змінено пізніше. Клік: зібрати весь документ.', job, hhmm);
   staleItem.command = 'tssworkflow.compileMainPdf';
   staleItem.show();
 }
@@ -453,7 +453,7 @@ const logFixes = {
         const we = new vscode.WorkspaceEdit();
         we.createFile(target, { ignoreIfExists: true });
         we.insert(target, new vscode.Position(0, 0), tpl);
-        const a = new vscode.CodeAction('Створити tikz/' + name + ' із заготовки', QF);
+        const a = new vscode.CodeAction(tr('Створити tikz/{0} із заготовки', name), QF);
         a.diagnostics = [d];
         a.edit = we;
         out.push(a);
@@ -471,7 +471,7 @@ const logFixes = {
           if (fix) {
             const we = new vscode.WorkspaceEdit();
             we.replace(u, new vscode.Range(target.positionAt(fix.start), target.positionAt(fix.end)), fix.replacement);
-            const a = new vscode.CodeAction('Оголосити шар «' + lm[1] + '» і додати в \\pgfsetlayers (' + vscode.workspace.asRelativePath(u) + ')', QF);
+            const a = new vscode.CodeAction(tr('Оголосити шар «{0}» і додати в \\pgfsetlayers ({1})', lm[1], vscode.workspace.asRelativePath(u)), QF);
             a.diagnostics = [d];
             a.edit = we;
             a.isPreferred = true;
@@ -492,7 +492,7 @@ const logFixes = {
             if (at >= 0) {
               const we = new vscode.WorkspaceEdit();
               we.insert(mdoc.uri, new vscode.Position(at, 0), '\\tracinglostchars=3 % TSS: тимчасово, прибрати після пошуку' + EOL(mdoc));
-              const a = new vscode.CodeAction('Додати \\tracinglostchars=3 у ' + path.basename(mainPath) + ' (помилка з реальним рядком)', QF);
+              const a = new vscode.CodeAction(tr('Додати \\tracinglostchars=3 у {0} (помилка з реальним рядком)', path.basename(mainPath)), QF);
               a.diagnostics = [d];
               a.edit = we;
               out.push(a);

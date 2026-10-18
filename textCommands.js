@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const P = require('./corePure');
 const { cfg, chunkRange, docLines, info, linesOf, replaceLines } = require('./util');
+const { tr } = require('./i18n');
 
 /* --------------------- wrap / typography / sentences ----------------- */
 async function transformParagraph(fn, doneMessage) {
@@ -14,7 +15,7 @@ async function transformParagraph(fn, doneMessage) {
   const old = linesOf(ed.document, r.startLine, r.endLine);
   const res = fn(old, ed);
   if (res.lines.length === old.length && res.lines.every((l, i) => l === old[i])) {
-    vscode.window.setStatusBarMessage('Нічого змінювати', 2000);
+    vscode.window.setStatusBarMessage(tr('Нічого змінювати'), 2000);
     return;
   }
   await replaceLines(ed, r.startLine, r.endLine, res.lines);
@@ -33,7 +34,7 @@ const typographyCmd = () =>
       const r = P.typography(old.join('\n'), { quotes: cfg().get('quoteStyle', 'guillemets') });
       return { lines: r.text.split('\n'), count: r.count };
     },
-    (r) => 'Типографіку виправлено: ' + r.count + ' місць'
+    (r) => tr('Типографіку виправлено: {0} місць', r.count)
   );
 
 const sentencesCmd = () => transformParagraph((old) => ({ lines: P.sentenceLines(old) }));
@@ -44,7 +45,7 @@ function findTableBlock(ed) {
   if (!ed.selection.isEmpty) return chunkRange(ed);
   const blk = P.tableBlockLines(docLines(doc), ed.selection.active.line);
   if (!blk || blk.endLine < blk.startLine) {
-    info('Постав курсор усередину таблиці (tblr, tabular, align...) або виділи рядки.');
+    info(tr('Постав курсор усередину таблиці (tblr, tabular, align...) або виділи рядки.'));
     return null;
   }
   return blk;
@@ -56,13 +57,13 @@ async function tableOps() {
   const blk = findTableBlock(ed);
   if (!blk) return;
   const items = [
-    { label: 'Додати стовпчик праворуч від поточного', op: 'addRight' },
-    { label: 'Додати стовпчик ліворуч від поточного', op: 'addLeft' },
-    { label: 'Видалити поточний стовпчик', op: 'delete' },
-    { label: 'Сортувати рядки за поточним стовпчиком (перший рядок лишається заголовком)', op: 'sort' },
-    { label: 'Транспонувати таблицю', op: 'transpose' }
+    { label: tr('Додати стовпчик праворуч від поточного'), op: 'addRight' },
+    { label: tr('Додати стовпчик ліворуч від поточного'), op: 'addLeft' },
+    { label: tr('Видалити поточний стовпчик'), op: 'delete' },
+    { label: tr('Сортувати рядки за поточним стовпчиком (перший рядок лишається заголовком)'), op: 'sort' },
+    { label: tr('Транспонувати таблицю'), op: 'transpose' }
   ];
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Дія з таблицею' });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Дія з таблицею') });
   if (!pick) return;
   const old = linesOf(ed.document, blk.startLine, blk.endLine);
   const idx = ed.selection.active.line - blk.startLine;
@@ -70,7 +71,7 @@ async function tableOps() {
   const res = P.tableOp(old, pick.op, col);
   if (res.error) { vscode.window.showWarningMessage(res.error); return; }
   await replaceLines(ed, blk.startLine, blk.endLine, P.alignLines(res.lines));
-  if (pick.op !== 'sort') info('Оновлено вміст таблиці. Специфікацію стовпців (colspec / {ccc}) перевір і зміни вручну.');
+  if (pick.op !== 'sort') info(tr('Оновлено вміст таблиці. Специфікацію стовпців (colspec / {ccc}) перевір і зміни вручну.'));
 }
 
 /* --------------------------- environments ---------------------------- */
@@ -110,12 +111,12 @@ async function displayToEquation() {
     if (ed.selection.end.character === 0 && e > s) e--;
   } else {
     const blk = displayBlockAround(all, ed.selection.active.line);
-    if (!blk) { info('Постав курсор усередину \\[ ... \\] або виділи рядки з такими формулами.'); return; }
+    if (!blk) { info(tr('Постав курсор усередину \\[ ... \\] або виділи рядки з такими формулами.')); return; }
     s = blk.s;
     e = blk.e;
   }
   const res = P.displayMathToEquation(all.slice(s, e + 1));
-  if (!res.count) { info('Формул \\[ ... \\] для заміни не знайдено.'); return; }
+  if (!res.count) { info(tr('Формул \\[ ... \\] для заміни не знайдено.')); return; }
   await replaceLines(ed, s, e, res.lines);
   vscode.window.setStatusBarMessage('\\[ ... \\] → equation*: ' + res.count, 3000);
 }
@@ -124,10 +125,10 @@ async function convertEnv() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
   const items = P.CONVERTIBLE.map((n) => ({ label: n, choice: n })).concat([
-    { label: '+ додати \\label{eq:}', choice: '+label' },
-    { label: '− прибрати \\label', choice: '-label' }
+    { label: tr('+ додати \\label{eq:}'), choice: '+label' },
+    { label: tr('− прибрати \\label'), choice: '-label' }
   ]);
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Перетворити середовище формули' });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Перетворити середовище формули') });
   if (!pick) return;
   const res = P.convertEnv(docLines(ed.document), ed.selection.active.line, pick.choice);
   if (res.error) { vscode.window.showWarningMessage(res.error); return; }
@@ -175,14 +176,14 @@ async function applyWithPreview(ed, s, e, newLines, title, summary) {
   const version = doc.version;
   let pick;
   try {
-    await vscode.commands.executeCommand('vscode.diff', doc.uri, right, title + ': перегляд змін (ліворуч поточний, праворуч новий текст)', { preview: true });
-    pick = await vscode.window.showInformationMessage(summary, 'Застосувати', 'Скасувати');
+    await vscode.commands.executeCommand('vscode.diff', doc.uri, right, title + tr(': перегляд змін (ліворуч поточний, праворуч новий текст)'), { preview: true });
+    pick = await vscode.window.showInformationMessage(summary, tr('Застосувати'), tr('Скасувати'));
     await closePreview(right);
   } finally {
     previewDocs.delete(right.toString()); // also when the diff could not be opened: the new text must not stay in the Map
   }
-  if (pick !== 'Застосувати') return false;
-  if (doc.version !== version) { info('Файл змінився під час перегляду, зміни не застосовано.'); return false; }
+  if (pick !== tr('Застосувати')) return false;
+  if (doc.version !== version) { info(tr('Файл змінився під час перегляду, зміни не застосовано.')); return false; }
   const ed2 = await vscode.window.showTextDocument(doc, { viewColumn: ed.viewColumn, preserveFocus: false });
   await replaceLines(ed2, s, e, newLines);
   return true;
@@ -192,12 +193,12 @@ function wholeOrSelection(ed) {
   const doc = ed.document;
   let s = 0;
   let e = doc.lineCount - 1;
-  let scope = 'у файлі';
+  let scope = tr('у файлі');
   if (!ed.selection.isEmpty) {
     s = ed.selection.start.line;
     e = ed.selection.end.line;
     if (ed.selection.end.character === 0 && e > s) e--;
-    scope = 'у виділенні';
+    scope = tr('у виділенні');
   }
   return { s, e, scope };
 }
@@ -213,7 +214,7 @@ function frameSettings() {
     if (v.trim() === '' || P.isRuleLine(v)) rules[k] = v;
     else bad.push(k);
   }
-  if (bad.length) info('tssworkflow.frameRules: «' + bad.join('», «') + '» пропущено. Рядок має бути коментарем із 8 і більше однакових символів - = * # _ ~ . , наприклад "%% ---------".');
+  if (bad.length) info(tr('tssworkflow.frameRules: «{0}» пропущено. Рядок має бути коментарем із 8 і більше однакових символів - = * # _ ~ . , наприклад "%% ---------".', bad.join('», «')));
   return { rules, opts: { blank: cfg().get('frameBlankLines', true), envs: cfg().get('frameEnvironments', []) || [] } };
 }
 
@@ -221,36 +222,36 @@ function frameSettings() {
 async function frameSectionsCmd(replace) {
   replace = replace === true;
   const ed = vscode.window.activeTextEditor;
-  if (!ed) { info('Відкрий .tex-файл.'); return; }
+  if (!ed) { info(tr('Відкрий .tex-файл.')); return; }
   const { s, e, scope } = wholeOrSelection(ed);
   const fs0 = frameSettings();
   const res = P.frameSections(linesOf(ed.document, s, e), fs0.rules, Object.assign({}, fs0.opts, { replace }));
   const st = res.stat;
   if (!res.count) {
     const why = st.found
-      ? 'знайдено ' + st.found + ', уже обрамлено ' + st.already + (st.skipped ? ', пропущено ' + st.skipped + ' (текст у тому ж рядку)' : '')
-      : 'заголовків і формульних середовищ ' + scope + ' не знайдено';
-    info((replace ? 'Нічого перебудовувати: ' : 'Нічого обрамляти: ') + why + '.');
+      ? tr('знайдено {0}, уже обрамлено {1}', st.found, st.already) + (st.skipped ? tr(', пропущено {0} (текст у тому ж рядку)', st.skipped) : '')
+      : tr('заголовків і формульних середовищ {0} не знайдено', scope);
+    info(replace ? tr('Нічого перебудовувати: {0}.', why) : tr('Нічого обрамляти: {0}.', why));
     return;
   }
-  const title = replace ? 'Переобрамлення' : 'Обрамлення';
-  const sum = title + ': заголовків ' + st.sections + ', формул ' + st.equations + (replace && st.replaced ? '; замінено старих рамок: ' + st.replaced : '') + (st.already ? '; уже були обрамлені: ' + st.already : '') + (st.skipped ? '; пропущено: ' + st.skipped : '') + '.';
+  const title = replace ? tr('Переобрамлення') : tr('Обрамлення');
+  const sum = tr('{0}: заголовків {1}, формул {2}', title, st.sections, st.equations) + (replace && st.replaced ? tr('; замінено старих рамок: {0}', st.replaced) : '') + (st.already ? tr('; уже були обрамлені: {0}', st.already) : '') + (st.skipped ? tr('; пропущено: {0}', st.skipped) : '') + '.';
   if (await applyWithPreview(ed, s, e, res.lines, title, sum)) vscode.window.setStatusBarMessage(sum, 4000);
 }
 
 // the steps of "Normalize file" and their settings (see also normalizeOptions)
-const NORM_STEPS = [
-  { key: 'normalizeTypography', label: 'Типографіка (~, ---, «»)' },
-  { key: 'displayMathToEquation', label: 'Формули \\[ ... \\] → equation*' },
-  { key: 'normalizeTables', label: 'Вирівнювання таблиць по &' },
-  { key: 'normalizeFrames', label: 'Обрамлення заголовків і формул' },
-  { key: 'normalizeBlankLines', label: 'Порожні рядки (між абзацами й навколо заголовків)' }
+const normSteps = () => [
+  { key: 'normalizeTypography', label: tr('Типографіка (~, ---, «»)') },
+  { key: 'displayMathToEquation', label: tr('Формули \\[ ... \\] → equation*') },
+  { key: 'normalizeTables', label: tr('Вирівнювання таблиць по &') },
+  { key: 'normalizeFrames', label: tr('Обрамлення заголовків і формул') },
+  { key: 'normalizeBlankLines', label: tr('Порожні рядки (між абзацами й навколо заголовків)') }
 ];
-const LINE_MODES = { keep: 'переноси рядків не чіпати', join: 'рядки абзацу склеювати', wrap: 'рядки переносити за шириною' };
+const lineMode = (m) => ({ keep: tr('переноси рядків не чіпати'), join: tr('рядки абзацу склеювати'), wrap: tr('рядки переносити за шириною') }[m]);
 
 async function normalizeCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed) { info('Відкрий .tex-файл.'); return; }
+  if (!ed) { info(tr('Відкрий .tex-файл.')); return; }
   const { s, e } = wholeOrSelection(ed);
   const c = cfg();
   const mode = c.get('normalizeLineBreaks', 'keep');
@@ -273,15 +274,15 @@ async function normalizeCmd() {
   });
   const st = res.stats;
   const parts = [];
-  if (c.get('normalizeTypography', true)) parts.push('типографія ' + st.typography);
+  if (c.get('normalizeTypography', true)) parts.push(tr('типографія {0}', st.typography));
   if (c.get('displayMathToEquation', true)) parts.push('\\[...\\] → equation* ' + st.displayMath);
-  if (c.get('normalizeTables', true)) parts.push('таблиць вирівняно ' + st.tables);
-  if (mode === 'join' || mode === 'wrap') parts.push((mode === 'join' ? 'склеєно рядків ' : 'змінено рядків ') + st.lineBreaks);
-  if (framesOn) parts.push('обрамлено ' + st.frames);
-  if (c.get('normalizeBlankLines', true)) parts.push('проміжків між абзацами й заголовками ' + st.blank);
-  const sum = 'Нормалізація: ' + (parts.join(', ') || 'жодного кроку не ввімкнено') + '.';
-  if (await applyWithPreview(ed, s, e, res.lines, 'Нормалізація', sum)) vscode.window.setStatusBarMessage(sum, 4000);
-  else if (res.lines.length === e - s + 1 && res.lines.every((l, i) => l === ed.document.lineAt(s + i).text)) info('Нормалізація: змін немає.' + (ed.document.uri.fsPath.toLowerCase().endsWith('.tikz') ? ' У .tikz-файлах переноси рядків і порожні рядки не змінюються.' : ' (' + LINE_MODES[mode] + ')'));
+  if (c.get('normalizeTables', true)) parts.push(tr('таблиць вирівняно {0}', st.tables));
+  if (mode === 'join' || mode === 'wrap') parts.push(mode === 'join' ? tr('склеєно рядків {0}', st.lineBreaks) : tr('змінено рядків {0}', st.lineBreaks));
+  if (framesOn) parts.push(tr('обрамлено {0}', st.frames));
+  if (c.get('normalizeBlankLines', true)) parts.push(tr('проміжків між абзацами й заголовками {0}', st.blank));
+  const sum = tr('Нормалізація: {0}.', parts.join(', ') || tr('жодного кроку не ввімкнено'));
+  if (await applyWithPreview(ed, s, e, res.lines, tr('Нормалізація'), sum)) vscode.window.setStatusBarMessage(sum, 4000);
+  else if (res.lines.length === e - s + 1 && res.lines.every((l, i) => l === ed.document.lineAt(s + i).text)) info(tr('Нормалізація: змін немає.') + (ed.document.uri.fsPath.toLowerCase().endsWith('.tikz') ? tr(' У .tikz-файлах переноси рядків і порожні рядки не змінюються.') : ' (' + lineMode(mode) + ')'));
 }
 
 // writes a setting where it is currently defined (folder, workspace, else user settings)
@@ -297,41 +298,41 @@ async function setCfg(key, value) {
 // quick pick: which steps Normalize runs and what it does with line breaks
 async function normalizeOptions() {
   const c = cfg();
-  const items = NORM_STEPS.map((x) => ({ label: x.label, key: x.key, picked: c.get(x.key, true) }));
-  const picked = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: 'Що виконує Normalize file (відміть потрібне, Esc скасовує)' });
+  const items = normSteps().map((x) => ({ label: x.label, key: x.key, picked: c.get(x.key, true) }));
+  const picked = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: tr('Що виконує Normalize file (відміть потрібне, Esc скасовує)') });
   if (!picked) return;
   const cur = c.get('normalizeLineBreaks', 'keep');
   const modes = [
-    { label: 'Не чіпати переноси рядків', v: 'keep' },
-    { label: 'Склеїти рядки кожного абзацу в один', v: 'join' },
-    { label: 'Переносити рядки за шириною (tssworkflow.wrapWidth)', v: 'wrap' }
-  ].map((m) => Object.assign(m, { description: m.v === cur ? 'зараз' : '' }));
-  const m = await vscode.window.showQuickPick(modes, { placeHolder: 'Переноси рядків у Normalize file' });
+    { label: tr('Не чіпати переноси рядків'), v: 'keep' },
+    { label: tr('Склеїти рядки кожного абзацу в один'), v: 'join' },
+    { label: tr('Переносити рядки за шириною (tssworkflow.wrapWidth)'), v: 'wrap' }
+  ].map((m) => Object.assign(m, { description: m.v === cur ? tr('зараз') : '' }));
+  const m = await vscode.window.showQuickPick(modes, { placeHolder: tr('Переноси рядків у Normalize file') });
   if (!m) return;
   let width = c.get('wrapWidth', 90);
   if (m.v === 'wrap') {
     const w = await vscode.window.showInputBox({
-      prompt: 'Ширина рядка (символів)',
+      prompt: tr('Ширина рядка (символів)'),
       value: String(width),
-      validateInput: (v) => (/^\d+$/.test(v.trim()) && Number(v) >= 20 ? null : 'Ціле число, не менше 20')
+      validateInput: (v) => (/^\d+$/.test(v.trim()) && Number(v) >= 20 ? null : tr('Ціле число, не менше 20'))
     });
     if (w === undefined) return;
     width = Number(w);
   }
   const curQ = c.get('quoteStyle', 'guillemets');
   const quoteModes = [
-    { label: 'Лапки «...»', description: '"..." і ``...\'\' стають «...»', v: 'guillemets' },
-    { label: 'Лапки \\enquote{...}', description: '"...", <<...>>, «...» стають \\enquote{...} (потрібен csquotes)', v: 'enquote' },
-    { label: 'Лапки не чіпати', description: '', v: 'keep' }
-  ].map((q) => Object.assign(q, { detail: q.v === curQ ? 'зараз' : undefined }));
-  const q = await vscode.window.showQuickPick(quoteModes, { placeHolder: 'Лапки в типографіці й Normalize file' });
+    { label: tr('Лапки «...»'), description: tr('"..." і ``...\'\' стають «...»'), v: 'guillemets' },
+    { label: tr('Лапки \\enquote{...}'), description: tr('"...", <<...>>, «...» стають \\enquote{...} (потрібен csquotes)'), v: 'enquote' },
+    { label: tr('Лапки не чіпати'), description: '', v: 'keep' }
+  ].map((q) => Object.assign(q, { detail: q.v === curQ ? tr('зараз') : undefined }));
+  const q = await vscode.window.showQuickPick(quoteModes, { placeHolder: tr('Лапки в типографіці й Normalize file') });
   if (!q) return;
   const on = new Set(picked.map((x) => x.key));
-  for (const x of NORM_STEPS) await setCfg(x.key, on.has(x.key));
+  for (const x of normSteps()) await setCfg(x.key, on.has(x.key));
   await setCfg('normalizeLineBreaks', m.v);
   await setCfg('quoteStyle', q.v);
   if (m.v === 'wrap') await setCfg('wrapWidth', width);
-  info('Normalize file: ' + [...on].length + ' з ' + NORM_STEPS.length + ' кроків, ' + LINE_MODES[m.v] + (m.v === 'wrap' ? ' (' + width + ')' : '') + '.');
+  info(tr('Normalize file: {0} з {1} кроків, {2}', [...on].length, normSteps().length, lineMode(m.v)) + (m.v === 'wrap' ? ' (' + width + ')' : '') + '.');
 }
 
 module.exports = {
