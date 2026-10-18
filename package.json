@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.21.1",
+  "version": "0.21.3",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1072,7 +1072,7 @@
           "enum": ["uk", "en", "auto"],
           "enumDescriptions": [
             "Ukrainian messages and reports (as before)",
-            "English messages and reports where a translation exists (build and its status bar, the log of LaTeX and Problems, the project reports, snapshots, rename and move of chapters, replace in project, notation, terms); the rest stays Ukrainian for now",
+            "English messages and reports where a translation exists (build and its status bar, the log of LaTeX and Problems, labels and files: rename of labels and files, packages, tables, .bib, equations, the project reports, snapshots, rename and move of chapters, replace in project, notation, terms); the rest stays Ukrainian for now",
             "English unless the display language of VS Code is Ukrainian"
           ],
           "description": "Language of the messages, prompts and reports of the extension. Partly translated: see the changelog for what is covered."
@@ -1677,14 +1677,16 @@
           "type": "string",
           "enum": [
             "uk",
-            "en"
+            "en",
+            "auto"
           ],
           "enumDescriptions": [
             "Ukrainian labels",
-            "English labels (the titles of the commands)"
+            "English labels (the titles of the commands)",
+            "As the setting tssworkflow.language says (with tssworkflow.language = auto: English unless VS Code is Ukrainian)"
           ],
-          "default": "uk",
-          "description": "Language of the labels in the Activity Bar panel"
+          "default": "auto",
+          "description": "Language of the labels in the Activity Bar panel. The default follows tssworkflow.language, which is Ukrainian by default, so nothing changes until that one is set."
         },
         "tssworkflow.statusBarMain": {
           "type": "boolean",

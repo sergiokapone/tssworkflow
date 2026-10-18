@@ -12,6 +12,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
+const { tr } = require('./i18n');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
 const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, textOfPath, warn } = require('./util');
@@ -174,14 +175,14 @@ const fileFixes = {
       if (code === 'input-root-path') {
         const x = all.find((y) => y.line === d.range.start.line && y.col === d.range.start.character);
         if (!x) continue;
-        const a = new vscode.CodeAction('Замінити на шлях від кореня: ' + x.fix, vscode.CodeActionKind.QuickFix);
+        const a = new vscode.CodeAction(tr('Замінити на шлях від кореня: {0}', x.fix), vscode.CodeActionKind.QuickFix);
         a.diagnostics = [d];
         a.isPreferred = true;
         a.edit = new vscode.WorkspaceEdit();
         a.edit.replace(doc.uri, d.range, x.fix);
         out.push(a);
         if (all.length > 1) {
-          const b = new vscode.CodeAction('Виправити всі шляхи від кореня в файлі: ' + all.length, vscode.CodeActionKind.QuickFix);
+          const b = new vscode.CodeAction(tr('Виправити всі шляхи від кореня в файлі: {0}', all.length), vscode.CodeActionKind.QuickFix);
           b.diagnostics = [d];
           b.edit = new vscode.WorkspaceEdit();
           for (const y of all) b.edit.replace(doc.uri, new vscode.Range(y.line, y.col, y.line, y.col + y.len), y.fix);
@@ -242,15 +243,15 @@ async function onRenamed(e) {
     }
     if (!count) continue;
     if (mode === 'ask') {
-      const pick = await info('«' + path.basename(oldAbs) + '» перейменовано на «' + path.basename(newAbs) + '». Оновити ' + count + ' посилань у ' + plan.length + ' файлах?', 'Оновити', 'Ні');
-      if (pick !== 'Оновити') continue;
+      const pick = await info(tr('«{0}» перейменовано на «{1}». Оновити {2} посилань у {3} файлах?', path.basename(oldAbs), path.basename(newAbs), count, plan.length), tr('Оновити'), tr('Ні'));
+      if (pick !== tr('Оновити')) continue;
     }
     const we = new vscode.WorkspaceEdit();
     for (const p of plan) for (const ed of p.edits) we.replace(vscode.Uri.file(p.file.abs), new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText);
     if (await vscode.workspace.applyEdit(we)) {
       await saveDirtyDocs(plan.map((p) => p.file.abs));
-      vscode.window.setStatusBarMessage('Оновлено посилань: ' + count + ' у ' + plan.length + ' файлах', 5000);
-    } else warn('Не вдалося оновити посилання на ' + path.basename(oldAbs) + '.');
+      vscode.window.setStatusBarMessage(tr('Оновлено посилань: {0} у {1} файлах', count, plan.length), 5000);
+    } else warn(tr('Не вдалося оновити посилання на {0}.', path.basename(oldAbs)));
   }
 }
 
@@ -271,14 +272,14 @@ async function onMovedTex(e) {
     const edits = X.renameSelfRefs(lines, tbl, Object.assign({}, base, { dir: path.dirname(oldAbs) }), path.dirname(newAbs));
     if (!edits.length) continue;
     if (mode === 'ask') {
-      const pick = await info('«' + path.basename(newAbs) + '» переміщено в іншу папку. Оновити ' + edits.length + ' шляхів усередині нього (рисунки, tikz)?', 'Оновити', 'Ні');
-      if (pick !== 'Оновити') continue;
+      const pick = await info(tr('«{0}» переміщено в іншу папку. Оновити {1} шляхів усередині нього (рисунки, tikz)?', path.basename(newAbs), edits.length), tr('Оновити'), tr('Ні'));
+      if (pick !== tr('Оновити')) continue;
     }
     const we = new vscode.WorkspaceEdit();
     for (const ed of edits) we.replace(f.newUri, new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText);
     if (await vscode.workspace.applyEdit(we)) {
       await saveDirtyDocs([newAbs]);
-      vscode.window.setStatusBarMessage('Оновлено шляхів у ' + path.basename(newAbs) + ': ' + edits.length, 5000);
+      vscode.window.setStatusBarMessage(tr('Оновлено шляхів у {0}: {1}', path.basename(newAbs), edits.length), 5000);
     }
   }
 }
@@ -297,15 +298,15 @@ const packageFixes = {
       if (!miss.length) continue;
       const cmds = X.tlmgrCommands(miss, cmdBase);
       if (cmds.install) {
-        const a = new vscode.CodeAction('Скопіювати: ' + cmds.install, vscode.CodeActionKind.QuickFix);
+        const a = new vscode.CodeAction(tr('Скопіювати: {0}', cmds.install), vscode.CodeActionKind.QuickFix);
         a.diagnostics = [d];
         a.isPreferred = true;
-        a.command = { command: 'tssworkflow._copyText', title: 'copy', arguments: [cmds.install, 'Команду скопійовано: ' + cmds.install] };
+        a.command = { command: 'tssworkflow._copyText', title: 'copy', arguments: [cmds.install, tr('Команду скопійовано: {0}', cmds.install)] };
         out.push(a);
       }
-      const s = new vscode.CodeAction('Скопіювати пошук пакета: ' + cmds.search[0], vscode.CodeActionKind.QuickFix);
+      const s = new vscode.CodeAction(tr('Скопіювати пошук пакета: {0}', cmds.search[0]), vscode.CodeActionKind.QuickFix);
       s.diagnostics = [d];
-      s.command = { command: 'tssworkflow._copyText', title: 'copy', arguments: [cmds.search[0], 'Команду скопійовано: ' + cmds.search[0]] };
+      s.command = { command: 'tssworkflow._copyText', title: 'copy', arguments: [cmds.search[0], tr('Команду скопійовано: {0}', cmds.search[0])] };
       out.push(s);
     }
     return out;
@@ -339,17 +340,17 @@ function missingFromLog() {
 
 async function missingPackagesCmd() {
   const { missing, log } = missingFromLog();
-  if (!log) { info('Немає файла .log у корені проєкту: спершу збери документ.'); return; }
-  if (!missing.length) { info('У ' + path.basename(log) + ' немає «File … not found»: усі пакети на місці.'); return; }
+  if (!log) { info(tr('Немає файла .log у корені проєкту: спершу збери документ.')); return; }
+  if (!missing.length) { info(tr('У {0} немає «File … not found»: усі пакети на місці.', path.basename(log))); return; }
   const cmds = X.tlmgrCommands(missing, String(cfg().get('tlmgrCommand', 'tlmgr install')));
   const names = missing.map((m) => m.file).join(', ');
   const buttons = [];
-  if (cmds.install) buttons.push('Скопіювати install');
-  buttons.push('Скопіювати пошук', 'Показати в терміналі');
-  const pick = await info('Бракує файлів: ' + names + '. ' + (cmds.install ? cmds.install : 'Для цих типів файлів спершу знайди пакет командою пошуку.'), ...buttons);
-  if (pick === 'Скопіювати install') await vscode.env.clipboard.writeText(cmds.install);
-  else if (pick === 'Скопіювати пошук') await vscode.env.clipboard.writeText(cmds.search.join('\n'));
-  else if (pick === 'Показати в терміналі') {
+  if (cmds.install) buttons.push(tr('Скопіювати install'));
+  buttons.push(tr('Скопіювати пошук'), tr('Показати в терміналі'));
+  const pick = await info(tr('Бракує файлів: {0}. ', names) + (cmds.install ? cmds.install : tr('Для цих типів файлів спершу знайди пакет командою пошуку.')), ...buttons);
+  if (pick === tr('Скопіювати install')) await vscode.env.clipboard.writeText(cmds.install);
+  else if (pick === tr('Скопіювати пошук')) await vscode.env.clipboard.writeText(cmds.search.join('\n'));
+  else if (pick === tr('Показати в терміналі')) {
     const t = vscode.window.createTerminal('TSS: tlmgr');
     t.show();
     t.sendText(cmds.install || cmds.search[0], false); // not executed: `sudo`, an update of tlmgr itself or a password may be needed
@@ -385,7 +386,7 @@ class LabelsProvider {
     const abs = new Map(list.map((f) => [f.path, f.abs]));
     for (const g of this.index.groups) g.abs = abs.get(g.path);
     this.index.groups.sort(byChapter(chapterOrder()));
-    if (this.view) this.view.description = this.index.total + ' міток' + (this.index.unused ? ' · без \\ref: ' + this.index.unused : '');
+    if (this.view) this.view.description = tr('{0} міток', this.index.total) + (this.index.unused ? tr(' · без \\ref: {0}', this.index.unused) : '');
     this._ev.fire();
   }
   toggleFilter() { this.onlyUnused = !this.onlyUnused; vscode.commands.executeCommand('setContext', 'tssworkflow.labelsOnlyUnused', this.onlyUnused); this._ev.fire(); }
@@ -394,14 +395,14 @@ class LabelsProvider {
     if (!el) {
       const groups = this.index.groups.map((g) => ({ g, labels: this.onlyUnused ? g.labels.filter((l) => !l.uses) : g.labels })).filter((x) => x.labels.length);
       if (!groups.length) {
-        const t = new vscode.TreeItem(this.onlyUnused ? 'Усі мітки мають \\ref' : 'У проєкті немає \\label');
+        const t = new vscode.TreeItem(this.onlyUnused ? tr('Усі мітки мають \\ref') : tr('У проєкті немає \\label'));
         t.iconPath = new vscode.ThemeIcon('check');
         return [t];
       }
       return groups.map(({ g, labels }) => {
         const unused = labels.filter((l) => !l.uses).length;
         const t = new vscode.TreeItem(g.path, vscode.TreeItemCollapsibleState.Expanded);
-        t.description = labels.length + (unused ? ' · без \\ref: ' + unused : '');
+        t.description = labels.length + (unused ? tr(' · без \\ref: {0}', unused) : '');
         t.iconPath = vscode.ThemeIcon.File;
         t.resourceUri = g.abs ? vscode.Uri.file(g.abs) : undefined;
         t.tssChildren = labels.map((l) => this.labelItem(g, l));
@@ -412,8 +413,8 @@ class LabelsProvider {
   }
   labelItem(g, l) {
     const t = new vscode.TreeItem(l.name, vscode.TreeItemCollapsibleState.None);
-    t.description = (l.ctx ? l.ctx + ' · ' : '') + (l.uses ? '×' + l.uses : 'немає \\ref');
-    t.tooltip = l.name + (l.ctx ? '\n' + l.ctx : '') + '\n' + g.path + ':' + (l.line + 1) + '\n' + (l.uses ? 'Посилань \\ref: ' + l.uses : 'Жодного \\ref на цю мітку');
+    t.description = (l.ctx ? l.ctx + ' · ' : '') + (l.uses ? '×' + l.uses : tr('немає \\ref'));
+    t.tooltip = l.name + (l.ctx ? '\n' + l.ctx : '') + '\n' + g.path + ':' + (l.line + 1) + '\n' + (l.uses ? tr('Посилань \\ref: {0}', l.uses) : tr('Жодного \\ref на цю мітку'));
     t.iconPath = new vscode.ThemeIcon(l.uses ? 'symbol-key' : 'warning');
     t.contextValue = l.uses ? 'tssLabel' : 'tssLabelUnused';
     t.tssLabel = l.name;
@@ -449,14 +450,14 @@ async function renameLabelCmd(arg) {
     }
   }
   if (!old) {
-    if (!all.length) { info('У проєкті немає \\label.'); return; }
-    const pick = await vscode.window.showQuickPick(all.map((a) => ({ label: a.name, description: a.g.path + ':' + (a.l.line + 1) + (a.l.ctx ? ' · ' + a.l.ctx : ''), name: a.name })), { placeHolder: 'Яку мітку перейменувати?', matchOnDescription: true });
+    if (!all.length) { info(tr('У проєкті немає \\label.')); return; }
+    const pick = await vscode.window.showQuickPick(all.map((a) => ({ label: a.name, description: a.g.path + ':' + (a.l.line + 1) + (a.l.ctx ? ' · ' + a.l.ctx : ''), name: a.name })), { placeHolder: tr('Яку мітку перейменувати?'), matchOnDescription: true });
     if (!pick) return;
     old = pick.name;
   }
   const next = await vscode.window.showInputBox({
-    prompt: 'Нова назва мітки «' + old + '» (усі \\ref, \\eqref, \\cref… теж зміняться)', value: old, ignoreFocusOut: true,
-    validateInput: (v) => (!LABEL_OK.test(v) ? 'Без пробілів, дужок, ком і %' : v !== old && all.some((a) => a.name === v) ? 'Така мітка вже є' : null)
+    prompt: tr('Нова назва мітки «{0}» (усі \\ref, \\eqref, \\cref… теж зміняться)', old), value: old, ignoreFocusOut: true,
+    validateInput: (v) => (!LABEL_OK.test(v) ? tr('Без пробілів, дужок, ком і %') : v !== old && all.some((a) => a.name === v) ? tr('Така мітка вже є') : null)
   });
   if (!next || next === old) return;
   const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty']);
@@ -467,16 +468,16 @@ async function renameLabelCmd(arg) {
     const edits = X.renameLabelEdits(f.text.split(/\r?\n/), old, next);
     for (const ed of edits) { we.replace(vscode.Uri.file(f.abs), new vscode.Range(ed.line, ed.col, ed.line, ed.col + ed.len), ed.newText); n++; touched.add(f.abs); }
   }
-  if (!n) { info('Входжень «' + old + '» не знайдено.'); return; }
-  if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося перейменувати.'); return; }
+  if (!n) { info(tr('Входжень «{0}» не знайдено.', old)); return; }
+  if (!(await vscode.workspace.applyEdit(we))) { warn(tr('Не вдалося перейменувати.')); return; }
   await saveDirtyDocs(touched);
-  vscode.window.setStatusBarMessage('Мітку перейменовано: ' + n + ' входжень у ' + touched.size + ' файлах', 6000);
+  vscode.window.setStatusBarMessage(tr('Мітку перейменовано: {0} входжень у {1} файлах', n, touched.size), 6000);
   if (labelsProv) labelsProv.schedule(300);
 }
 
 async function insertRef(name) {
   const ed = activeTexEditor();
-  if (!ed) { info('Відкрий .tex-файл, у який вставити \\ref.'); return; }
+  if (!ed) { info(tr('Відкрий .tex-файл, у який вставити \\ref.')); return; }
   const prefixes = cfg().get('labels.eqPrefixes', ['eq', 'eqn', 'equation', 'formula']);
   const text = X.refText(name, Array.isArray(prefixes) ? prefixes : undefined);
   await ed.edit((b) => ed.selections.forEach((s) => b.replace(s, text)));
@@ -512,17 +513,17 @@ async function removePackages(list, files) {
 
 async function unusedPackagesCmd() {
   const root = (vscode.workspace.workspaceFolders || [])[0];
-  if (!root) { info('Відкрий папку проєкту.'); return; }
+  if (!root) { info(tr('Відкрий папку проєкту.')); return; }
   const files = (await projectFiles(['.tex', '.cls', '.sty'], root.uri.fsPath)).map((f) => ({ path: f.path, abs: f.abs, lines: f.text.split(/\r?\n/) }));
   const res = X.unusedPackages(files);
-  if (!res.unused.length) { info('Невикористаних пакетів не знайдено (перевірено ' + res.checked + '; ще ' + res.skipped + ' пакетів немає в таблиці розпізнавання, їх не чіпаю).'); return; }
-  const items = res.unused.map((u) => ({ label: u.pkg, description: u.path + ':' + (u.line + 1), detail: 'У проєкті не знайдено жодної команди чи оточення цього пакета. Перевір вручну перед видаленням.', u }));
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Можливо зайві пакети: ' + res.unused.length + ' (перевірено ' + res.checked + ')' });
+  if (!res.unused.length) { info(tr('Невикористаних пакетів не знайдено (перевірено {0}; ще {1} пакетів немає в таблиці розпізнавання, їх не чіпаю).', res.checked, res.skipped)); return; }
+  const items = res.unused.map((u) => ({ label: u.pkg, description: u.path + ':' + (u.line + 1), detail: tr('У проєкті не знайдено жодної команди чи оточення цього пакета. Перевір вручну перед видаленням.'), u }));
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Можливо зайві пакети: {0} (перевірено {1})', res.unused.length, res.checked) });
   if (!pick) return;
   const act = await vscode.window.showQuickPick([
-    { label: '$(go-to-file) Перейти до рядка', id: 'go' },
-    { label: '$(trash) Видалити «' + pick.u.pkg + '» з \\usepackage', id: 'one' },
-    { label: '$(trash) Видалити всі ' + res.unused.length + ' знайдених', id: 'all' }
+    { label: tr('$(go-to-file) Перейти до рядка'), id: 'go' },
+    { label: tr('$(trash) Видалити «{0}» з \\usepackage', pick.u.pkg), id: 'one' },
+    { label: tr('$(trash) Видалити всі {0} знайдених', res.unused.length), id: 'all' }
   ], { placeHolder: pick.u.pkg + ' · ' + pick.u.path + ':' + (pick.u.line + 1) });
   if (!act) return;
   if (act.id === 'go') {
@@ -532,59 +533,59 @@ async function unusedPackagesCmd() {
   }
   const list = act.id === 'one' ? [pick.u] : res.unused;
   if (act.id === 'all') {
-    const ok = await vscode.window.showWarningMessage('Видалити ' + list.length + ' пакетів з \\usepackage? Це евристика: перевір збірку після цього (Ctrl+Z у кожному файлі скасовує).', { modal: true }, 'Видалити');
-    if (ok !== 'Видалити') return;
+    const ok = await vscode.window.showWarningMessage(tr('Видалити {0} пакетів з \\usepackage? Це евристика: перевір збірку після цього (Ctrl+Z у кожному файлі скасовує).', list.length), { modal: true }, tr('Видалити'));
+    if (ok !== tr('Видалити')) return;
   }
   const n = await removePackages(list, files);
-  info(n ? 'Видалено пакетів: ' + n + '. Збери документ і переконайся, що нічого не зламалось.' : 'Нічого не змінено.');
+  info(n ? tr('Видалено пакетів: {0}. Збери документ і переконайся, що нічого не зламалось.', n) : tr('Нічого не змінено.'));
 }
 
 /* ========================= 8. table from CSV / XLSX / clipboard ========================= */
 async function tableFromFileCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл, куди вставити таблицю.'); return; }
+  if (!ed || !isTex(ed.document)) { info(tr('Відкрий .tex-файл, куди вставити таблицю.')); return; }
   const src = await vscode.window.showQuickPick([
-    { label: '$(file) Файл .csv / .tsv / .xlsx', id: 'file' },
-    { label: '$(clippy) Буфер обміну (скопійований діапазон Excel чи текст CSV)', id: 'clip' }
-  ], { placeHolder: 'Звідки взяти дані' });
+    { label: tr('$(file) Файл .csv / .tsv / .xlsx'), id: 'file' },
+    { label: tr('$(clippy) Буфер обміну (скопійований діапазон Excel чи текст CSV)'), id: 'clip' }
+  ], { placeHolder: tr('Звідки взяти дані') });
   if (!src) return;
   let rows;
   try {
     if (src.id === 'clip') {
       const t = await vscode.env.clipboard.readText();
-      if (!t.trim()) { warn('Буфер обміну порожній.'); return; }
+      if (!t.trim()) { warn(tr('Буфер обміну порожній.')); return; }
       rows = X.parseCsv(t, t.includes('\t') ? '\t' : undefined);
     } else {
       const defaultUri = (vscode.workspace.workspaceFolders || [])[0] ? (vscode.workspace.workspaceFolders[0].uri) : undefined;
-      const picked = await vscode.window.showOpenDialog({ canSelectMany: false, defaultUri, filters: { 'Таблиці': ['csv', 'tsv', 'txt', 'xlsx'] } });
+      const picked = await vscode.window.showOpenDialog({ canSelectMany: false, defaultUri, filters: { [tr('Таблиці')]: ['csv', 'tsv', 'txt', 'xlsx'] } });
       if (!picked || !picked[0]) return;
       const file = picked[0].fsPath;
       if (/\.xlsx$/i.test(file)) rows = X.readXlsx(fs.readFileSync(file));
       else rows = X.parseCsv(fs.readFileSync(file, 'utf8'), /\.tsv$/i.test(file) ? '\t' : undefined);
     }
-  } catch (e) { vscode.window.showErrorMessage('Не вдалося прочитати таблицю: ' + (e && e.message ? e.message : e)); return; }
-  if (!rows.length || !rows[0].length) { warn('У таблиці немає даних.'); return; }
+  } catch (e) { vscode.window.showErrorMessage(tr('Не вдалося прочитати таблицю: {0}', e && e.message ? e.message : e)); return; }
+  if (!rows.length || !rows[0].length) { warn(tr('У таблиці немає даних.')); return; }
   const opts = await vscode.window.showQuickPick([
-    { label: 'Перший рядок: заголовок', id: 'header', picked: true },
-    { label: 'Числа як \\num{…} (siunitx)', id: 'num' },
-    { label: 'Десяткова кома: 1{,}5', id: 'comma' }
-  ], { canPickMany: true, placeHolder: 'Параметри таблиці (Esc: скасувати)' });
+    { label: tr('Перший рядок: заголовок'), id: 'header', picked: true },
+    { label: tr('Числа як \\num{…} (siunitx)'), id: 'num' },
+    { label: tr('Десяткова кома: 1{,}5'), id: 'comma' }
+  ], { canPickMany: true, placeHolder: tr('Параметри таблиці (Esc: скасувати)') });
   if (!opts) return;
   const has = (id) => opts.some((o) => o.id === id);
   const alignPick = await vscode.window.showQuickPick([
-    { label: 'Авто: перший стовпець ліворуч, решта по центру', id: 'auto' },
-    { label: 'Усе ліворуч', id: 'l' }, { label: 'Усе по центру', id: 'c' }, { label: 'Усе праворуч', id: 'r' }
-  ], { placeHolder: 'Вирівнювання стовпців' });
+    { label: tr('Авто: перший стовпець ліворуч, решта по центру'), id: 'auto' },
+    { label: tr('Усе ліворуч'), id: 'l' }, { label: tr('Усе по центру'), id: 'c' }, { label: tr('Усе праворуч'), id: 'r' }
+  ], { placeHolder: tr('Вирівнювання стовпців') });
   if (!alignPick) return;
   const c = cfg();
   const floatEnv = c.get('tblr.csvFloat', true) !== false;
   let caption = '';
   let label = '';
   if (floatEnv) {
-    const cap = await vscode.window.showInputBox({ prompt: 'Підпис таблиці (\\caption), можна залишити порожнім', ignoreFocusOut: true });
+    const cap = await vscode.window.showInputBox({ prompt: tr('Підпис таблиці (\\caption), можна залишити порожнім'), ignoreFocusOut: true });
     if (cap === undefined) return;
     caption = cap;
-    const lab = await vscode.window.showInputBox({ prompt: 'Мітка без «tab:» (порожньо: без \\label)', ignoreFocusOut: true });
+    const lab = await vscode.window.showInputBox({ prompt: tr('Мітка без «tab:» (порожньо: без \\label)'), ignoreFocusOut: true });
     if (lab === undefined) return;
     label = lab.trim() ? 'tab:' + lab.trim().replace(/^tab:/, '') : '';
   }
@@ -595,7 +596,7 @@ async function tableFromFileCmd() {
   const eol = ed.document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
   const text = out.replace(/\n$/, '').split('\n').map((l, i) => (i ? lead + l : l)).join(eol);
   await ed.edit((b) => b.replace(ed.selection, text));
-  vscode.window.setStatusBarMessage('Таблиця: ' + rows.length + ' рядків, ' + rows[0].length + ' стовпців', 4000);
+  vscode.window.setStatusBarMessage(tr('Таблиця: {0} рядків, {1} стовпців', rows.length, rows[0].length), 4000);
 }
 
 /* ================================= 9. .bib tools ================================= */
@@ -611,36 +612,36 @@ function bibOptions(ed) {
 
 async function formatBibCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isBib(ed.document)) { info('Відкрий файл .bib.'); return; }
+  if (!ed || !isBib(ed.document)) { info(tr('Відкрий файл .bib.')); return; }
   const text = ed.document.getText();
   const res = X.formatBib(text, bibOptions(ed));
-  if (!res.count) { info('У файлі немає записів BibTeX.'); return; }
-  if (res.text === text) { info('Файл .bib уже відформатований (' + res.count + ' записів).'); return; }
+  if (!res.count) { info(tr('У файлі немає записів BibTeX.')); return; }
+  if (res.text === text) { info(tr('Файл .bib уже відформатований ({0} записів).', res.count)); return; }
   const oldL = text.replace(/\r\n/g, '\n').split('\n');
   const d = X4.diffRange(oldL, res.text.replace(/\r\n/g, '\n').split('\n'));
-  const sum = 'Відформатовано записів: ' + res.count;
-  if (api.applyWithPreview && d) { if (await api.applyWithPreview(ed, d.s, d.e, d.lines, 'Форматування .bib', sum)) vscode.window.setStatusBarMessage(sum, 4000); return; }
+  const sum = tr('Відформатовано записів: {0}', res.count);
+  if (api.applyWithPreview && d) { if (await api.applyWithPreview(ed, d.s, d.e, d.lines, tr('Форматування .bib'), sum)) vscode.window.setStatusBarMessage(sum, 4000); return; }
   await ed.edit((b) => b.replace(new vscode.Range(0, 0, ed.document.lineCount - 1, ed.document.lineAt(ed.document.lineCount - 1).text.length), res.text));
 }
 
 async function bibDuplicatesCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isBib(ed.document)) { info('Відкрий файл .bib.'); return; }
+  if (!ed || !isBib(ed.document)) { info(tr('Відкрий файл .bib.')); return; }
   const text = ed.document.getText().replace(/\r\n/g, '\n');
   const groups = X.bibDuplicates(X.parseBib(text));
-  if (!groups.length) { info('Дублів за DOI чи назвою не знайдено.'); return; }
+  if (!groups.length) { info(tr('Дублів за DOI чи назвою не знайдено.')); return; }
   const items = [];
   for (const g of groups) {
     for (const e of g.entries) {
       const line = text.slice(0, e.start).split('\n').length - 1;
-      items.push({ label: e.key, description: (g.by === 'doi' ? 'однаковий DOI' : 'однакова назва') + ' · рядок ' + (line + 1), detail: X.fieldValue(e, 'title').slice(0, 100), line, keys: g.entries.map((x) => x.key) });
+      items.push({ label: e.key, description: (g.by === 'doi' ? tr('однаковий DOI') : tr('однакова назва')) + tr(' · рядок {0}', line + 1), detail: X.fieldValue(e, 'title').slice(0, 100), line, keys: g.entries.map((x) => x.key) });
     }
   }
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Можливі дублі: ' + groups.length + ' груп(и). Вибери запис', matchOnDescription: true, matchOnDetail: true });
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Можливі дублі: {0} груп(и). Вибери запис', groups.length), matchOnDescription: true, matchOnDetail: true });
   if (!pick) return;
   const act = await vscode.window.showQuickPick([
-    { label: '$(go-to-file) Перейти до запису', id: 'go' },
-    { label: '$(git-merge) Об\'єднати групу (' + pick.keys.join(', ') + '), залишивши «' + pick.label + '»', id: 'merge' }
+    { label: tr('$(go-to-file) Перейти до запису'), id: 'go' },
+    { label: tr('$(git-merge) Об\'єднати групу ({0}), залишивши «{1}»', pick.keys.join(', '), pick.label), id: 'merge' }
   ], { placeHolder: pick.label });
   if (!act) return;
   if (act.id === 'go') {
@@ -660,8 +661,8 @@ async function bibDuplicatesCmd() {
     const r = X.renameCiteKeys(f.text.replace(/\r\n/g, '\n'), res.keyMap);
     if (r.count) { plan.push({ f, r }); cites += r.count; }
   }
-  const ok = await vscode.window.showInformationMessage('Залишити «' + pick.label + '», видалити ' + [...res.keyMap.keys()].join(', ') + (res.added ? '; додано полів: ' + res.added : '') + '; \\cite оновиться в ' + plan.length + ' файлах (' + cites + ' входжень).', { modal: true }, 'Об\'єднати');
-  if (ok !== 'Об\'єднати') return;
+  const ok = await vscode.window.showInformationMessage(tr('Залишити «{0}», видалити {1}', pick.label, [...res.keyMap.keys()].join(', ')) + (res.added ? tr('; додано полів: {0}', res.added) : '') + tr('; \\cite оновиться в {0} файлах ({1} входжень).', plan.length, cites), { modal: true }, tr('Об\'єднати'));
+  if (ok !== tr('Об\'єднати')) return;
   const we = new vscode.WorkspaceEdit();
   const touched = [];
   for (const p of plan) {
@@ -670,18 +671,18 @@ async function bibDuplicatesCmd() {
     touched.push(d);
   }
   we.replace(bibDoc.uri, fullRange(bibDoc), res.text.replace(/\n/g, bibDoc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
-  if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося застосувати зміни.'); return; }
+  if (!(await vscode.workspace.applyEdit(we))) { warn(tr('Не вдалося застосувати зміни.')); return; }
   for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
-  info('Об\'єднано. \\cite оновлено: ' + cites + '. Скасувати: Ctrl+Z у кожному файлі.');
+  info(tr('Об\'єднано. \\cite оновлено: {0}. Скасувати: Ctrl+Z у кожному файлі.', cites));
 }
 
 async function bibKeysCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isBib(ed.document)) { info('Відкрий файл .bib.'); return; }
+  if (!ed || !isBib(ed.document)) { info(tr('Відкрий файл .bib.')); return; }
   const bibDoc = ed.document;
   const entries = X.parseBib(bibDoc.getText().replace(/\r\n/g, '\n'));
   const map = X.bibKeyMap(entries);
-  if (!map.size) { info('Ключі вже мають вигляд «прізвище+рік» (' + entries.filter((e) => !e.special).length + ' записів).'); return; }
+  if (!map.size) { info(tr('Ключі вже мають вигляд «прізвище+рік» ({0} записів).', entries.filter((e) => !e.special).length)); return; }
   const root = rootOf(bibDoc.uri);
   const files = await projectFiles(['.tex', '.tikz', '.cls', '.sty'], root || undefined);
   const texts = files.map((f) => ({ f, t: f.text.replace(/\r\n/g, '\n') }));
@@ -690,7 +691,7 @@ async function bibKeysCmd() {
     for (const x of texts) n += X.renameCiteKeys(x.t, new Map([[a, b]])).count;
     return { label: a + ' → ' + b, description: n + ' \\cite', picked: true, key: a };
   });
-  const picks = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: 'Які ключі перейменувати? Знято: не чіпати. Усі \\cite{…} у проєкті оновляться', matchOnDescription: true });
+  const picks = await vscode.window.showQuickPick(items, { canPickMany: true, placeHolder: tr('Які ключі перейменувати? Знято: не чіпати. Усі \\cite{…} у проєкті оновляться'), matchOnDescription: true });
   if (!picks || !picks.length) return;
   const sub = new Map(picks.map((p) => [p.key, map.get(p.key)]));
   const we = new vscode.WorkspaceEdit();
@@ -706,15 +707,15 @@ async function bibKeysCmd() {
   }
   const fmt = X.formatBib(bibDoc.getText(), Object.assign({}, bibOptions(ed), { keyMap: sub, sortBy: 'none' }));
   we.replace(bibDoc.uri, fullRange(bibDoc), fmt.text);
-  if (!(await vscode.workspace.applyEdit(we))) { warn('Не вдалося застосувати зміни.'); return; }
+  if (!(await vscode.workspace.applyEdit(we))) { warn(tr('Не вдалося застосувати зміни.')); return; }
   for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
-  info('Ключів перейменовано: ' + sub.size + ', посилань \\cite оновлено: ' + cites + ' (у ' + touched.length + ' файлах). Скасувати: Ctrl+Z у кожному файлі.');
+  info(tr('Ключів перейменовано: {0}, посилань \\cite оновлено: {1} (у {2} файлах). Скасувати: Ctrl+Z у кожному файлі.', sub.size, cites, touched.length));
 }
 
 /* ============================== 10. list of formulas ============================== */
 async function listEquationsCmd() {
   const root = (vscode.workspace.workspaceFolders || [])[0];
-  if (!root) { info('Відкрий папку проєкту.'); return; }
+  if (!root) { info(tr('Відкрий папку проєкту.')); return; }
   const files = (await projectFiles(['.tex', '.tikz'], root.uri.fsPath)).sort(byChapter(chapterOrder()));
   let auxFn = null;
   try { auxFn = require('./projectInfo').auxInfo; } catch (e) { /* optional */ }
@@ -734,11 +735,11 @@ async function listEquationsCmd() {
       total++;
       if (!q.labels.length) noLabel++;
       const numTxt = n.start ? (n.approx ? '~' : '') + (n.start === n.end ? n.start : n.start + '–' + n.end) : '—';
-      items.push({ label: '(' + numTxt + ')  ' + (q.labels.length ? q.labels.join(', ') : 'без мітки'), description: (sep ? '' : f.path) + ':' + (q.line + 1) + ' · ' + q.env + (q.rows > 1 ? ' ×' + q.rows : ''), detail: q.snippet, f, q });
+      items.push({ label: '(' + numTxt + ')  ' + (q.labels.length ? q.labels.join(', ') : tr('без мітки')), description: (sep ? '' : f.path) + ':' + (q.line + 1) + ' · ' + q.env + (q.rows > 1 ? ' ×' + q.rows : ''), detail: q.snippet, f, q });
     });
   }
-  if (!total) { info('У проєкті немає нумерованих формул.'); return; }
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Формул: ' + total + ', без мітки: ' + noLabel + '. Номер із ~ порахований від найближчої формули з міткою (за останньою збіркою), «—»: ще не зібрано', matchOnDescription: true, matchOnDetail: true });
+  if (!total) { info(tr('У проєкті немає нумерованих формул.')); return; }
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Формул: {0}, без мітки: {1}. Номер із ~ порахований від найближчої формули з міткою (за останньою збіркою), «—»: ще не зібрано', total, noLabel), matchOnDescription: true, matchOnDetail: true });
   if (!pick || !pick.f) return;
   await vscode.window.showTextDocument(vscode.Uri.file(pick.f.abs), { selection: new vscode.Range(pick.q.line, 0, pick.q.endLine, 0) });
 }
@@ -746,18 +747,18 @@ async function listEquationsCmd() {
 /* ============================== 11. PDF copy with a date ============================== */
 async function savePdfCopyCmd() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTexLike(ed.document)) { info('Відкрий .tex розділу чи .tikz рисунка.'); return; }
+  if (!ed || !isTexLike(ed.document)) { info(tr('Відкрий .tex розділу чи .tikz рисунка.')); return; }
   const root = rootOf(ed.document.uri);
-  if (!root) { warn('Файл не належить відкритій папці.'); return; }
+  if (!root) { warn(tr('Файл не належить відкритій папці.')); return; }
   const file = ed.document.uri.fsPath;
   const base = path.basename(file, path.extname(file));
   const job = String(cfg().get('jobname', 'main')) || base;
   const pdf = path.join(root, job + '.pdf');
-  if (!existsFile(pdf)) { warn('Немає ' + job + '.pdf у корені проєкту: спершу збери (▷ чи F5).'); return; }
+  if (!existsFile(pdf)) { warn(tr('Немає {0}.pdf у корені проєкту: спершу збери (▷ чи F5).', job)); return; }
   const stale = fs.statSync(pdf).mtimeMs < fs.statSync(file).mtimeMs;
   if (stale) {
-    const go = await warn('PDF старіший за ' + path.basename(file) + ': розділ змінено після останньої збірки.', 'Все одно зберегти', 'Скасувати');
-    if (go !== 'Все одно зберегти') return;
+    const go = await warn(tr('PDF старіший за {0}: розділ змінено після останньої збірки.', path.basename(file)), tr('Все одно зберегти'), tr('Скасувати'));
+    if (go !== tr('Все одно зберегти')) return;
   }
   const dir = path.join(root, String(cfg().get('pdfCopyDir', 'pdf-versions')) || 'pdf-versions');
   fs.mkdirSync(dir, { recursive: true });
@@ -765,8 +766,8 @@ async function savePdfCopyCmd() {
   let target = path.join(dir, name);
   for (let n = 2; existsFile(target); n++) target = path.join(dir, name.replace(/\.pdf$/, '-' + n + '.pdf'));
   fs.copyFileSync(pdf, target);
-  const pick = await info('Збережено: ' + X.posix(path.relative(root, target)), 'Відкрити');
-  if (pick === 'Відкрити') vscode.commands.executeCommand('vscode.open', vscode.Uri.file(target));
+  const pick = await info(tr('Збережено: {0}', X.posix(path.relative(root, target))), tr('Відкрити'));
+  if (pick === tr('Відкрити')) vscode.commands.executeCommand('vscode.open', vscode.Uri.file(target));
 }
 
 /* ================================== register ================================== */
@@ -791,16 +792,16 @@ function register(context, helpers) {
     vscode.languages.registerCodeActionsProvider(SEL, packageFixes, { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }),
     diagFiles,
     cmd('tssworkflow.missingPackages', missingPackagesCmd),
-    cmd('tssworkflow._copyText', async (text, msg) => { await vscode.env.clipboard.writeText(String(text)); vscode.window.setStatusBarMessage(msg || 'Скопійовано', 4000); }),
+    cmd('tssworkflow._copyText', async (text, msg) => { await vscode.env.clipboard.writeText(String(text)); vscode.window.setStatusBarMessage(msg || tr('Скопійовано'), 4000); }),
     cmd('tssworkflow.refreshLabels', () => labels.refresh()),
     cmd('tssworkflow.labelsToggleFilter', () => labels.toggleFilter()),
     cmd('tssworkflow.insertRefFromLabel', (el) => { if (el && el.tssLabel) return insertRef(el.tssLabel); }),
     cmd('tssworkflow.pickRef', async () => {
       await labels.ensure();
       const items = [];
-      for (const g of labels.index.groups) for (const l of g.labels) items.push({ label: l.name, description: g.path + ':' + (l.line + 1) + (l.uses ? ' · ×' + l.uses : ' · без \\ref'), name: l.name });
-      if (!items.length) { info('У проєкті немає \\label.'); return; }
-      const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Мітка для \\ref', matchOnDescription: true });
+      for (const g of labels.index.groups) for (const l of g.labels) items.push({ label: l.name, description: g.path + ':' + (l.line + 1) + (l.uses ? ' · ×' + l.uses : tr(' · без \\ref')), name: l.name });
+      if (!items.length) { info(tr('У проєкті немає \\label.')); return; }
+      const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Мітка для \\ref'), matchOnDescription: true });
       if (pick) await insertRef(pick.name);
     }),
     cmd('tssworkflow.renameLabel', renameLabelCmd),

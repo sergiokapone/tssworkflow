@@ -108,6 +108,25 @@ const C = stub._cmds;
   await C['tssworkflow.manageTemplates']();
   assert.ok(!fs.existsSync(path.join(f, 'Нова назва.tex')));
 
+  // 5b. the same in English (tssworkflow.language): the titles of the groups, the actions, the question and the messages; the state is that of step 5
+  const I18N = require(path.join(ext, 'i18n'));
+  I18N.setLang('en');
+  try {
+    let seen = null;
+    answers.pick = [(arr) => { seen = arr.map((x) => x.label); return arr.find((x) => x.t && x.t.source === 'user'); }, 'Rename'];
+    answers.input = ['My article'];
+    await C['tssworkflow.manageTemplates']();
+    assert.ok(seen.includes('My templates') && seen.includes('Built-in'), 'the groups of the list: ' + seen);
+    assert.ok(fs.readdirSync(path.join(store, 'templates')).some((n) => n.startsWith('My article')), 'renamed with the English action');
+    assert.strictEqual(log.msgs.at(-1), 'Template renamed: “My article”.');
+    answers.pick = [(arr) => arr.find((x) => x.t && x.t.name === 'My article'), 'Remove'];
+    answers.warn = ['Remove'];
+    await C['tssworkflow.manageTemplates']();
+    assert.ok(/^Remove the template “My article”\? The file .*My article.* will disappear\.$/.test(log.msgs.at(-2)), log.msgs.at(-2));
+    assert.strictEqual(log.msgs.at(-1), 'Template “My article” removed.');
+    assert.ok(!fs.readdirSync(path.join(store, 'templates')).some((n) => n.startsWith('My article')), 'removed: the English button is understood');
+  } finally { I18N.setLang('uk'); }
+
   // 6. open folder; custom templatesDir
   await C['tssworkflow.openTemplatesFolder']();
   assert.strictEqual(log.opened.at(-1), path.join(store, 'templates'));

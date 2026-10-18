@@ -14,12 +14,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const T = require('./templatesPure');
+const { tr } = require('./i18n');
 const { cfg, errText, info, warn } = require('./util');
 
 
 let ctx = null;
 
-const SOURCE_LABEL = { project: 'Проєкт', user: 'Мої шаблони', builtin: 'Вбудовані' };
+const sourceLabel = (source) => ({ project: tr('Проєкт'), user: tr('Мої шаблони'), builtin: tr('Вбудовані') }[source]);
 
 /* ================================= folders ================================== */
 function expandHome(p) {
@@ -108,12 +109,12 @@ function pickItems(list) {
   const items = [];
   let last = null;
   for (const t of list) {
-    if (sep !== undefined && t.source !== last) items.push({ label: SOURCE_LABEL[t.source], kind: sep });
+    if (sep !== undefined && t.source !== last) items.push({ label: sourceLabel(t.source), kind: sep });
     last = t.source;
-    const what = (t.multi ? 'папка' : t.ext) + (t.kind === 'fragment' ? ' · фрагмент' : '');
+    const what = (t.multi ? tr('папка') : t.ext) + (t.kind === 'fragment' ? tr(' · фрагмент') : '');
     items.push({
       label: t.name,
-      description: sep !== undefined ? what : SOURCE_LABEL[t.source] + ' · ' + what,
+      description: sep !== undefined ? what : sourceLabel(t.source) + ' · ' + what,
       detail: t.description || undefined,
       t
     });
@@ -133,12 +134,12 @@ async function collectVars(texts) {
   const vars = T.builtinVars(new Date(), String(cfg().get('templateAuthor', '') || ''));
   const all = texts.join('\n');
   if (T.usesVar(all, 'title')) {
-    const title = await vscode.window.showInputBox({ prompt: 'Заголовок документа (підставляється замість ${title})' });
+    const title = await vscode.window.showInputBox({ prompt: tr('Заголовок документа (підставляється замість ${title})') });
     if (title === undefined) return null;
     vars.title = title;
   }
   for (const a of T.askSpecs(all)) {
-    const v = await vscode.window.showInputBox({ prompt: 'Значення для ${' + a.name + '}', value: a.def });
+    const v = await vscode.window.showInputBox({ prompt: tr('Значення для ${{0}}', a.name), value: a.def });
     if (v === undefined) return null;
     vars[a.name] = v;
   }
@@ -166,14 +167,14 @@ function placeCursor(ed, cur) {
 async function newFromTemplate(arg) {
   const list = listTemplates().filter((t) => t.kind !== 'fragment');
   if (!list.length) {
-    const pick = await vscode.window.showWarningMessage('Шаблонів документів немає. Збережи поточний документ командою «Make template».', 'Відкрити теку шаблонів');
+    const pick = await vscode.window.showWarningMessage(tr('Шаблонів документів немає. Збережи поточний документ командою «Make template».'), tr('Відкрити теку шаблонів'));
     if (pick) await openTemplatesFolder();
     return;
   }
   // a folder clicked in the Explorer, else (0.4.4) the folder VS Code is open in, so the file is created right there
   // and no Save As dialog is needed; with no folder open (or newFromTemplateInWorkspace = false) the document is untitled
   const dir = (await targetFolder(arg)) || (cfg().get('newFromTemplateInWorkspace', true) ? workspaceRoot() : null);
-  const t = await pickTemplate(list, dir ? 'Шаблон нового файла в ' + dir : 'Шаблон нового документа');
+  const t = await pickTemplate(list, dir ? tr('Шаблон нового файла в {0}', dir) : tr('Шаблон нового документа'));
   if (!t) return;
   if (t.multi) return newFromFolderTemplate(t, dir);
 
@@ -184,18 +185,18 @@ async function newFromTemplate(arg) {
   let ed;
   if (dir) {
     const name = await vscode.window.showInputBox({
-      prompt: 'Ім’я нового файла без розширення (' + t.ext + ' додасться саме)',
+      prompt: tr('Ім’я нового файла без розширення ({0} додасться саме)', t.ext),
       validateInput: (v) => {
         const s = T.sanitizeName(v);
-        if (!s) return 'Порожнє або недопустиме ім’я';
-        return fs.existsSync(path.join(dir, s + t.ext)) ? 'Такий файл уже є' : null;
+        if (!s) return tr('Порожнє або недопустиме ім’я');
+        return fs.existsSync(path.join(dir, s + t.ext)) ? tr('Такий файл уже є') : null;
       }
     });
     if (!name) return;
     const file = path.join(dir, T.sanitizeName(name) + t.ext);
     try {
       fs.writeFileSync(file, res.text, 'utf8');
-    } catch (e) { warn('Не вдалося створити файл: ' + errText(e)); return; }
+    } catch (e) { warn(tr('Не вдалося створити файл: {0}', errText(e))); return; }
     ed = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
   } else {
     const doc = await vscode.workspace.openTextDocument({ language: 'latex', content: res.text });
@@ -207,7 +208,7 @@ async function newFromTemplate(arg) {
 // a folder template: the main file gets the new name, the other files keep their relative paths
 async function newFromFolderTemplate(t, dirArg) {
   const dir = dirArg || workspaceRoot();
-  if (!dir) { warn('Шаблон із кількох файлів потребує папки: відкрий папку проєкту або клікни папку в Провіднику.'); return; }
+  if (!dir) { warn(tr('Шаблон із кількох файлів потребує папки: відкрий папку проєкту або клікни папку в Провіднику.')); return; }
   const plan = T.planCopy(t.files, t.mainRel, 'x');
   const texts = [];
   for (const p of plan) {
@@ -217,11 +218,11 @@ async function newFromFolderTemplate(t, dirArg) {
   const vars = await collectVars(texts);
   if (!vars) return;
   const name = await vscode.window.showInputBox({
-    prompt: 'Ім’я головного файла без розширення (' + t.ext + ' додасться саме); решта файлів шаблона в ' + dir,
+    prompt: tr('Ім’я головного файла без розширення ({0} додасться саме); решта файлів шаблона в {1}', t.ext, dir),
     validateInput: (v) => {
       const s = T.sanitizeName(v);
-      if (!s) return 'Порожнє або недопустиме ім’я';
-      return fs.existsSync(path.join(dir, s + t.ext)) ? 'Такий файл уже є' : null;
+      if (!s) return tr('Порожнє або недопустиме ім’я');
+      return fs.existsSync(path.join(dir, s + t.ext)) ? tr('Такий файл уже є') : null;
     }
   });
   if (!name) return;
@@ -246,18 +247,18 @@ async function newFromFolderTemplate(t, dirArg) {
       }
       created++;
     }
-  } catch (e) { warn('Не вдалося створити файли шаблона: ' + errText(e)); return; }
+  } catch (e) { warn(tr('Не вдалося створити файли шаблона: {0}', errText(e))); return; }
   if (mainFile) placeCursor(await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(mainFile))), cursor);
-  info('Створено файлів: ' + created + (skipped.length ? '. Пропущено, бо вже є: ' + skipped.join(', ') : '') + '.');
+  info(tr('Створено файлів: {0}', created) + (skipped.length ? tr('. Пропущено, бо вже є: {0}', skipped.join(', ')) : '') + '.');
 }
 
 /* ============================ insert a template fragment ==================== */
 async function insertTemplate() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed) { warn('Відкрий документ, у який вставити фрагмент.'); return; }
+  if (!ed) { warn(tr('Відкрий документ, у який вставити фрагмент.')); return; }
   const list = listTemplates().filter((t) => t.kind === 'fragment' && !t.multi);
-  if (!list.length) { warn('Фрагментів немає. Виділи текст і збережи командою «Make template»: виділене стає фрагментом.'); return; }
-  const t = await pickTemplate(list, 'Фрагмент для вставки');
+  if (!list.length) { warn(tr('Фрагментів немає. Виділи текст і збережи командою «Make template»: виділене стає фрагментом.')); return; }
+  const t = await pickTemplate(list, tr('Фрагмент для вставки'));
   if (!t) return;
   const vars = await collectVars([t.body]);
   if (!vars) return;
@@ -282,44 +283,44 @@ async function insertTemplate() {
 /* ================================ make template ============================= */
 async function makeTemplate() {
   const ed = vscode.window.activeTextEditor;
-  if (!ed) { warn('Відкрий документ, з якого зробити шаблон.'); return; }
+  if (!ed) { warn(tr('Відкрий документ, з якого зробити шаблон.')); return; }
   const doc = ed.document;
   const fromSelection = !ed.selection.isEmpty;
   const text = fromSelection ? doc.getText(ed.selection) : doc.getText();
-  if (!text.trim()) { warn('Документ порожній: шаблон не створено.'); return; }
+  if (!text.trim()) { warn(tr('Документ порожній: шаблон не створено.')); return; }
   const kind = fromSelection ? 'fragment' : 'document';
 
   const ext = T.TEMPLATE_EXT.includes(path.extname(doc.uri.fsPath).toLowerCase()) ? path.extname(doc.uri.fsPath).toLowerCase() : '.tex';
   const base = doc.isUntitled ? '' : path.basename(doc.uri.fsPath, path.extname(doc.uri.fsPath));
   const name0 = await vscode.window.showInputBox({
-    prompt: 'Назва шаблону' + (fromSelection ? ' (фрагмент із виділеного)' : ' (документ з усього файла)'),
+    prompt: tr('Назва шаблону') + (fromSelection ? tr(' (фрагмент із виділеного)') : tr(' (документ з усього файла)')),
     value: base,
-    validateInput: (v) => (T.sanitizeName(v) ? null : 'Порожнє або недопустиме ім’я (без / \\ : * ? " < > |)')
+    validateInput: (v) => (T.sanitizeName(v) ? null : tr('Порожнє або недопустиме ім’я (без / \\ : * ? " < > |)'))
   });
   if (!name0) return;
   const name = T.sanitizeName(name0);
-  const description = await vscode.window.showInputBox({ prompt: 'Короткий опис (можна залишити порожнім)' });
+  const description = await vscode.window.showInputBox({ prompt: tr('Короткий опис (можна залишити порожнім)') });
   if (description === undefined) return;
 
-  const places = [{ label: SOURCE_LABEL.user, detail: userDir(), dir: userDir() }];
+  const places = [{ label: sourceLabel('user'), detail: userDir(), dir: userDir() }];
   const pd = projectDir();
-  if (pd) places.push({ label: SOURCE_LABEL.project, detail: pd, dir: pd });
+  if (pd) places.push({ label: sourceLabel('project'), detail: pd, dir: pd });
   let place = places[0];
   if (places.length > 1) {
-    place = await vscode.window.showQuickPick(places, { placeHolder: 'Де зберегти шаблон' });
+    place = await vscode.window.showQuickPick(places, { placeHolder: tr('Де зберегти шаблон') });
     if (!place) return;
   }
 
   const file = path.join(place.dir, name + ext);
   if (fs.existsSync(file)) {
-    const pick = await vscode.window.showWarningMessage('Шаблон «' + name + '» уже є. Замінити?', { modal: true }, 'Замінити');
-    if (pick !== 'Замінити') return;
+    const pick = await vscode.window.showWarningMessage(tr('Шаблон «{0}» уже є. Замінити?', name), { modal: true }, tr('Замінити'));
+    if (pick !== tr('Замінити')) return;
   }
   try {
     fs.mkdirSync(place.dir, { recursive: true });
     fs.writeFileSync(file, T.buildTemplate(text, description, kind), 'utf8');
-  } catch (e) { warn('Не вдалося зберегти шаблон: ' + errText(e)); return; }
-  info('Шаблон «' + name + '»' + (kind === 'fragment' ? ' (фрагмент)' : '') + ' збережено: ' + file);
+  } catch (e) { warn(tr('Не вдалося зберегти шаблон: {0}', errText(e))); return; }
+  info(tr('Шаблон «{0}»', name) + (kind === 'fragment' ? tr(' (фрагмент)') : '') + tr(' збережено: {0}', file));
 }
 
 /* ============================== manage templates ============================ */
@@ -334,38 +335,37 @@ function copyDir(from, to) {
 
 async function manageTemplates() {
   const list = listTemplates();
-  if (!list.length) { warn('Шаблонів немає.'); return; }
-  const t = await pickTemplate(list, 'Шаблон для керування');
+  if (!list.length) { warn(tr('Шаблонів немає.')); return; }
+  const t = await pickTemplate(list, tr('Шаблон для керування'));
   if (!t) return;
 
   const builtin = t.source === 'builtin';
-  const actions = builtin
-    ? ['Переглянути', 'Скопіювати до моїх шаблонів']
-    : ['Відкрити для редагування', 'Перейменувати', 'Видалити', 'Показати у файловому менеджері'];
-  const act = await vscode.window.showQuickPick(actions, { placeHolder: t.name + ' · ' + SOURCE_LABEL[t.source] });
+  const A = { view: tr('Переглянути'), copy: tr('Скопіювати до моїх шаблонів'), edit: tr('Відкрити для редагування'), rename: tr('Перейменувати'), del: tr('Видалити'), show: tr('Показати у файловому менеджері') };
+  const actions = builtin ? [A.view, A.copy] : [A.edit, A.rename, A.del, A.show];
+  const act = await vscode.window.showQuickPick(actions, { placeHolder: t.name + ' · ' + sourceLabel(t.source) });
   if (!act) return;
   const location = t.multi ? t.dir : t.file; // what is renamed, deleted, shown
 
   try {
-    if (act === 'Переглянути' || act === 'Відкрити для редагування') {
+    if (act === A.view || act === A.edit) {
       await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(t.file)));
-    } else if (act === 'Скопіювати до моїх шаблонів') {
+    } else if (act === A.copy) {
       const dir = userDir();
       fs.mkdirSync(dir, { recursive: true });
       const have = readDir(dir, 'user').map((x) => x.stem);
       const name = T.uniqueName(have, t.multi ? t.stem : (T.sanitizeName(t.name) || t.stem));
       if (t.multi) copyDir(t.dir, path.join(dir, name));
       else fs.writeFileSync(path.join(dir, name + t.ext), T.buildTemplate(t.body, t.description, t.kind), 'utf8');
-      info('Скопійовано як «' + name + '». Тепер його можна змінювати.');
-    } else if (act === 'Перейменувати') {
+      info(tr('Скопійовано як «{0}». Тепер його можна змінювати.', name));
+    } else if (act === A.rename) {
       const dir = path.dirname(location);
       const name0 = await vscode.window.showInputBox({
-        prompt: t.multi ? 'Нова назва папки шаблона' : 'Нова назва шаблону',
+        prompt: t.multi ? tr('Нова назва папки шаблона') : tr('Нова назва шаблону'),
         value: t.stem,
         validateInput: (v) => {
           const s = T.sanitizeName(v);
-          if (!s) return 'Порожнє або недопустиме ім’я';
-          return s.toLowerCase() !== t.stem.toLowerCase() && fs.existsSync(path.join(dir, s + (t.multi ? '' : t.ext))) ? 'Шаблон з такою назвою вже є' : null;
+          if (!s) return tr('Порожнє або недопустиме ім’я');
+          return s.toLowerCase() !== t.stem.toLowerCase() && fs.existsSync(path.join(dir, s + (t.multi ? '' : t.ext))) ? tr('Шаблон з такою назвою вже є') : null;
         }
       });
       if (!name0) return;
@@ -380,16 +380,16 @@ async function manageTemplates() {
         if (target !== t.file) fs.renameSync(t.file, target);
         fs.writeFileSync(target, text, 'utf8');
       }
-      info('Шаблон перейменовано: «' + s + '».');
-    } else if (act === 'Видалити') {
-      const pick = await vscode.window.showWarningMessage('Видалити шаблон «' + t.name + '»? ' + (t.multi ? 'Папка ' : 'Файл ') + location + ' зникне.', { modal: true }, 'Видалити');
-      if (pick !== 'Видалити') return;
+      info(tr('Шаблон перейменовано: «{0}».', s));
+    } else if (act === A.del) {
+      const pick = await vscode.window.showWarningMessage(t.multi ? tr('Видалити шаблон «{0}»? Папка {1} зникне.', t.name, location) : tr('Видалити шаблон «{0}»? Файл {1} зникне.', t.name, location), { modal: true }, tr('Видалити'));
+      if (pick !== tr('Видалити')) return;
       if (t.multi) fs.rmSync(t.dir, { recursive: true, force: true }); else fs.unlinkSync(t.file);
-      info('Шаблон «' + t.name + '» видалено.');
-    } else if (act === 'Показати у файловому менеджері') {
+      info(tr('Шаблон «{0}» видалено.', t.name));
+    } else if (act === A.show) {
       await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(location));
     }
-  } catch (e) { warn('Не вдалося виконати дію: ' + errText(e)); }
+  } catch (e) { warn(tr('Не вдалося виконати дію: {0}', errText(e))); }
 }
 
 /* ============================ open templates folder ========================= */
@@ -398,7 +398,7 @@ async function openTemplatesFolder() {
   try {
     fs.mkdirSync(dir, { recursive: true });
     await vscode.env.openExternal(vscode.Uri.file(dir));
-  } catch (e) { warn('Не вдалося відкрити теку шаблонів ' + dir + ': ' + errText(e)); }
+  } catch (e) { warn(tr('Не вдалося відкрити теку шаблонів {0}: {1}', dir, errText(e))); }
 }
 
 /* ================================== register ================================ */

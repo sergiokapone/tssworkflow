@@ -151,6 +151,8 @@ const STATE_LABEL = { uk: 'Стан', en: 'State' };
 const GROUP_ICON_STATE = 'pulse';
 
 const lang = (l) => (l === 'en' ? 'en' : 'uk');
+// the language of the panel: the setting panelLanguage ("uk", "en"), or "auto" (anything else): the language of the extension (tssworkflow.language), `current`
+const resolveLang = (setting, current) => (setting === 'uk' || setting === 'en' ? setting : lang(current));
 const groupLabel = (g, l) => (lang(l) === 'en' && g.en ? g.en : g.label);
 
 // the label of a command row: Ukrainian from GROUPS, English from the command title of package.json
@@ -192,4 +194,4 @@ function stateItems(l, st) {
   return out;
 }
 
-module.exports = { GROUPS, EXCLUDED, formatKey, keyMap, coverage, PREFIX: P, STATE_LABEL, GROUP_ICON_STATE, groupLabel, itemLabel, stateItems };
+module.exports = { GROUPS, EXCLUDED, formatKey, keyMap, coverage, PREFIX: P, STATE_LABEL, GROUP_ICON_STATE, groupLabel, itemLabel, stateItems, resolveLang };

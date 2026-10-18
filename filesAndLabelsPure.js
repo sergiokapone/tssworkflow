@@ -13,6 +13,7 @@
  * Nothing here touches the disk except readXlsx (zlib on a Buffer given by the caller). */
 
 const path = require('path');
+const { tr } = require('./i18n');
 const zlib = require('zlib');
 const { codePart, escRe, posix } = require('./corePure');
 
@@ -127,15 +128,15 @@ function checkFileRefs(lines, table, ctx) {
           if (!hadExt) { const e = path.extname(fix).toLowerCase(); if (r.entry.exts.includes(e)) fix = fix.slice(0, fix.length - e.length); }
           out.push({
             line: i, col: r.start, len: r.len, severity: 'warning', code: 'input-root-path', fix,
-            message: r.entry.macro + '{' + r.name + '}: шлях рахується від кореня проєкту (так збирають alone.tex і main.tex), а файл лежить відносно цього файла. Правильно: ' + fix
+            message: tr('{0}{{1}}: шлях рахується від кореня проєкту (так збирають alone.tex і main.tex), а файл лежить відносно цього файла. Правильно: {2}', r.entry.macro, r.name, fix)
           });
           continue;
         }
-        out.push({ line: i, col: r.start, len: r.len, severity: 'warning', code: 'file-missing-input', message: 'Файл не знайдено (шлях від кореня проєкту): ' + r.name });
+        out.push({ line: i, col: r.start, len: r.len, severity: 'warning', code: 'file-missing-input', message: tr('Файл не знайдено (шлях від кореня проєкту): {0}', r.name) });
         continue;
       }
       if (!resolveRef(r.entry, r.name, Object.assign({}, ctx, { inputRoot: ctx.inputRoot === 'off' ? 'file' : ctx.inputRoot })).found) {
-        out.push({ line: i, col: r.start, len: r.len, severity: 'warning', code: 'file-missing-input', message: 'Файл не знайдено: ' + posix(path.join(r.entry.sub, r.name)) });
+        out.push({ line: i, col: r.start, len: r.len, severity: 'warning', code: 'file-missing-input', message: tr('Файл не знайдено: {0}', posix(path.join(r.entry.sub, r.name))) });
       }
     }
   });
@@ -649,7 +650,7 @@ function unzip(buf) {
   const files = new Map();
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
-  if (eocd < 0) throw new Error('не схоже на .xlsx (немає кінця zip)');
+  if (eocd < 0) throw new Error(tr('не схоже на .xlsx (немає кінця zip)'));
   const count = buf.readUInt16LE(eocd + 10);
   let p = buf.readUInt32LE(eocd + 16);
   for (let k = 0; k < count; k++) {
@@ -689,7 +690,7 @@ function readXlsx(buf) {
   }
   let sheetName = 'xl/worksheets/sheet1.xml';
   if (!z.has(sheetName)) sheetName = [...z.keys()].filter((k) => /^xl\/worksheets\/sheet\d+\.xml$/.test(k)).sort()[0];
-  if (!sheetName) throw new Error('в .xlsx немає аркуша');
+  if (!sheetName) throw new Error(tr('в .xlsx немає аркуша'));
   const xml = get(sheetName);
   const rows = [];
   const reRow = /<row\b[^>]*?(?:\sr="(\d+)")?[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g;

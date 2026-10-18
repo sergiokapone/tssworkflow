@@ -1,6 +1,7 @@
 'use strict';
 /* labels.js: project-wide labels: completion, rename, checks. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 const path = require('path');
 const P = require('./corePure');
 const { REF_CTX, baseOf, cfg, info, texFiles, textOf } = require('./util');
@@ -51,16 +52,16 @@ const refCompletion = {
 const renameProvider = {
   prepareRename(doc, pos) {
     const hit = P.labelAtPos(doc.lineAt(pos.line).text, pos.character);
-    if (!hit) throw new Error('Постав курсор на назву мітки (\\label або \\ref).');
+    if (!hit) throw new Error(tr('Постав курсор на назву мітки (\\label або \\ref).'));
     return { range: new vscode.Range(pos.line, hit.col, pos.line, hit.col + hit.len), placeholder: hit.name };
   },
   async provideRenameEdits(doc, pos, newName) {
     const hit = P.labelAtPos(doc.lineAt(pos.line).text, pos.character);
     if (!hit) return undefined;
-    if (!/^[^\s{},%\\]+$/.test(newName)) throw new Error('Назва мітки не може містити пробіли, {}, кому, % або \\.');
+    if (!/^[^\s{},%\\]+$/.test(newName)) throw new Error(tr('Назва мітки не може містити пробіли, {}, кому, % або \\.'));
     const idx0 = await buildIndex();
     for (const data of idx0.values()) {
-      if (data.labels.some((l) => l.macro && l.name === hit.name)) throw new Error('Ця мітка задана макросом \\currfilebase: перейменуй файл, а не мітку.');
+      if (data.labels.some((l) => l.macro && l.name === hit.name)) throw new Error(tr('Ця мітка задана макросом \\currfilebase: перейменуй файл, а не мітку.'));
     }
     const edit = new vscode.WorkspaceEdit();
     const files = await texFiles();
@@ -103,14 +104,14 @@ async function checkLabels(showMessage) {
   for (const [name, arr] of defs) {
     if (arr.length > 1) {
       dup++;
-      arr.forEach((x) => add(x.file, x.l, 'Мітка «' + name + '» визначена ' + arr.length + ' разів', vscode.DiagnosticSeverity.Error, 'label-duplicate'));
+      arr.forEach((x) => add(x.file, x.l, tr('Мітка «{0}» визначена {1} разів', name, arr.length), vscode.DiagnosticSeverity.Error, 'label-duplicate'));
     }
   }
   for (const [file, data] of idx) {
     for (const r of data.refs) {
       if (!defs.has(r.name)) {
         undef++;
-        add(file, r, 'Мітку «' + r.name + '» не знайдено в проєкті', vscode.DiagnosticSeverity.Warning, 'label-undefined');
+        add(file, r, tr('Мітку «{0}» не знайдено в проєкті', r.name), vscode.DiagnosticSeverity.Warning, 'label-undefined');
       }
     }
   }
@@ -123,14 +124,14 @@ async function checkLabels(showMessage) {
       if (l.macro) continue;
       if (sevMap[sevName] !== undefined && !used.has(l.name)) {
         unused++;
-        add(file, l, 'Мітка «' + l.name + '» ніде не використана', sevMap[sevName], 'label-unused');
+        add(file, l, tr('Мітка «{0}» ніде не використана', l.name), sevMap[sevName], 'label-unused');
       }
       for (let i = l.envs.length - 1; i >= 0; i--) {
         const pre = prefixes[l.envs[i]];
         if (typeof pre !== 'string') continue;
         if (pre && !l.name.startsWith(pre)) {
           badPrefix++;
-          add(file, l, 'Мітка в «' + l.envs[i] + '» має починатися з «' + pre + '»', vscode.DiagnosticSeverity.Warning, 'label-prefix');
+          add(file, l, tr('Мітка в «{0}» має починатися з «{1}»', l.envs[i], pre), vscode.DiagnosticSeverity.Warning, 'label-prefix');
         }
         break;
       }
@@ -138,7 +139,7 @@ async function checkLabels(showMessage) {
   }
   labelDiags.set(byFile);
   if (showMessage) {
-    info('Мітки: дублікатів ' + dup + ', невизначених посилань ' + undef + ', без використання ' + unused + ', з неправильним префіксом ' + badPrefix + ' (див. Problems).');
+    info(tr('Мітки: дублікатів {0}, невизначених посилань {1}, без використання {2}, з неправильним префіксом {3} (див. Problems).', dup, undef, unused, badPrefix));
   }
 }
 

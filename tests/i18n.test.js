@@ -156,4 +156,39 @@ t('a message that is matched in the code by its Ukrainian text is a trap in Engl
   assert.ok(!translated || !/\/одиницею\/\.test\(d\.message\)/.test(info), 'projectInfo.js matches a translated message by its words');
 });
 
+
+// files and labels (0.21.2): the diagnostics of \input & co. and the errors of the readers of tables
+const FL = require(path.join(ext, 'filesAndLabelsPure'));
+t('filesAndLabelsPure: the diagnostics of the paths of \\input (braces of {{1}} stay, the code and the fix do not depend on the language), the errors of .xlsx', () => {
+  const table = FL.fileMacroTable({});
+  const ex = (set) => (p) => set.includes(p.replace(/\\/g, '/'));
+  const run = (lang) => {
+    I.setLang(lang);
+    const missing = FL.checkFileRefs(['\\input{nope}'], table, { dir: '/p/Ch', root: '/p', inputRoot: 'root', exists: ex([]) });
+    const trap = FL.checkFileRefs(['\\input{a}'], table, { dir: '/p/Ch', root: '/p', inputRoot: 'root', exists: ex(['/p/Ch/a.tex']) });
+    const plain = FL.checkFileRefs(['\\includegraphics{nope}'], table, { dir: '/p/Ch', root: '/p', inputRoot: 'file', exists: ex([]) });
+    let xlsx = '';
+    try { FL.readXlsx(Buffer.from('nonsense')); } catch (e) { xlsx = e.message; }
+    return { missing, trap, plain, xlsx };
+  };
+  const uk = run('uk'), en = run('en');
+  assert.deepStrictEqual([uk.missing[0].code, en.missing[0].code, uk.trap[0].code, en.trap[0].code], ['file-missing-input', 'file-missing-input', 'input-root-path', 'input-root-path']);
+  assert.strictEqual(uk.trap[0].fix, 'Ch/a');
+  assert.strictEqual(en.trap[0].fix, 'Ch/a');
+  assert.strictEqual(uk.missing[0].message, 'Файл не знайдено (шлях від кореня проєкту): nope');
+  assert.strictEqual(en.missing[0].message, 'File not found (path from the project root): nope');
+  assert.ok(uk.trap[0].message.startsWith('\\input{a}: шлях рахується від кореня проєкту'), uk.trap[0].message);
+  assert.ok(en.trap[0].message.startsWith('\\input{a}: the path is counted from the project root') && en.trap[0].message.endsWith('Correct: Ch/a'), en.trap[0].message);
+  assert.strictEqual(en.xlsx, 'does not look like an .xlsx (no end of the zip)');
+  assert.ok(/^не схоже на \.xlsx/.test(uk.xlsx));
+});
+
+t('the buttons of files and labels that the code compares with the answer are different in English too (Update / No / Remove / Merge / Save anyway / Cancel ...)', () => {
+  const buttons = ['Оновити', 'Ні', 'Видалити', "Об'єднати", 'Все одно зберегти', 'Скасувати', 'Скопіювати install', 'Скопіювати пошук', 'Показати в терміналі'];
+  const en = buttons.map((b) => EN[b]);
+  assert.ok(en.every(Boolean), en.join(','));
+  assert.strictEqual(new Set(en).size, en.length, en.join(', '));
+  assert.ok(!en.includes(EN['Замінити']) && !en.includes(EN['Відкрити']), 'and not the buttons of the other commands that can be on the screen together');
+});
+
 console.log(n + ' tests passed');

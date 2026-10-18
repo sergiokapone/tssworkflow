@@ -7,6 +7,7 @@ const path = require('path');
 const S = require('./sidebarPure');
 const P = require('./corePure');
 const { cfg } = require('./util');
+const { getLang } = require('./i18n');
 
 
 let provider = null;
@@ -35,7 +36,7 @@ class Provider {
   getTreeItem(el) { return el.item; }
   getChildren(el) {
     if (el) return el.children || [];
-    const l = cfg().get('panelLanguage', 'uk');
+    const l = S.resolveLang(cfg().get('panelLanguage', 'auto'), getLang()); // "auto": the language of tssworkflow.language
     return [this.stateGroup(l)].concat(S.GROUPS.map((g) => this.group(g, l)));
   }
   stateGroup(l) {
