@@ -6,6 +6,7 @@
  * Both can also run on save (tssworkflow.tblr.formatOnSave, tssworkflow.beamer.autoRenumber).
  * The logic without VS Code is in formattersPure.js. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 const X = require('./formattersPure');
 const { cfg, info, isTex, warn } = require('./util');
 
@@ -34,7 +35,7 @@ function beamerOptions() {
   return { skipTitle: cfg().get('beamer.skipTitleFrame', true) !== false };
 }
 
-const reasons = (skipped) => skipped.slice(0, 4).map((s) => 'рядок ' + s.line + ': ' + s.reason).join('; ') + (skipped.length > 4 ? '; ...' : '');
+const reasons = (skipped) => skipped.slice(0, 4).map((s) => tr('рядок {0}: {1}', s.line, s.reason)).join('; ') + (skipped.length > 4 ? '; ...' : '');
 
 // offsets of the normalized (\n) text for a (line, character) pair
 function lineStarts(text) {
@@ -45,12 +46,12 @@ function lineStarts(text) {
 
 async function formatTblrCmd(api) {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл із таблицею tblr.'); return; }
+  if (!ed || !isTex(ed.document)) { info(tr('Відкрий .tex-файл із таблицею tblr.')); return; }
   const doc = ed.document;
   const text = doc.getText().replace(/\r\n/g, '\n');
   const o = tblrOptions(ed);
   const envs = X.findEnvs(text, o.envs);
-  if (!envs.length) { info('У файлі немає оточень ' + o.envs.join(', ') + '.'); return; }
+  if (!envs.length) { info(tr('У файлі немає оточень {0}.', o.envs.join(', '))); return; }
   const st = lineStarts(text);
   const off = (p) => (st[p.line] === undefined ? text.length : st[p.line] + p.character);
   const a = off(ed.selection.start);
@@ -59,32 +60,32 @@ async function formatTblrCmd(api) {
   let scope;
   if (!ed.selection.isEmpty) {
     chosen = envs.filter((e) => e.start < b && e.end > a);
-    scope = 'у виділенні';
+    scope = tr('у виділенні');
   } else {
     const around = envs.filter((e) => e.start <= a && a <= e.end).sort((x, y) => (x.end - x.start) - (y.end - y.start));
-    if (around.length) { chosen = [around[0]]; scope = 'під курсором'; } else { chosen = envs; scope = 'у файлі'; }
+    if (around.length) { chosen = [around[0]]; scope = tr('під курсором'); } else { chosen = envs; scope = tr('у файлі'); }
   }
-  if (!chosen.length) { info('У виділенні немає таблиці ' + o.envs.join(' / ') + '.'); return; }
+  if (!chosen.length) { info(tr('У виділенні немає таблиці {0}.', o.envs.join(' / '))); return; }
   const res = X.formatTblr(text, Object.assign({}, o, { include: new Set(chosen.map((e) => e.start)) }));
   const oldL = text.split('\n');
   const newL = res.text.split('\n');
   const d = X.diffRange(oldL, newL);
-  const skippedMsg = res.skipped.length ? ' Пропущено ' + res.skipped.length + ': ' + reasons(res.skipped) + '.' : '';
+  const skippedMsg = res.skipped.length ? tr(' Пропущено {0}: {1}.', res.skipped.length, reasons(res.skipped)) : '';
   if (!d) {
-    if (res.skipped.length) warn('Таблиці ' + scope + ' не змінено.' + skippedMsg);
-    else info('Таблиці ' + scope + ' уже відформатовані.');
+    if (res.skipped.length) warn(tr('Таблиці {0} не змінено.', scope) + skippedMsg);
+    else info(tr('Таблиці {0} уже відформатовані.', scope));
     return;
   }
-  const sum = 'Таблиць відформатовано: ' + res.formatted + ' (' + scope + ').' + skippedMsg;
-  const applied = await api.applyWithPreview(ed, d.s, d.e, d.lines, 'Форматування tblr', sum);
+  const sum = tr('Таблиць відформатовано: {0} ({1}).', res.formatted, scope) + skippedMsg;
+  const applied = await api.applyWithPreview(ed, d.s, d.e, d.lines, tr('Форматування tblr'), sum);
   if (applied) vscode.window.setStatusBarMessage(sum, 4000);
-  if (res.skipped.length) warn('Пропущено ' + res.skipped.length + ': ' + reasons(res.skipped) + '.');
+  if (res.skipped.length) warn(tr('Пропущено {0}: {1}.', res.skipped.length, reasons(res.skipped)));
 }
 
 // Format inline \tikz: one-line \tikz[...]{...} (selection, the one under the cursor, or all in the file) -> one statement per line
 async function formatTikzCmd(api) {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл із \\tikz{…}.'); return; }
+  if (!ed || !isTex(ed.document)) { info(tr('Відкрий .tex-файл із \\tikz{…}.')); return; }
   const doc = ed.document;
   const text = doc.getText().replace(/\r\n/g, '\n');
   const st = lineStarts(text);
@@ -92,39 +93,39 @@ async function formatTikzCmd(api) {
   const o = tblrOptions(ed);
   const min = Number(cfg().get('tikzFormat.minLength', 100));
   const opts = { unit: o.unit, minLength: Number.isFinite(min) ? Math.max(0, min) : 100 };
-  let scope = 'у файлі';
-  if (!ed.selection.isEmpty) { opts.only = [off(ed.selection.start), off(ed.selection.end)]; scope = 'у виділенні'; }
+  let scope = tr('у файлі');
+  if (!ed.selection.isEmpty) { opts.only = [off(ed.selection.start), off(ed.selection.end)]; scope = tr('у виділенні'); }
   else {
     const c = off(ed.selection.active);
     const here = X.formatInlineTikz(text, Object.assign({}, opts, { only: [c, c] }));
-    if (here.found) { opts.only = [c, c]; scope = 'під курсором'; }
+    if (here.found) { opts.only = [c, c]; scope = tr('під курсором'); }
   }
   const res = X.formatInlineTikz(text, opts);
-  const skippedMsg = res.skipped.length ? ' Пропущено ' + res.skipped.length + ': ' + reasons(res.skipped) + '.' : '';
-  if (!res.found) { info('Немає \\tikz{…} ' + scope + '.'); return; }
+  const skippedMsg = res.skipped.length ? tr(' Пропущено {0}: {1}.', res.skipped.length, reasons(res.skipped)) : '';
+  if (!res.found) { info(tr('Немає \\tikz{…} {0}.', scope)); return; }
   const oldL = text.split('\n');
   const d = X.diffRange(oldL, res.text.split('\n'));
   if (!d) {
-    if (res.skipped.length) warn('\\tikz ' + scope + ' не змінено.' + skippedMsg);
-    else info('Нічого розкладати ' + scope + ': код або вже в кілька рядків, або коротший за ' + opts.minLength + ' символів (tssworkflow.tikzFormat.minLength).');
+    if (res.skipped.length) warn(tr('\\tikz {0} не змінено.', scope) + skippedMsg);
+    else info(tr('Нічого розкладати {0}: код або вже в кілька рядків, або коротший за {1} символів (tssworkflow.tikzFormat.minLength).', scope, opts.minLength));
     return;
   }
-  const sum = 'Розкладено \\tikz: ' + res.formatted + ' (' + scope + ').' + skippedMsg;
-  if (await api.applyWithPreview(ed, d.s, d.e, d.lines, 'Форматування \\tikz', sum)) vscode.window.setStatusBarMessage(sum, 4000);
+  const sum = tr('Розкладено \\tikz: {0} ({1}).', res.formatted, scope) + skippedMsg;
+  if (await api.applyWithPreview(ed, d.s, d.e, d.lines, tr('Форматування \\tikz'), sum)) vscode.window.setStatusBarMessage(sum, 4000);
 }
 
 async function renumberBeamerCmd(api) {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTex(ed.document)) { info('Відкрий .tex-файл презентації beamer.'); return; }
+  if (!ed || !isTex(ed.document)) { info(tr('Відкрий .tex-файл презентації beamer.')); return; }
   const oldL = docLines(ed.document);
   const res = X.renumberBeamer(oldL, beamerOptions());
-  if (!res.isBeamer) { info('Це не презентація beamer (немає \\documentclass{beamer}), нічого не змінено.'); return; }
-  if (!res.frames) { info('У файлі немає \\begin{frame}, нічого не змінено.'); return; }
+  if (!res.isBeamer) { info(tr('Це не презентація beamer (немає \\documentclass{beamer}), нічого не змінено.')); return; }
+  if (!res.frames) { info(tr('У файлі немає \\begin{frame}, нічого не змінено.')); return; }
   const d = X.diffRange(oldL, res.lines);
-  if (!d) { info('Номери слайдів уже актуальні (' + res.frames + ' фреймів).'); return; }
-  const sum = 'Слайди: вставлено рамок ' + res.inserted + ', оновлено номерів ' + res.renumbered +
-    (res.titleSkipped ? ', титульних пропущено ' + res.titleSkipped : '') + (res.skipped ? ', пропущено (фрейм не на початку рядка) ' + res.skipped : '') + '.';
-  if (await api.applyWithPreview(ed, d.s, d.e, d.lines, 'Нумерація слайдів', sum)) vscode.window.setStatusBarMessage(sum, 4000);
+  if (!d) { info(tr('Номери слайдів уже актуальні ({0} фреймів).', res.frames)); return; }
+  const sum = tr('Слайди: вставлено рамок {0}, оновлено номерів {1}', res.inserted, res.renumbered) +
+    (res.titleSkipped ? tr(', титульних пропущено {0}', res.titleSkipped) : '') + (res.skipped ? tr(', пропущено (фрейм не на початку рядка) {0}', res.skipped) : '') + '.';
+  if (await api.applyWithPreview(ed, d.s, d.e, d.lines, tr('Нумерація слайдів'), sum)) vscode.window.setStatusBarMessage(sum, 4000);
 }
 
 // on save: the same changes without the preview, as one edit (one Ctrl+Z)

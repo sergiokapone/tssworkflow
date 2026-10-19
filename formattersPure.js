@@ -1,4 +1,5 @@
 'use strict';
+const { tr } = require('./i18n');
 /* TSS Workflow 0.5.1, logic without VS Code:
  *   formatTblr      options and body of tblr / longtblr / talltblr: one key per line, "=" aligned, keys grouped,
  *                   cells aligned in a grid (or one cell per line when a row is too wide)
@@ -350,16 +351,16 @@ function formatInlineTikz(text, opts) {
       }
     }
     while (/\s/.test(src[j] || '')) j++;
-    if (src[j] !== '{' || src[src.length - 1] !== '}') { skipped.push({ line: lineOf(a), reason: '\\tikz без дужок {…}' }); continue; }
+    if (src[j] !== '{' || src[src.length - 1] !== '}') { skipped.push({ line: lineOf(a), reason: tr('\\tikz без дужок {…}') }); continue; }
     const head = src.slice(0, j).trimEnd();
     const stmts = tikzStatements(src.slice(j + 1, -1));
     const ls = text.lastIndexOf('\n', a - 1) + 1;
     const base = /^[ \t]*/.exec(text.slice(ls, a))[0];
     const lines = [];
-    if (!stmts || !tikzLines(stmts, 1, unit, base, lines)) { skipped.push({ line: lineOf(a), reason: 'дужки в коді TikZ не збігаються' }); continue; }
+    if (!stmts || !tikzLines(stmts, 1, unit, base, lines)) { skipped.push({ line: lineOf(a), reason: tr('дужки в коді TikZ не збігаються') }); continue; }
     if (lines.length < 2) continue;
     const res = head + '{\n' + lines.join('\n') + '\n' + base + '}';
-    if (res.replace(/\s+/g, '') !== src.replace(/\s+/g, '')) { skipped.push({ line: lineOf(a), reason: 'результат відрізнявся б не лише пробілами' }); continue; }
+    if (res.replace(/\s+/g, '') !== src.replace(/\s+/g, '')) { skipped.push({ line: lineOf(a), reason: tr('результат відрізнявся б не лише пробілами') }); continue; }
     edits.push({ a, b, res });
   }
   let out = text;
@@ -499,10 +500,10 @@ function parseBody(body) {
         continue;
       }
       const rest = body.slice(i, i + 40);
-      if (/^\\(verb|lstinline|mintinline)(?![A-Za-z])/.test(rest)) return bad('\\verb усередині таблиці', i);
+      if (/^\\(verb|lstinline|mintinline)(?![A-Za-z])/.test(rest)) return bad(tr('\\verb усередині таблиці'), i);
       const be = /^\\(begin|end)\{([^}]*)\}/.exec(rest);
       if (be) {
-        if (new RegExp('^(' + VERB_ENVS + ')$').test(be[2])) return bad('verbatim усередині таблиці', i);
+        if (new RegExp('^(' + VERB_ENVS + ')$').test(be[2])) return bad(tr('verbatim усередині таблиці'), i);
         if (be[1] === 'begin') nest++;
         else if (nest > 0) nest--;
         buf += be[0];
@@ -516,7 +517,7 @@ function parseBody(body) {
     if (ch === '{') depth++;
     else if (ch === '}') {
       depth--;
-      if (depth < 0) return bad('незбалансовані дужки', i);
+      if (depth < 0) return bad(tr('незбалансовані дужки'), i);
     } else if (ch === '&' && depth === 0 && nest === 0) {
       cells.push(buf);
       buf = '';
@@ -526,12 +527,12 @@ function parseBody(body) {
     buf += ch;
     i++;
   }
-  if (depth !== 0 || nest !== 0) return bad('незбалансовані дужки або вкладені оточення', n);
+  if (depth !== 0 || nest !== 0) return bad(tr('незбалансовані дужки або вкладені оточення'), n);
   if (cells.length || buf.trim()) {
     cells.push(buf);
     blocks.push({ type: 'row', cells: cleanCells(), term: '', tc: '' });
   }
-  if (blankInCell) return bad('порожній рядок усередині клітинки', 0);
+  if (blankInCell) return bad(tr('порожній рядок усередині клітинки'), 0);
   while (blocks.length && blocks[0].type === 'blank') blocks.shift();
   while (blocks.length && blocks[blocks.length - 1].type === 'blank') blocks.pop();
   return { blocks };
@@ -612,7 +613,7 @@ function layoutBody(blocks, indent, unit, opts) {
 // -> { text } or { skip: reason, at: offset }
 function formatTblrEnv(src, env, opts) {
   opts = Object.assign({ maxWidth: 100, unit: '  ', tabSize: 2, sort: true }, opts);
-  if (env.hasNested) return { skip: 'усередині є вкладена таблиця tblr; відформатуй внутрішню окремо', at: env.start };
+  if (env.hasNested) return { skip: tr('усередині є вкладена таблиця tblr; відформатуй внутрішню окремо'), at: env.start };
   const lineStart = src.lastIndexOf('\n', env.start - 1) + 1;
   const indent = /^[ \t]*/.exec(src.slice(lineStart, env.start + 1))[0];
   // arguments: [outer]{inner}
@@ -627,24 +628,24 @@ function formatTblrEnv(src, env, opts) {
       if (src[q] !== '%') break;
       const eol = src.indexOf('\n', q);
       const text = src.slice(q + 1, eol < 0 ? src.length : eol);
-      if (text.trim() !== '') return { skip: 'коментар з текстом між \\begin і параметрами', at: q };
+      if (text.trim() !== '') return { skip: tr('коментар з текстом між \\begin і параметрами'), at: q };
       q = eol < 0 ? src.length : eol;
     }
     const c = src[q];
     if (c === '[' && outer === null && inner === null) {
       const close = matchBracket(src, q, env.bodyEnd);
-      if (close < 0) return { skip: 'незакриті дужки в параметрах', at: q };
+      if (close < 0) return { skip: tr('незакриті дужки в параметрах'), at: q };
       outer = src.slice(q + 1, close);
       p = close + 1;
     } else if (c === '{' && inner === null) {
       const close = matchBracket(src, q, env.bodyEnd);
-      if (close < 0) return { skip: 'незакриті дужки в параметрах', at: q };
+      if (close < 0) return { skip: tr('незакриті дужки в параметрах'), at: q };
       inner = src.slice(q + 1, close);
       p = close + 1;
     } else break;
   }
   if ((outer !== null && hasComment(outer)) || (inner !== null && hasComment(inner))) {
-    return { skip: 'коментар усередині параметрів', at: env.start };
+    return { skip: tr('коментар усередині параметрів'), at: env.start };
   }
   const body = src.slice(p, env.bodyEnd);
   const parsed = parseBody(body);

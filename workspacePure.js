@@ -116,14 +116,14 @@ function mergeMissingSettings(existing, template, comments) {
     return { text: '{' + eol + keys.map(entry).join(',' + eol).replace(/\n/g, eol) + eol + '}' + eol, added: keys };
   }
   let obj;
-  try { obj = JSON.parse(dropTrailingCommas(stripJsonc(existing.replace(/^\uFEFF/, '')))); } catch (e) { return { error: 'не вдалося розібрати існуючий settings.json' }; }
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { error: 'settings.json має бути JSON-об\'єктом' };
+  try { obj = JSON.parse(dropTrailingCommas(stripJsonc(existing.replace(/^\uFEFF/, '')))); } catch (e) { return { error: tr('не вдалося розібрати існуючий settings.json') }; }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return { error: tr('settings.json має бути JSON-об\'єктом') };
   const missing = Object.keys(template).filter((k) => !Object.prototype.hasOwnProperty.call(obj, k));
   if (!missing.length) return { text: existing, added: [] };
   const close = existing.lastIndexOf('}');
-  if (close < 0) return { error: 'у settings.json немає закриваючої }' };
+  if (close < 0) return { error: tr('у settings.json немає закриваючої }') };
   const last = lastCodeIndex(existing, close);
-  if (last < 0) return { error: 'не вдалося знайти місце вставки' };
+  if (last < 0) return { error: tr('не вдалося знайти місце вставки') };
   const needComma = existing[last] !== ',' && existing[last] !== '{';
   const body = missing.map(entry).join(',' + eol).replace(/\r?\n/g, eol);
   let lineEnd = existing.indexOf('\n', last);

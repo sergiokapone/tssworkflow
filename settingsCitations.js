@@ -7,26 +7,27 @@ const P = require('./corePure');
 const { EXCLUDE, cfg, findCached, info, openDocByPath, texFiles, textOf } = require('./util');
 const { SEV } = require('./checksHovers');
 const PI = require('./projectIndex');
+const { tr } = require('./i18n');
 
 /* ------------------- project .vscode/settings.json -------------------- */
 // Creates .vscode/settings.json from the template (P.PROJECT_SETTINGS_TEMPLATE or the file in tssworkflow.projectSettingsTemplate);
 // if the file exists, only the missing top-level keys are added. `arg` may be the folder path (from the prompt on opening).
 async function initProjectSettings(arg) {
   const folders = vscode.workspace.workspaceFolders || [];
-  if (!folders.length) { info('Відкрий папку проєкту: .vscode/settings.json створюється в робочій папці.'); return; }
+  if (!folders.length) { info(tr('Відкрий папку проєкту: .vscode/settings.json створюється в робочій папці.')); return; }
   let folder = typeof arg === 'string' ? folders.find((f) => f.uri.fsPath === arg) : undefined;
   if (!folder && folders.length === 1) folder = folders[0];
   if (!folder) {
     const pick = await vscode.window.showQuickPick(
       folders.map((f) => ({ label: f.name, description: f.uri.fsPath, folder: f })),
-      { placeHolder: 'У якій папці створити .vscode/settings.json?' }
+      { placeHolder: tr('У якій папці створити .vscode/settings.json?') }
     );
     if (!pick) return;
     folder = pick.folder;
   }
   const file = path.join(folder.uri.fsPath, '.vscode', 'settings.json');
   if (vscode.workspace.textDocuments.some((d) => d.uri.fsPath === file && d.isDirty)) {
-    vscode.window.showWarningMessage('.vscode/settings.json має незбережені зміни. Збережи або закрий його і повтори.');
+    vscode.window.showWarningMessage(tr('.vscode/settings.json має незбережені зміни. Збережи або закрий його і повтори.'));
     return;
   }
   const exists = fs.existsSync(file);
@@ -37,9 +38,9 @@ async function initProjectSettings(arg) {
     // the user's own template: used as it is
     try {
       tpl = JSON.parse(P.dropTrailingCommas(P.stripJsonc(fs.readFileSync(tplPath, 'utf8').replace(/^\uFEFF/, ''))));
-      if (!tpl || typeof tpl !== 'object' || Array.isArray(tpl)) throw new Error('шаблон має бути JSON-об\'єктом');
+      if (!tpl || typeof tpl !== 'object' || Array.isArray(tpl)) throw new Error(tr('шаблон має бути JSON-об\'єктом'));
     } catch (err) {
-      vscode.window.showWarningMessage('Не вдалося прочитати шаблон «' + tplPath + '»: ' + (err && err.message ? err.message : err));
+      vscode.window.showWarningMessage(tr('Не вдалося прочитати шаблон «{0}»: {1}', tplPath, err && err.message ? err.message : err));
       return;
     }
   } else {
@@ -53,7 +54,7 @@ async function initProjectSettings(arg) {
       if (r.choose) {
         const pick = await vscode.window.showQuickPick(
           r.choose.map((n) => ({ label: n })),
-          { placeHolder: 'У папці кілька .tex і немає main.tex. Який файл головний (mainFile)?' }
+          { placeHolder: tr('У папці кілька .tex і немає main.tex. Який файл головний (mainFile)?') }
         );
         if (!pick) return;
         mainFile = pick.label;
@@ -75,23 +76,23 @@ async function initProjectSettings(arg) {
     });
   }
   const res = P.mergeMissingSettings(existing, tpl, tplPath ? null : P.PROJECT_SETTINGS_COMMENTS);
-  if (res.error) { vscode.window.showWarningMessage('.vscode/settings.json: ' + res.error + '. Файл не змінено.'); return; }
+  if (res.error) { vscode.window.showWarningMessage(tr('.vscode/settings.json: {0}. Файл не змінено.', res.error)); return; }
   if (exists && !res.added.length) {
-    info('У .vscode/settings.json уже є всі ключі шаблону.');
+    info(tr('У .vscode/settings.json уже є всі ключі шаблону.'));
     await vscode.window.showTextDocument(vscode.Uri.file(file));
     return;
   }
   if (exists) {
     const ok = await vscode.window.showInformationMessage(
-      'У .vscode/settings.json немає ' + res.added.length + ' ключів шаблону: ' + res.added.slice(0, 4).join(', ') + (res.added.length > 4 ? ', …' : '') + '. Додати їх? Наявні ключі й коментарі не чіпаються.',
-      'Додати', 'Скасувати'
+      tr('У .vscode/settings.json немає {0} ключів шаблону: {1}. Додати їх? Наявні ключі й коментарі не чіпаються.', res.added.length, res.added.slice(0, 4).join(', ') + (res.added.length > 4 ? ', …' : '')),
+      tr('Додати'), tr('Скасувати')
     );
-    if (ok !== 'Додати') return;
+    if (ok !== tr('Додати')) return;
   }
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, res.text, 'utf8');
   await vscode.window.showTextDocument(vscode.Uri.file(file));
-  info((exists ? 'Додано ключів: ' : 'Створено .vscode/settings.json, ключів: ') + res.added.length + '.');
+  info(exists ? tr('Додано ключів: {0}.', res.added.length) : tr('Створено .vscode/settings.json, ключів: {0}.', res.added.length));
 }
 
 /* ------------------------------ citations ---------------------------- */
@@ -107,7 +108,7 @@ async function checkCitations(showMessage) {
   const bibs = await findCached('**/*.bib', 200);
   if (!bibs.length) {
     citeDiags.clear();
-    if (showMessage) info('У проєкті немає .bib файлів: перевіряти нічого.');
+    if (showMessage) info(tr('У проєкті немає .bib файлів: перевіряти нічого.'));
     return;
   }
   const keys = new Map();
@@ -137,14 +138,14 @@ async function checkCitations(showMessage) {
       used.add(c.name);
       if (!keys.has(c.name)) {
         undef++;
-        add(f.fsPath, c, 'Ключа «' + c.name + '» немає в .bib файлах проєкту', vscode.DiagnosticSeverity.Warning, 'cite-undefined');
+        add(f.fsPath, c, tr('Ключа «{0}» немає в .bib файлах проєкту', c.name), vscode.DiagnosticSeverity.Warning, 'cite-undefined');
       }
     }
   }
   for (const [name, arr] of keys) {
     if (arr.length > 1) {
       dup++;
-      arr.forEach((x) => add(x.file, x.k, 'Ключ «' + name + '» у .bib визначений ' + arr.length + ' разів', vscode.DiagnosticSeverity.Warning, 'bib-duplicate'));
+      arr.forEach((x) => add(x.file, x.k, tr('Ключ «{0}» у .bib визначений {1} разів', name, arr.length), vscode.DiagnosticSeverity.Warning, 'bib-duplicate'));
     }
   }
   const sevName = cfg().get('unusedBibEntries', 'hint');
@@ -152,13 +153,13 @@ async function checkCitations(showMessage) {
     for (const [name, arr] of keys) {
       if (used.has(name)) continue;
       unused++;
-      add(arr[0].file, arr[0].k, 'Запис «' + name + '» ніде не цитується', SEV[sevName], 'bib-unused');
+      add(arr[0].file, arr[0].k, tr('Запис «{0}» ніде не цитується', name), SEV[sevName], 'bib-unused');
     }
   }
   citeDiags.set(byFile);
   if (showMessage) {
-    info('Цитування: невизначених ключів ' + undef + ', дублікатів у .bib ' + dup + ', нецитованих записів ' + unused +
-      (nociteAll ? ' (є \\nocite{*}: нецитовані не рахуються)' : '') + ' (див. Problems).');
+    info(tr('Цитування: невизначених ключів {0}, дублікатів у .bib {1}, нецитованих записів {2}', undef, dup, unused) +
+      (nociteAll ? tr(' (є \\nocite{*}: нецитовані не рахуються)') : '') + tr(' (див. Problems).'));
   }
 }
 
@@ -180,21 +181,21 @@ async function ltexDictionary() {
     }
   }
   if (!counts.size) {
-    info('Орфографічних діагностик LTeX немає. LTeX перевіряє лише відкриті файли: відкрий потрібні розділи й зачекай кінця перевірки.');
+    info(tr('Орфографічних діагностик LTeX немає. LTeX перевіряє лише відкриті файли: відкрий потрібні розділи й зачекай кінця перевірки.'));
     return;
   }
   const lang = String(vscode.workspace.getConfiguration('ltex').get('language', 'en-US'));
-  if (lang === 'auto') { info('Для ltex.language = "auto" невідомо, до якої мови додавати слова. Вкажи конкретну мову, напр. uk-UA.'); return; }
+  if (lang === 'auto') { info(tr('Для ltex.language = "auto" невідомо, до якої мови додавати слова. Вкажи конкретну мову, напр. uk-UA.')); return; }
   const items = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 300)
     .map(([w, n]) => ({ label: w, description: '×' + n }));
-  const picked = await vscode.window.showQuickPick(items, { canPickMany: true, title: 'Слова для ltex.dictionary (' + lang + ')', placeHolder: 'Познач слова, які треба вважати правильними' });
+  const picked = await vscode.window.showQuickPick(items, { canPickMany: true, title: tr('Слова для ltex.dictionary ({0})', lang), placeHolder: tr('Познач слова, які треба вважати правильними') });
   if (!picked || !picked.length) return;
   const conf = vscode.workspace.getConfiguration('ltex');
   const cur = conf.inspect('dictionary');
   const next = Object.assign({}, (cur && cur.globalValue) || {});
   next[lang] = [...new Set([...(next[lang] || []), ...picked.map((p) => p.label)])];
   await conf.update('dictionary', next, vscode.ConfigurationTarget.Global);
-  info('До ltex.dictionary (' + lang + ', User settings) додано слів: ' + picked.length + '. LTeX може перевірити файли заново з затримкою.');
+  info(tr('До ltex.dictionary ({0}, User settings) додано слів: {1}. LTeX може перевірити файли заново з затримкою.', lang, picked.length));
 }
 
 module.exports = {

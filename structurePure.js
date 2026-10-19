@@ -1,4 +1,5 @@
 'use strict';
+const { tr } = require('./i18n');
 /* structurePure.js: tables, environments, labels, syntax checks, frames of headings and formulas, align-all, outline. No vscode. */
 const { alignLines, codePart, splitRow } = require('./texBasePure');
 
@@ -45,7 +46,7 @@ function tableOp(lines, op, col) {
   const rows = parseRows(lines);
   const idx = [];
   rows.forEach((r, i) => { if (r) idx.push(i); });
-  if (!idx.length) return { error: 'У блоці немає рядків таблиці (потрібні рядки з & в одному рядку).' };
+  if (!idx.length) return { error: tr('У блоці немає рядків таблиці (потрібні рядки з & в одному рядку).') };
   const build = (indent, tail, comment, cells) =>
     indent + cells.join(' & ') + (tail !== null ? ' ' + tail : comment ? ' ' + comment : '');
   const out = lines.slice();
@@ -65,7 +66,7 @@ function tableOp(lines, op, col) {
     }
   } else if (op === 'sort') {
     const slots = idx.slice(1); // the first table row is treated as a header
-    if (slots.length < 2) return { error: 'Замало рядків для сортування.' };
+    if (slots.length < 2) return { error: tr('Замало рядків для сортування.') };
     const coll = new Intl.Collator('uk', { numeric: true, sensitivity: 'base' });
     const sorted = slots.map((i) => rows[i]).sort((a, b) => coll.compare(a.cells[col] || '', b.cells[col] || ''));
     slots.forEach((slot, k) => {
@@ -74,9 +75,9 @@ function tableOp(lines, op, col) {
     });
   } else if (op === 'transpose') {
     const nonBlank = lines.filter((l) => l.trim()).length;
-    if (nonBlank !== idx.length) return { error: 'Транспонувати можна лише таблицю, де всі рядки це рядки з &.' };
+    if (nonBlank !== idx.length) return { error: tr('Транспонувати можна лише таблицю, де всі рядки це рядки з &.') };
     const n = rows[idx[0]].cells.length;
-    if (idx.some((i) => rows[i].cells.length !== n)) return { error: 'Рядки мають різну кількість комірок.' };
+    if (idx.some((i) => rows[i].cells.length !== n)) return { error: tr('Рядки мають різну кількість комірок.') };
     const indent = rows[idx[0]].indent;
     const res = [];
     for (let j = 0; j < n; j++) {
@@ -84,7 +85,7 @@ function tableOp(lines, op, col) {
     }
     return { lines: res };
   } else {
-    return { error: 'Невідома дія: ' + op };
+    return { error: tr('Невідома дія: {0}', op) };
   }
   return { lines: out };
 }
@@ -114,23 +115,23 @@ function pairEnvsPure(toks) {
   const problems = [];
   toks.forEach((t, i) => {
     if (t.type === 'begin') { stack.push(i); return; }
-    if (!stack.length) { problems.push({ i, code: 'end-without-begin', msg: '\\end{' + t.name + '} без \\begin' }); return; }
+    if (!stack.length) { problems.push({ i, code: 'end-without-begin', msg: tr('\\end{{0}} без \\begin', t.name) }); return; }
     const top = stack[stack.length - 1];
     if (toks[top].name === t.name) { stack.pop(); pairs.push([top, i]); return; }
     let k = -1;
     for (let s = stack.length - 1; s >= 0; s--) if (toks[stack[s]].name === t.name) { k = s; break; }
     if (k >= 0) {
-      for (let s = stack.length - 1; s > k; s--) problems.push({ i: stack[s], code: 'missing-end', msg: 'Немає \\end{' + toks[stack[s]].name + '}' });
+      for (let s = stack.length - 1; s > k; s--) problems.push({ i: stack[s], code: 'missing-end', msg: tr('Немає \\end{{0}}', toks[stack[s]].name) });
       const b = stack[k];
       stack.length = k;
       pairs.push([b, i]);
     } else {
       stack.pop();
       pairs.push([top, i]);
-      problems.push({ i, code: 'end-mismatch', msg: '\\end{' + t.name + '} не відповідає \\begin{' + toks[top].name + '}', expect: toks[top].name });
+      problems.push({ i, code: 'end-mismatch', msg: tr('\\end{{0}} не відповідає \\begin{{1}}', t.name, toks[top].name), expect: toks[top].name });
     }
   });
-  stack.forEach((i) => problems.push({ i, code: 'missing-end', msg: 'Немає \\end{' + toks[i].name + '}' }));
+  stack.forEach((i) => problems.push({ i, code: 'missing-end', msg: tr('Немає \\end{{0}}', toks[i].name) }));
   return { pairs, problems };
 }
 
@@ -194,7 +195,7 @@ function convertEnv(lines, cur, choice) {
     if (toks[b].line > cur || toks[e].line < cur) continue;
     if (!best || toks[b].line >= toks[best[0]].line) best = [b, e];
   }
-  if (!best) return { error: 'Курсор не всередині equation / align / gather / multline.' };
+  if (!best) return { error: tr('Курсор не всередині equation / align / gather / multline.') };
   const bt = toks[best[0]];
   const et = toks[best[1]];
   const labelRe = /\\label\{[^}]*\}\s?/;
@@ -202,11 +203,11 @@ function convertEnv(lines, cur, choice) {
     for (let ln = bt.line; ln <= et.line; ln++) {
       const m = labelRe.exec(codePart(lines[ln]));
       if (m) {
-        if (choice === '+label') return { error: 'У цьому середовищі вже є \\label.' };
+        if (choice === '+label') return { error: tr('У цьому середовищі вже є \\label.') };
         return { edits: [{ line: ln, col: m.index, len: m[0].length, text: '' }] };
       }
     }
-    if (choice === '-label') return { error: '\\label не знайдено.' };
+    if (choice === '-label') return { error: tr('\\label не знайдено.') };
     return { edits: [{ line: bt.line, col: bt.tokEnd, len: 0, text: '\\label{eq:}' }] };
   }
   return {
@@ -330,7 +331,7 @@ function syntaxChecks(lines, exists) {
     let m;
     bs.lastIndex = 0;
     while ((m = bs.exec(code)) !== null) {
-      out.push({ line: i, col: m.index, len: m[0].length, severity: 'error', code: 'missing-backslash', message: 'Пропущено «\\» перед ' + m[1] + '{' + m[2] + '}' });
+      out.push({ line: i, col: m.index, len: m[0].length, severity: 'error', code: 'missing-backslash', message: tr('Пропущено «\\» перед {0}{{1}}', m[1], m[2]) });
     }
   });
   const toks = envTokensPure(lines);
@@ -343,7 +344,7 @@ function syntaxChecks(lines, exists) {
     if (!MATH_ENVS.has(toks[b].name)) return;
     for (let ln = toks[b].line + 1; ln < toks[e].line; ln++) {
       if (lines[ln].trim() === '') {
-        out.push({ line: ln, col: 0, len: 1, severity: 'error', code: 'blank-in-math', message: 'Порожній рядок усередині формули (це \\par), LaTeX видасть помилку' });
+        out.push({ line: ln, col: 0, len: 1, severity: 'error', code: 'blank-in-math', message: tr('Порожній рядок усередині формули (це \\par), LaTeX видасть помилку') });
       }
     }
   });
@@ -360,7 +361,7 @@ function syntaxChecks(lines, exists) {
           if (!name) continue;
           if (!exists(kind, name)) {
             const lead = m[1].length - m[1].trimStart().length;
-            out.push({ line: i, col: m.index + m[0].lastIndexOf('{') + 1 + lead, len: name.length, severity: 'warning', code: 'file-missing-' + kind, message: 'Файл не знайдено: ' + prefix + name });
+            out.push({ line: i, col: m.index + m[0].lastIndexOf('{') + 1 + lead, len: name.length, severity: 'warning', code: 'file-missing-' + kind, message: tr('Файл не знайдено: {0}', prefix + name) });
           }
         }
       }
@@ -554,7 +555,7 @@ function scanHeadings(lines) {
       }
       raw = parts.join(' ');
     } else raw = lines[i].slice(m[0].length);
-    out.push({ kind: m[1], level: HEADING_LEVEL[m[1]], star: !!m[2], title: cleanTitle(raw) || '(без назви)', line: i });
+    out.push({ kind: m[1], level: HEADING_LEVEL[m[1]], star: !!m[2], title: cleanTitle(raw) || tr('(без назви)'), line: i });
   }
   return out;
 }

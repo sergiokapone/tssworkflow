@@ -260,4 +260,36 @@ t('projectInfoPure in English and in Ukrainian: the hints of typography, the mix
   assert.ok(PIP.fileStats('Текст до заголовка зі словами.\n\\section{Назва}\nІнший текст.', {}, PIP.builtinCounters({})).rows.some((r) => r.title === '(до першого заголовка)'));
 });
 
+
+// the report of the state of the extension, the errors of the table and equation operations and of the merge of settings.json (0.21.7)
+const DBG = require(path.join(ext, 'debugStatePure')), STR = require(path.join(ext, 'structurePure')), WSP = require(path.join(ext, 'workspacePure'));
+t('debugStatePure, structurePure (tableOp, convertEnv, syntax checks) and workspacePure (mergeMissingSettings) speak the language; the values and the structure do not depend on it', () => {
+  const state = { version: '1', vscodeVersion: '1.9', platform: 'linux', node: '20', uptimeSec: 3725, subscriptions: 5, timers: ['a'], panels: { x: true }, findCache: 2, docMap: null, caching: false, index: { labels: 3 }, memory: { heapUsed: 10485760, heapTotal: 20971520, rss: 31457280, external: 1048576 } };
+  const run = (lang) => { I.setLang(lang); return { rep: DBG.report(state, null), tbl: [STR.tableOp([], 'sort', 0).error, STR.tableOp(['a & b', 'c & d'], 'bogus', 0).error], set: [WSP.mergeMissingSettings('{ nonsense', { a: 1 }).error, WSP.mergeMissingSettings('[1]', { a: 1 }).error] }; };
+  const uk = run('uk'), en = run('en');
+  assert.strictEqual(uk.rep.split('\n').length, en.rep.split('\n').length, 'the same lines');
+  assert.ok(uk.rep.startsWith('# TSS Workflow: стан розширення') && uk.rep.includes('працює 1 год 2 хв') && uk.rep.includes('| Показник | Значення |'), uk.rep.slice(0, 200));
+  assert.ok(en.rep.startsWith('# TSS Workflow: state of the extension') && en.rep.includes('has been running for 1 h 2 min') && en.rep.includes('| Metric | Value |') && en.rep.includes('## What can leak') && en.rep.includes('**no** (everything is read from the disk every time)') && en.rep.includes('not built yet'), en.rep.slice(0, 400));
+  assert.ok(!cyr.test(en.rep), 'no Ukrainian in the English report: ' + (en.rep.match(/.*[А-Яа-яІіЇїЄєҐґ].*/) || [''])[0]);
+  assert.ok(en.rep.includes('10.0 MB') && uk.rep.includes('10.0 МБ'), 'the unit of memory');
+  assert.deepStrictEqual(en.tbl, ['The block has no table rows (rows with & on one line are needed).', 'Unknown action: bogus']);
+  assert.deepStrictEqual(uk.tbl, ['У блоці немає рядків таблиці (потрібні рядки з & в одному рядку).', 'Невідома дія: bogus']);
+  assert.deepStrictEqual(en.set, ['could not parse the existing settings.json', 'settings.json must be a JSON object']);
+  assert.deepStrictEqual(uk.set, ['не вдалося розібрати існуючий settings.json', "settings.json має бути JSON-об'єктом"]);
+  I.setLang('uk');
+});
+
+t('syntax checks of structurePure: the messages are translated, the codes are not (a quick fix looks at the code)', () => {
+  const text = ['\\begin{itemize}', 'a', '\\end{enumerate}', '\\end{center}', '\\begin{align}', 'x', ''].join('\n');
+  const run = (lang) => { I.setLang(lang); return STR.syntaxChecks(text.split('\n'), {}).map((d) => [d.code, d.message]); };
+  const uk = run('uk'), en = run('en');
+  assert.deepStrictEqual(en.map((d) => d[0]), uk.map((d) => d[0]), 'the same codes');
+  assert.ok(uk.length >= 3 && en.length === uk.length, JSON.stringify(uk));
+  assert.ok(en.some((d) => d[0] === 'end-mismatch' && d[1] === '\\end{enumerate} does not match \\begin{itemize}'), JSON.stringify(en));
+  assert.ok(en.some((d) => d[0] === 'end-without-begin' && d[1] === '\\end{center} without \\begin'), JSON.stringify(en));
+  assert.ok(en.some((d) => d[0] === 'missing-end' && /^Missing \\end\{(align|itemize)\}$/.test(d[1])), JSON.stringify(en));
+  assert.ok(uk.some((d) => d[1] === '\\end{enumerate} не відповідає \\begin{itemize}'), 'the braces of {{0}} stay in Ukrainian too');
+  I.setLang('uk');
+});
+
 console.log(n + ' tests passed');
