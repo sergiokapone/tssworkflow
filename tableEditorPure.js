@@ -8,6 +8,7 @@
  * A table with a "%" inside a row, \verb, a nested table or an unreadable preamble is refused with a reason. */
 
 const E4 = require('./formattersPure');
+const { tr } = require('./i18n');
 
 const SUPPORTED = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable', 'spreadtab'];
 const BASE_OK = ['tblr', 'longtblr', 'talltblr', 'tabular', 'tabular*', 'tabularx', 'array', 'longtable'];
@@ -259,25 +260,25 @@ const mkEmpty = () => classify('');
 // env: an item of locateTables(); returns { model } or { skip }
 function parseTable(text, env) {
   const name = env.name;
-  if (env.hasNested) return { skip: 'усередині є інша таблиця' };
+  if (env.hasNested) return { skip: tr('усередині є інша таблиця') };
   const a = readArgs(text, env.bodyStart, ARGS[name] || '[{');
-  if (!a) return { skip: 'не вдалося прочитати параметри після \\begin{' + name + '}' };
+  if (!a) return { skip: tr('не вдалося прочитати параметри після \\begin{{0}}', name) };
   const head = text.slice(env.bodyStart, a.headEnd);
   let specGroup = [...a.groups].reverse().find((g) => g.kind === '{');
-  if (!specGroup) return { skip: 'немає опису стовпців' };
+  if (!specGroup) return { skip: tr('немає опису стовпців') };
   let base = name;
   if (name === 'spreadtab') {
     // \begin{spreadtab}{{tblr}{spec}}: the real environment and its preamble are two groups inside the argument
     const skip = (k) => { while (k < text.length && /\s/.test(text[k])) k++; return k; };
     const i1 = skip(specGroup.a);
-    if (text[i1] !== '{') return { skip: 'spreadtab без {{тип}{опис}}' };
+    if (text[i1] !== '{') return { skip: tr('spreadtab без {{тип}{опис}}') };
     const e1 = groupEnd(text, i1);
     const i2 = e1 < 0 ? -1 : skip(e1);
-    if (e1 < 0 || text[i2] !== '{') return { skip: 'spreadtab без {{тип}{опис}}' };
+    if (e1 < 0 || text[i2] !== '{') return { skip: tr('spreadtab без {{тип}{опис}}') };
     const e2 = groupEnd(text, i2);
-    if (e2 < 0) return { skip: 'не збалансовані дужки в параметрах spreadtab' };
+    if (e2 < 0) return { skip: tr('не збалансовані дужки в параметрах spreadtab') };
     base = text.slice(i1 + 1, e1 - 1).trim();
-    if (!BASE_OK.includes(base)) return { skip: 'spreadtab з типом «' + base + '» не підтримується' };
+    if (!BASE_OK.includes(base)) return { skip: tr('spreadtab з типом «{0}» не підтримується', base) };
     specGroup = { kind: '{', a: i2 + 1, b: e2 - 1 };
   }
   const isTblr = TBLR.has(base);
@@ -297,9 +298,9 @@ function parseTable(text, env) {
   const optSp = isTblr ? parseOptSpans(specSrc) : { spans: [], complex: false };
 
   const body = text.slice(a.headEnd, env.bodyEnd);
-  if (/\\verb\b|\\lstinline|\\mintinline/.test(body)) return { skip: 'у таблиці є \\verb або код' };
+  if (/\\verb\b|\\lstinline|\\mintinline/.test(body)) return { skip: tr('у таблиці є \\verb або код') };
   const rowsSplit = splitTop(body, 'row');
-  if (!rowsSplit.balanced) return { skip: 'не збалансовані дужки або \\begin/\\end' };
+  if (!rowsSplit.balanced) return { skip: tr('не збалансовані дужки або \\begin/\\end') };
   const rows = [];
   let tail = '';
   rowsSplit.pieces.forEach((p, idx) => {
@@ -312,16 +313,16 @@ function parseTable(text, env) {
   const out = [];
   for (let k = 0; k < rows.length; k++) {
     const r = rows[k];
-    if (hasBareComment(r.rest)) return { skip: 'у рядку ' + (k + 1) + ' є коментар % усередині клітинок' };
+    if (hasBareComment(r.rest)) return { skip: tr('у рядку {0} є коментар % усередині клітинок', k + 1) };
     const core = r.rest.trim();
     const lead = /^\s*/.exec(r.rest)[0];
     const trail = r.rest.slice(lead.length + core.length);
     const cs = splitTop(core, 'cell');
-    if (!cs.balanced) return { skip: 'у рядку ' + (k + 1) + ' не збалансовані дужки' };
+    if (!cs.balanced) return { skip: tr('у рядку {0} не збалансовані дужки', k + 1) };
     const cells = cs.pieces.map((c) => classify(c.text.trim()));
     out.push({ pre: r.pre, lead, trail, cells, sep: r.sep, raw: r.raw, rest: r.rest, dirty: false });
   }
-  if (!out.length) return { skip: 'у таблиці немає рядків' };
+  if (!out.length) return { skip: tr('у таблиці немає рядків') };
   const model = {
     env: name, base, isTblr, spread: name === 'spreadtab', tailText: tail, head, specRange, spec, specDirty: false,
     groupRange: [specGroup.a - env.bodyStart, specGroup.b - env.bodyStart], keyOps: [], keyInfo: kinfo,
@@ -496,10 +497,10 @@ const hlineOnly = (pre) => /^\s*\\hline\s*$/.test(pre);
 // whether `t` can stand inside one cell: no bare & \\ % and balanced braces
 function checkCellText(t) {
   const s = splitTop(t, 'cell');
-  if (!s.balanced) return 'дужки { } у клітинці не збалансовані';
-  if (s.pieces.length > 1) return 'у клітинці «&» розділяє клітинки; для символу пиши \\&';
-  if (splitTop(t, 'row').pieces.length > 1) return 'у клітинці «\\\\» починає новий рядок; щоб розбити рядок у клітинці, використай \\makecell або \\shortstack';
-  if (hasBareComment(t)) return 'у клітинці «%» починає коментар; для символу пиши \\%';
+  if (!s.balanced) return tr('дужки { } у клітинці не збалансовані');
+  if (s.pieces.length > 1) return tr('у клітинці «&» розділяє клітинки; для символу пиши \\&');
+  if (splitTop(t, 'row').pieces.length > 1) return tr('у клітинці «\\\\» починає новий рядок; щоб розбити рядок у клітинці, використай \\makecell або \\shortstack');
+  if (hasBareComment(t)) return tr('у клітинці «%» починає коментар; для символу пиши \\%');
   return '';
 }
 
@@ -577,7 +578,7 @@ function spanList(m) {
 
 const spanHit = (a, b) => !(a.r > b.r + b.rs - 1 || b.r > a.r + a.rs - 1 || a.c > b.c + b.cs - 1 || b.c > a.c + a.cs - 1);
 const where1 = (s) => '(' + (s.r + 1) + ', ' + (s.c + 1) + ')';
-const whereSrc = (s) => (s.src === 'cell' ? '\\SetCell' : 'cell{' + (s.r + 1) + '}{' + (s.c + 1) + '} у параметрах');
+const whereSrc = (s) => (s.src === 'cell' ? '\\SetCell' : tr('cell{{0}}{{1}} у параметрах', s.r + 1, s.c + 1));
 
 // what is wrong with the merged cells: two of them on one cell or on top of each other, one that leaves the table,
 // text in a cell that a merge covers. [{ kind, msg, at: [span…], cells: [{ r, c }] }]
@@ -586,15 +587,15 @@ function spanConflicts(m, list) {
   const nr = m.rows.length;
   const w = width(m);
   const out = [];
-  for (const s of L) if (s.r + s.rs > nr || s.c + s.cs > w) out.push({ kind: 'bounds', at: [s], cells: [{ r: s.r, c: s.c }], msg: 'Об\'єднання в клітинці ' + where1(s) + ' (' + whereSrc(s) + ') виходить за межі таблиці.' });
+  for (const s of L) if (s.r + s.rs > nr || s.c + s.cs > w) out.push({ kind: 'bounds', at: [s], cells: [{ r: s.r, c: s.c }], msg: tr('Об\'єднання в клітинці {0} ({1}) виходить за межі таблиці.', where1(s), whereSrc(s)) });
   for (let i = 0; i < L.length; i++) {
     for (let j = i + 1; j < L.length; j++) {
       const a = L[i];
       const b = L[j];
       if (a.r === b.r && a.c === b.c) {
-        out.push({ kind: a.src === b.src ? 'dup-same' : 'dup', at: [a, b], cells: [{ r: a.r, c: a.c }], msg: 'Клітинка ' + where1(a) + ' об\'єднана двічі: ' + (a.src === b.src ? 'у параметрах таблиці є два записи cell{' + (a.r + 1) + '}{' + (a.c + 1) + '} із r=/c=' : 'і в \\SetCell, і в параметрах таблиці (cell{' + (a.r + 1) + '}{' + (a.c + 1) + '})') + '. Результат у PDF неоднозначний: залиш одне.' });
+        out.push({ kind: a.src === b.src ? 'dup-same' : 'dup', at: [a, b], cells: [{ r: a.r, c: a.c }], msg: tr('Клітинка {0} об\'єднана двічі: ', where1(a)) + (a.src === b.src ? tr('у параметрах таблиці є два записи cell{{0}}{{1}} із r=/c=', a.r + 1, a.c + 1) : tr('і в \\SetCell, і в параметрах таблиці (cell{{0}}{{1}})', a.r + 1, a.c + 1)) + tr('. Результат у PDF неоднозначний: залиш одне.') });
       } else if (spanHit(a, b)) {
-        out.push({ kind: 'overlap', at: [a, b], cells: [{ r: a.r, c: a.c }, { r: b.r, c: b.c }], msg: 'Об\'єднання клітинок ' + where1(a) + ' (' + whereSrc(a) + ') і ' + where1(b) + ' (' + whereSrc(b) + ') перекриваються.' });
+        out.push({ kind: 'overlap', at: [a, b], cells: [{ r: a.r, c: a.c }, { r: b.r, c: b.c }], msg: tr('Об\'єднання клітинок {0} ({1}) і {2} ({3}) перекриваються.', where1(a), whereSrc(a), where1(b), whereSrc(b)) });
       }
     }
   }
@@ -610,12 +611,12 @@ function spanConflicts(m, list) {
         const key = rr + ':' + ll;
         if (k >= 0 && row.cells[k].inner.trim() && !seen.has(key)) {
           seen.add(key);
-          out.push({ kind: 'hidden', at: [s], cells: [{ r: rr, c: ll }], msg: 'У клітинці (' + (rr + 1) + ', ' + (ll + 1) + '), закритій об\'єднанням ' + where1(s) + ', є текст: у PDF його, найімовірніше, не буде видно.' });
+          out.push({ kind: 'hidden', at: [s], cells: [{ r: rr, c: ll }], msg: tr('У клітинці ({0}, {1}), закритій об\'єднанням {2}, є текст: у PDF його, найімовірніше, не буде видно.', rr + 1, ll + 1, where1(s)) });
         }
       }
     }
   }
-  if (m.optComplex) out.push({ kind: 'complex', at: [], cells: [], msg: 'У параметрах таблиці є об\'єднання зі складним селектором (cell{1-3}{2}, odd, список): редактор їх не показує, правь їх у коді.' });
+  if (m.optComplex) out.push({ kind: 'complex', at: [], cells: [], msg: tr('У параметрах таблиці є об\'єднання зі складним селектором (cell{1-3}{2}, odd, список): редактор їх не показує, правь їх у коді.') });
   return out;
 }
 
@@ -653,7 +654,7 @@ function toSc(m, cell, rs, cs, mand) {
   return classify(scBuild({ lead: at ? at[0] : '', opts: optsWith('', rs, cs), mand: mand || '', rest: at ? cell.t.slice(at[0].length) : cell.t }));
 }
 
-const OPT_MSG = 'Тут діє об\'єднання з параметрів таблиці (cell{…}{…} = {r=…,c=…}): перенеси його в \\SetCell (лампочка в редакторі), і тоді рядки та стовпці можна додавати й видаляти.';
+const optMsg = () => tr('Тут діє об\'єднання з параметрів таблиці (cell{…}{…} = {r=…,c=…}): перенеси його в \\SetCell (лампочка в редакторі), і тоді рядки та стовпці можна додавати й видаляти.');
 const optInsideRow = (m, at) => (m.optSpans || []).some((o) => o.rs > 1 && o.r < at && at <= o.r + o.rs - 1);
 const optInsideCol = (m, at) => (m.optSpans || []).some((o) => o.cs > 1 && o.c < at && at <= o.c + o.cs - 1);
 const optCoversRow = (m, r) => (m.optSpans || []).some((o) => o.rs > 1 && o.r <= r && r <= o.r + o.rs - 1);
@@ -705,7 +706,7 @@ function applyOp(model, op) {
   switch (op.type) {
     case 'setCell': {
       const row = m.rows[op.r];
-      if (!row || !row.cells[op.c]) return err('Немає такої клітинки.');
+      if (!row || !row.cells[op.c]) return err(tr('Немає такої клітинки.'));
       const t = String(op.text).replace(/\s*[\r\n]+\s*/g, ' ').trim();
       const bad = checkCellText(t);
       if (bad) return err(bad);
@@ -717,15 +718,15 @@ function applyOp(model, op) {
     }
     case 'addRow': {
       const at0 = Math.max(0, Math.min(nRows, op.at));
-      if (optInsideRow(m, at0)) return err(OPT_MSG);
+      if (optInsideRow(m, at0)) return err(optMsg());
       insertRow(m, at0, null, !!op.below);
       return { model: m };
     }
     case 'delRow': {
-      if (nRows <= 1) return err('Не можна видалити єдиний рядок.');
+      if (nRows <= 1) return err(tr('Не можна видалити єдиний рядок.'));
       const r = op.r;
-      if (!m.rows[r]) return err('Немає такого рядка.');
-      if (optCoversRow(m, r)) return err(OPT_MSG);
+      if (!m.rows[r]) return err(tr('Немає такого рядка.'));
+      if (optCoversRow(m, r)) return err(optMsg());
       const shrink = anchors(m).filter((a) => a.cell.rs > 1 && a.r < r && r <= a.r + a.cell.rs - 1);
       const [gone] = m.rows.splice(r, 1);
       m.keyOps.push({ t: 'rowDel', at: r });
@@ -742,9 +743,9 @@ function applyOp(model, op) {
     case 'moveRow': {
       const a = op.r;
       const b = a + (op.dir < 0 ? -1 : 1);
-      if (!m.rows[a] || !m.rows[b]) return err('Далі пересувати нікуди.');
-      if (m.rows[a].cells.concat(m.rows[b].cells).some((c) => c.rs > 1)) return err('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): переставляй у коді.');
-      if (optRowsHit(m, Math.min(a, b), Math.max(a, b))) return err(OPT_MSG);
+      if (!m.rows[a] || !m.rows[b]) return err(tr('Далі пересувати нікуди.'));
+      if (m.rows[a].cells.concat(m.rows[b].cells).some((c) => c.rs > 1)) return err(tr('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): переставляй у коді.'));
+      if (optRowsHit(m, Math.min(a, b), Math.max(a, b))) return err(optMsg());
       const t = m.rows[a].cells;
       m.rows[a].cells = m.rows[b].cells;
       m.rows[b].cells = t;
@@ -755,9 +756,9 @@ function applyOp(model, op) {
     case 'dupRows': {
       const r1 = Math.max(0, op.r1);
       const r2 = Math.min(nRows - 1, op.r2);
-      if (!(r1 <= r2)) return err('Немає такого рядка.');
-      for (let k = r1; k <= r2; k++) if (m.rows[k].cells.some((c) => c.rs > 1)) return err('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): дублюй у коді.');
-      if (optRowsHit(m, r1, r2 + 1)) return err(OPT_MSG);
+      if (!(r1 <= r2)) return err(tr('Немає такого рядка.'));
+      for (let k = r1; k <= r2; k++) if (m.rows[k].cells.some((c) => c.rs > 1)) return err(tr('Рядок входить в об\'єднану по вертикалі клітинку (\\SetCell[r=…]): дублюй у коді.'));
+      if (optRowsHit(m, r1, r2 + 1)) return err(optMsg());
       const copies = m.rows.slice(r1, r2 + 1).map((r) => r.cells.map((c) => classify(c.t)));
       copies.forEach((cells, k) => insertRow(m, r2 + 1 + k, cells, true));
       return { model: m };
@@ -774,7 +775,7 @@ function applyOp(model, op) {
       padRows(m);
       const w = width(m);
       const at = Math.max(0, Math.min(w, op.at));
-      if (optInsideCol(m, at)) return err(OPT_MSG);
+      if (optInsideCol(m, at)) return err(optMsg());
       const grow = anchors(m).filter((x) => x.cell.cs > 1 && x.s < at && at <= x.s + x.cell.cs - 1);
       for (const row of m.rows) {
         const st = starts(row);
@@ -799,10 +800,10 @@ function applyOp(model, op) {
     }
     case 'delCol': {
       padRows(m);
-      if (width(m) <= 1) return err('Не можна видалити єдиний стовпець.');
+      if (width(m) <= 1) return err(tr('Не можна видалити єдиний стовпець.'));
       const col = op.c;
-      if (col < 0 || col >= width(m)) return err('Немає такого стовпця.');
-      if (optCoversCol(m, col)) return err(OPT_MSG);
+      if (col < 0 || col >= width(m)) return err(tr('Немає такого стовпця.'));
+      if (optCoversCol(m, col)) return err(optMsg());
       const shrink = anchors(m).filter((x) => x.cell.cs > 1 && x.s < col && col <= x.s + x.cell.cs - 1);
       for (const row of m.rows) {
         const st = starts(row);
@@ -827,21 +828,21 @@ function applyOp(model, op) {
       return { model: m };
     }
     case 'moveCol': {
-      if (hasSpan(m)) return err('Є об\'єднані клітинки: стовпці в таблиці з ними переставляй у коді (додавати й видаляти можна).');
+      if (hasSpan(m)) return err(tr('Є об\'єднані клітинки: стовпці в таблиці з ними переставляй у коді (додавати й видаляти можна).'));
       padRows(m);
       const a = op.c;
       const b = a + (op.dir < 0 ? -1 : 1);
-      if (a < 0 || b < 0 || a >= width(m) || b >= width(m)) return err('Далі пересувати нікуди.');
+      if (a < 0 || b < 0 || a >= width(m) || b >= width(m)) return err(tr('Далі пересувати нікуди.'));
       for (const r of m.rows) { const t = r.cells[a]; r.cells[a] = r.cells[b]; r.cells[b] = t; r.dirty = true; }
       m.keyOps.push({ t: 'colSwap', a: a + 1, b: b + 1 });
       if (m.spec && m.spec.tokens[a] && m.spec.tokens[b]) { const t = m.spec.tokens[a].unit; m.spec.tokens[a].unit = m.spec.tokens[b].unit; m.spec.tokens[b].unit = t; m.specDirty = true; }
       return { model: m };
     }
     case 'setAlign': {
-      if (!m.spec || !m.spec.tokens[op.c]) return err('Немає опису стовпця (colspec).');
+      if (!m.spec || !m.spec.tokens[op.c]) return err(tr('Немає опису стовпця (colspec).'));
       const u = m.spec.tokens[op.c].unit;
       const nu = withAlign(u, op.a);
-      if (nu === u) return err('Вирівнювання цього типу стовпця (' + u + ') змінюй у коді.');
+      if (nu === u) return err(tr('Вирівнювання цього типу стовпця ({0}) змінюй у коді.', u));
       m.spec.tokens[op.c].unit = nu;
       m.specDirty = true;
       return { model: m };
@@ -856,7 +857,7 @@ function applyOp(model, op) {
           if (!row.cells[c]) break;
           const t = String(rowsIn[i][j]).replace(/\s*[\r\n]+\s*/g, ' ').trim();
           const bad = checkCellText(t);
-          if (bad) return err('Рядок ' + (op.r + i + 1) + ': ' + bad);
+          if (bad) return err(tr('Рядок {0}: {1}', op.r + i + 1, bad));
           row.cells[c] = classify(rebuild(row.cells[c], t));
         }
         row.dirty = true;
@@ -864,7 +865,7 @@ function applyOp(model, op) {
       return { model: m };
     }
     case 'merge': {
-      if (!m.isTblr) return err('Об\'єднання клітинок працює в tblr, longtblr і talltblr. У tabular використовуй \\multicolumn і \\multirow у коді.');
+      if (!m.isTblr) return err(tr('Об\'єднання клітинок працює в tblr, longtblr і talltblr. У tabular використовуй \\multicolumn і \\multirow у коді.'));
       padRows(m);
       const w = width(m);
       let a = { r1: Math.max(0, Math.min(op.r1, op.r2)), r2: Math.min(nRows - 1, Math.max(op.r1, op.r2)), c1: Math.max(0, Math.min(op.c1, op.c2)), c2: Math.min(w - 1, Math.max(op.c1, op.c2)) };
@@ -877,28 +878,28 @@ function applyOp(model, op) {
           const sc2 = sp.c + sp.cs - 1;
           const touches = !(sp.r > a.r2 || sr2 < a.r1 || sp.c > a.c2 || sc2 < a.c1);
           if (touches && (sp.r < a.r1 || sr2 > a.r2 || sp.c < a.c1 || sc2 > a.c2)) {
-            if (sr2 >= nRows || sc2 >= w) return err('Існуюче об\'єднання виходить за межі таблиці: спершу виправ його в коді.');
+            if (sr2 >= nRows || sc2 >= w) return err(tr('Існуюче об\'єднання виходить за межі таблиці: спершу виправ його в коді.'));
             a = { r1: Math.min(a.r1, sp.r), r2: Math.max(a.r2, sr2), c1: Math.min(a.c1, sp.c), c2: Math.max(a.c2, sc2) };
             again = true;
           }
         }
       }
-      if (a.r1 === a.r2 && a.c1 === a.c2) return err('Виділи кілька клітинок, щоб їх об\'єднати.');
+      if (a.r1 === a.r2 && a.c1 === a.c2) return err(tr('Виділи кілька клітинок, щоб їх об\'єднати.'));
       const R = a.r2 - a.r1 + 1;
       const C = a.c2 - a.c1 + 1;
-      if (L.some((sp) => sp.r === a.r1 && sp.c === a.c1 && sp.rs === R && sp.cs === C)) return err('Ці клітинки вже об\'єднані.');
+      if (L.some((sp) => sp.r === a.r1 && sp.c === a.c1 && sp.rs === R && sp.cs === C)) return err(tr('Ці клітинки вже об\'єднані.'));
       const inside = [];
       for (let rr = a.r1; rr <= a.r2; rr++) {
         const row = m.rows[rr];
         const st = starts(row);
         for (let ll = a.c1; ll <= a.c2; ll++) {
           const k = st.indexOf(ll);
-          if (k < 0 || row.cells[k].kind === 'mc') return err('У виділенні є \\multicolumn: об\'єднуй такі клітинки в коді.');
+          if (k < 0 || row.cells[k].kind === 'mc') return err(tr('У виділенні є \\multicolumn: об\'єднуй такі клітинки в коді.'));
           inside.push({ rr, k });
         }
       }
       const lost = inside.slice(1).filter((x) => m.rows[x.rr].cells[x.k].inner.trim()).length;
-      if (lost && !op.confirmed) return { confirm: (lost === 1 ? 'В одній клітинці' : 'У ' + lost + ' клітинках') + ' виділення є текст: після об\'єднання лишиться тільки текст верхньої лівої клітинки. Об\'єднати?' };
+      if (lost && !op.confirmed) return { confirm: lost === 1 ? tr('В одній клітинці виділення є текст: після об\'єднання лишиться тільки текст верхньої лівої клітинки. Об\'єднати?') : tr('У {0} клітинках виділення є текст: після об\'єднання лишиться тільки текст верхньої лівої клітинки. Об\'єднати?', lost) };
       // merges written in the options that now lie inside the new one go (their span keys; other keys of the item stay)
       for (const sp of L) if (sp.src === 'opts' && sp.r >= a.r1 && sp.r + sp.rs - 1 <= a.r2 && sp.c >= a.c1 && sp.c + sp.cs - 1 <= a.c2) m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: false });
       inside.slice(1).forEach((x) => { m.rows[x.rr].cells[x.k] = mkEmpty(); m.rows[x.rr].dirty = true; });
@@ -928,31 +929,31 @@ function applyOp(model, op) {
         } else m.keyOps.push({ t: 'optDel', r: sp.r + 1, c: sp.c + 1, all: false });
         done++;
       }
-      if (!done) return err('У виділенні немає об\'єднаних клітинок.');
+      if (!done) return err(tr('У виділенні немає об\'єднаних клітинок.'));
       return { model: m };
     }
     case 'spansToOptions':
     case 'spansToCells': {
       const toOpts = op.type === 'spansToOptions';
-      if (!m.isTblr) return err('Параметри таблиці (cell{…}{…}) є лише в tblr, longtblr і talltblr.');
+      if (!m.isTblr) return err(tr('Параметри таблиці (cell{…}{…}) є лише в tblr, longtblr і talltblr.'));
       if (toOpts) {
-        if (!m.spec) return err('Не вдалося знайти colspec у параметрах таблиці: перенеси об\'єднання в код вручну.');
-        if (appendKeys(m.head.slice(m.groupRange[0], m.groupRange[1]), ['x']) === null) return err('Параметри таблиці закінчуються коментарем %: прибери його й повтори.');
+        if (!m.spec) return err(tr('Не вдалося знайти colspec у параметрах таблиці: перенеси об\'єднання в код вручну.'));
+        if (appendKeys(m.head.slice(m.groupRange[0], m.groupRange[1]), ['x']) === null) return err(tr('Параметри таблиці закінчуються коментарем %: прибери його й повтори.'));
       }
       padRows(m);
       const L = spanList(m);
       let list = L.filter((x) => x.src === (toOpts ? 'cell' : 'opts'));
       if (Number.isInteger(op.r) && Number.isInteger(op.c)) list = list.filter((x) => op.r >= x.r && op.r <= x.r + x.rs - 1 && op.c >= x.c && op.c <= x.c + x.cs - 1);
-      if (!list.length) return err(toOpts ? 'Немає об\'єднань у \\SetCell, які можна перенести.' : 'Немає об\'єднань у параметрах таблиці (cell{i}{j} = {r=…,c=…}), які можна перенести.' + (m.optComplex ? ' Ті, що зі складним селектором (діапазон, список), переноси в коді.' : ''));
+      if (!list.length) return err(toOpts ? tr('Немає об\'єднань у \\SetCell, які можна перенести.') : tr('Немає об\'єднань у параметрах таблиці (cell{i}{j} = {r=…,c=…}), які можна перенести.') + (m.optComplex ? tr(' Ті, що зі складним селектором (діапазон, список), переноси в коді.') : ''));
       const items = [];
       for (const sp of list) {
         const same = L.filter((x) => x.r === sp.r && x.c === sp.c && x !== sp);
-        if (same.length) return err('Клітинка ' + where1(sp) + ' має два об\'єднання (' + whereSrc(same[0]) + '): спершу розв\'яжи конфлікт.');
+        if (same.length) return err(tr('Клітинка {0} має два об\'єднання ({1}): спершу розв\'яжи конфлікт.', where1(sp), whereSrc(same[0])));
         const row = m.rows[sp.r];
         const k = row ? cellIndexAt(row, sp.c) : -1;
-        if (k < 0) return err('Клітинку ' + where1(sp) + ' не знайдено в таблиці.');
+        if (k < 0) return err(tr('Клітинку {0} не знайдено в таблиці.', where1(sp)));
         const cell = row.cells[k];
-        if (cell.kind === 'mc') return err('Клітинка ' + where1(sp) + ' містить \\multicolumn: переносити нічого.');
+        if (cell.kind === 'mc') return err(tr('Клітинка {0} містить \\multicolumn: переносити нічого.', where1(sp)));
         if (toOpts) {
           const p = scParse(cell.t);
           items.push('cell{' + (sp.r + 1) + '}{' + (sp.c + 1) + '} = {' + (p.opts || '') + '}' + (p.mand && p.mand.trim() ? '{' + p.mand.trim() + '}' : ''));
@@ -975,19 +976,19 @@ function applyOp(model, op) {
       const L = spanList(m);
       const inCell = L.find((x) => x.src === 'cell' && x.r === op.r && x.c === op.c);
       const inOpts = L.find((x) => x.src === 'opts' && x.r === op.r && x.c === op.c);
-      if (!inCell || !inOpts) return err('У цій клітинці немає конфлікту об\'єднань.');
+      if (!inCell || !inOpts) return err(tr('У цій клітинці немає конфлікту об\'єднань.'));
       if (op.keep === 'cell') m.keyOps.push({ t: 'optDel', r: op.r + 1, c: op.c + 1, all: false });
       else {
         const row = m.rows[op.r];
         const k = cellIndexAt(row, op.c);
-        if (k < 0) return err('Клітинку не знайдено в таблиці.');
+        if (k < 0) return err(tr('Клітинку не знайдено в таблиці.'));
         row.cells[k] = setScSpan(row.cells[k], 1, 1);
         row.dirty = true;
       }
       return { model: m };
     }
     default:
-      return err('Невідома дія ' + op.type);
+      return err(tr('Невідома дія {0}', op.type));
   }
 }
 

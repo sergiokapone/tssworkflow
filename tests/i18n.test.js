@@ -10,7 +10,7 @@ const t = (name, fn) => { try { fn(); n++; console.log('ok  ' + name); } finally
 const unescape = (lit) => lit.replace(/\\(.)/g, (m, c) => ({ n: '\n', t: '\t' }[c] || c));
 
 // every tr('...') call of the code: the key (the Ukrainian text) and the file
-const sources = fs.readdirSync(ext).filter((f) => /\.js$/.test(f) && f !== 'i18n.js' && f !== 'i18nEn.js');
+const sources = fs.readdirSync(ext).filter((f) => /\.js$/.test(f) && f !== 'i18n.js' && f !== 'i18nEn.js' && f !== 'webviewI18n.js'); // the mechanism itself looks the keys up with a variable
 const used = new Map(), dynamic = [];
 for (const f of sources) {
   const text = fs.readFileSync(path.join(ext, f), 'utf8');
@@ -18,6 +18,16 @@ for (const f of sources) {
     if (m[1]) used.set(unescape(m[1].slice(1, -1)), f);
     else dynamic.push(f + ': ' + text.slice(m.index, m.index + 40).replace(/\n/g, ' '));
   }
+}
+// the pages of webviews (media/<panel>/webview.js) ask for their texts with T('...'): the same keys, the same dictionary (webviewI18n.js)
+const WI = require(path.join(ext, 'webviewI18n'));
+const pages = [];
+for (const d of fs.existsSync(path.join(ext, 'media')) ? fs.readdirSync(path.join(ext, 'media')) : []) {
+  const f = path.join(ext, 'media', d, 'webview.js');
+  if (!fs.existsSync(f)) continue;
+  const text = fs.readFileSync(f, 'utf8');
+  const keys = WI.keysOf(text);
+  if (keys.length) { pages.push({ panel: d, file: f, text, keys }); for (const k of keys) used.set(k, 'media/' + d + '/webview.js'); }
 }
 const ph = (s) => (s.match(/\{\d+\}/g) || []).sort().join(' ');
 const cyr = /[А-Яа-яІіЇїЄєҐґ]/;
@@ -290,6 +300,114 @@ t('syntax checks of structurePure: the messages are translated, the codes are no
   assert.ok(en.some((d) => d[0] === 'missing-end' && /^Missing \\end\{(align|itemize)\}$/.test(d[1])), JSON.stringify(en));
   assert.ok(uk.some((d) => d[1] === '\\end{enumerate} не відповідає \\begin{itemize}'), 'the braces of {{0}} stay in Ukrainian too');
   I.setLang('uk');
+});
+
+
+t('webviewI18n: keysOf reads the T(...) keys of a page (escapes, apostrophes, no duplicates); a T with something else than a literal is not a key', () => {
+  const js = "x(T('Привіт {0}', a)); y(T('Об\\'єднати')); z(T('Привіт {0}', b)); w(T(\"Ще\\n\")); v(foo.T('не мій')); u(notT('ні'));";
+  assert.deepStrictEqual(WI.keysOf(js), ['Привіт {0}', "Об'єднати", 'Ще\n']);
+  assert.deepStrictEqual(WI.keysOf(''), []);
+  assert.deepStrictEqual(WI.keysOf(null), []);
+});
+
+t('webviewI18n.block: a JSON block that nothing executes, with < > & as \\u escapes; the language of the moment; texts are filled by the page, not by the host', () => {
+  const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'tss-wi-'));
+  try {
+    const f = path.join(tmp, 'webview.js');
+    fs.writeFileSync(f, "T('Замінити'); T('Знімок відновлено: {0} файлів.', n); T('</script><b>&');");
+    I.setLang('uk');
+    const uk = WI.block([f, path.join(tmp, 'no-such-file.js')]);
+    assert.ok(uk.startsWith('<script type="application/json" id="tss-i18n">') && uk.endsWith('</script>'), uk.slice(0, 80));
+    assert.strictEqual((uk.match(/<\/script>/g) || []).length, 1, 'nothing in a text can close the block');
+    assert.ok(!/<b>|&b/.test(uk) && uk.includes('\\u003c/script\\u003e\\u003cb\\u003e\\u0026'), uk);
+    assert.deepStrictEqual(JSON.parse(uk.replace(/^<script[^>]*>|<\/script>$/g, '')), { 'Замінити': 'Замінити', 'Знімок відновлено: {0} файлів.': 'Знімок відновлено: {0} файлів.', '</script><b>&': '</script><b>&' });
+    I.setLang('en');
+    const d = JSON.parse(WI.block([f]).replace(/^<script[^>]*>|<\/script>$/g, ''));
+    assert.strictEqual(d['Замінити'], 'Replace');
+    assert.strictEqual(d['Знімок відновлено: {0} файлів.'], 'Snapshot restored: {0} files.', 'the {0} stays: the page fills it');
+    assert.strictEqual(d['</script><b>&'], '</script><b>&', 'a key without a translation stays as written');
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); I.setLang('uk'); }
+});
+
+t('media/common/i18n.js (the page side): T fills {0}, keeps a missing key and a missing argument, survives a broken or absent block', () => {
+  const vm = require('vm');
+  const code = fs.readFileSync(path.join(ext, 'media', 'common', 'i18n.js'), 'utf8');
+  const load = (json) => {
+    const box = { document: { getElementById: (id) => (json === undefined ? null : { textContent: json }) } };
+    box.window = box;
+    vm.runInNewContext(code, box);
+    return box.T;
+  };
+  const T = load(JSON.stringify({ 'Рядок {0} з {1}': 'Row {0} of {1}', 'Просто': 'Plain' }));
+  assert.strictEqual(T('Рядок {0} з {1}', 3, 9), 'Row 3 of 9');
+  assert.strictEqual(T('Рядок {0} з {1}', 3), 'Row 3 of {1}');
+  assert.strictEqual(T('Просто'), 'Plain');
+  assert.strictEqual(T('Немає в словнику {0}', 'x'), 'Немає в словнику x');
+  assert.strictEqual(T('Ціна $& {0}', '$& $1'), 'Ціна $& $& $1', 'the replacement is not a pattern');
+  assert.strictEqual(load('{ broken')('Рядок {0} з {1}', 1, 2), 'Рядок 1 з 2', 'a broken block: Ukrainian');
+  assert.strictEqual(load(undefined)('Просто'), 'Просто', 'no block: Ukrainian');
+  assert.strictEqual(load('null')('Просто'), 'Просто', 'a block that is not an object');
+});
+
+t('the pages of webviews: every T(...) has an English text, none is called with a non-literal, and the table editor loads the dictionary and the helper before its script', () => {
+  assert.ok(pages.length >= 1 && pages.some((p) => p.panel === 'tableEditor'), 'the pages are found: ' + pages.map((p) => p.panel));
+  for (const p of pages) {
+    assert.ok(p.keys.length > 20, p.panel + ': keys ' + p.keys.length);
+    const missing = p.keys.filter((k) => !Object.prototype.hasOwnProperty.call(EN, k));
+    assert.deepStrictEqual(missing, [], p.panel + ': no English text for ' + missing.map((k) => JSON.stringify(k.slice(0, 50))).join(', '));
+    // a text of the page that is not asked through T(...) is a text that stays Ukrainian in English
+    const stray = [];
+    p.text.split('\n').forEach((line, i) => {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) return;
+      for (const m of line.matchAll(/'(?:[^'\\\n]|\\.)*'/g)) if (cyr.test(m[0]) && !/T\(\s*$/.test(line.slice(0, m.index))) stray.push((i + 1) + ': ' + m[0].slice(0, 50));
+    });
+    assert.deepStrictEqual(stray, [], p.panel + ': Ukrainian texts outside T(): ' + stray.join(' | '));
+    const nonLiteral = [...p.text.matchAll(/(?<![\w.$])T\(\s*(?!['"])/g)].length;
+    assert.strictEqual(nonLiteral, 0, p.panel + ': T() with something other than a literal in the first place');
+  }
+  const te = fs.readFileSync(path.join(ext, 'tableEditor.js'), 'utf8');
+  const iBlock = te.indexOf('WI.block('), iHelper = te.indexOf("'common', 'i18n.js'"), iPage = te.lastIndexOf("own('webview.js')");
+  assert.ok(iBlock > 0 && iHelper > iBlock && iPage > iHelper, 'the block, then the helper, then the script of the page');
+  assert.ok(/<html lang="' \+ getLang\(\) \+ '"/.test(te), 'the language of the page');
+});
+
+
+// the table editor (0.21.8): the messages of the model and of the operations, translated where they are made; the page and the host ask for their own texts
+const TEP = require(path.join(ext, 'tableEditorPure'));
+t('tableEditorPure in English and in Ukrainian: the reason of a skipped table, the errors of the operations, the text of a cell; the structure does not depend on the language', () => {
+  const src = '\\begin{tblr}{colspec={ll}}\na & b \\\\\nc & d \\\\\n\\end{tblr}\n';
+  const VERB = '\\begin{tblr}{ll}\n\\verb|x| & b \\\\\n\\end{tblr}\n';
+  const run = (lang) => {
+    I.setLang(lang);
+    const m = TEP.parseTable(src, TEP.locateTables(src)[0]).model;
+    return {
+      skip: TEP.parseTable(VERB, TEP.locateTables(VERB)[0]).skip,
+      ops: [TEP.applyOp(m, { type: 'delRow', r: 9 }), TEP.applyOp(m, { type: 'zzz' }), TEP.applyOp(m, { type: 'merge', r1: 0, r2: 0, c1: 0, c2: 0 })].map((x) => x.error),
+      cells: [TEP.checkCellText('a & b'), TEP.checkCellText('x {'), TEP.checkCellText('fine')]
+    };
+  };
+  const uk = run('uk'), en = run('en');
+  assert.deepStrictEqual(uk.ops.map((x) => typeof x), en.ops.map((x) => typeof x), 'an error is an error in both languages');
+  assert.deepStrictEqual(uk.cells.map((x) => !!x), en.cells.map((x) => !!x), 'a cell that is fine is fine in both languages');
+  assert.strictEqual(uk.skip, 'у таблиці є \\verb або код');
+  assert.strictEqual(en.skip, 'the table has \\verb or code');
+  assert.deepStrictEqual(uk.ops.slice(0, 2), ['Немає такого рядка.', 'Невідома дія zzz']);
+  assert.deepStrictEqual(en.ops.slice(0, 2), ['There is no such row.', 'Unknown action zzz']);
+  assert.strictEqual(en.cells[0], 'in a cell “&” separates cells; for the character write \\&');
+  assert.strictEqual(en.cells[1], 'the brackets { } in the cell are not balanced');
+  assert.ok(!en.cells[2], 'a fine cell has no message');
+  assert.strictEqual(en.ops[2], 'Select several cells to merge them.');
+  assert.strictEqual(uk.ops[2], 'Виділи кілька клітинок, щоб їх об\'єднати.');
+  I.setLang('uk');
+});
+
+t('the table editor: the hint of the page and the title of the panel come from the host with tr (the language of the moment), the keys of the page and of the host do not overlap by accident', () => {
+  const te = fs.readFileSync(path.join(ext, 'tableEditor.js'), 'utf8');
+  assert.ok(/get title\(\) \{ return tr\('Таблиця'\); \}/.test(te), 'the title of the panel is read when the panel is opened (a getter): the language is set at activation, after the module is loaded');
+  assert.ok(/escHtml\(tr\('Enter\/Tab\//.test(te), 'the hint is translated and escaped');
+  const te_page = pages.find((p) => p.panel === 'tableEditor');
+  const hostKeys = new Set([...te.matchAll(/(?<![\w.$])tr\(\s*('(?:[^'\\\n]|\\.)*')/g)].map((m) => Function('return ' + m[1])()));
+  for (const k of te_page.keys) assert.ok(!hostKeys.has(k) || EN[k], 'a key of the page that the host also uses has its text: ' + k.slice(0, 40));
 });
 
 console.log(n + ' tests passed');

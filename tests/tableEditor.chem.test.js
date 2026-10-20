@@ -10,6 +10,7 @@ const a = src.indexOf('let mathErr', from), b = src.indexOf('// spreadtab:', a);
 assert.ok(from >= 0 && a > 0 && b > a, 'the cell renderer was not found in webview.js');
 const box = vm.createContext({});
 box.window = box; box.self = box;
+box.T = (k, ...a) => k.replace(/\{(\d+)\}/g, (m, i) => (+i < a.length ? String(a[+i]) : m)); // media/common/i18n.js: the page asks its texts through T(...)
 vm.runInContext(fs.readFileSync(path.join(ext, 'media', 'katex', 'katex.min.js'), 'utf8'), box);
 vm.runInContext(fs.readFileSync(path.join(ext, 'media', 'katex', 'mhchem.min.js'), 'utf8'), box);
 vm.runInContext('var macros = {}; var view = null;\n' + src.slice(from, src.indexOf('\n', from)) + '\n' + src.slice(a, b) + '\nthis.fmt = fmt; this.getErr = () => mathErr;', box);

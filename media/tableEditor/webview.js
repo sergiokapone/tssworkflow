@@ -50,7 +50,7 @@ function textHtml(t) {
   s = s.replace(/\\(?:localinput|input|include|subfile)\{([^}]*)\}/g, function (a, n) { return chip('◇', n); });
   s = s.replace(/\\begin\{tikzpicture\}[\s\S]*?\\end\{tikzpicture\}/g, chip('◇', 'tikz'));
   s = s.replace(/\\(?:eqref|ref|autoref|cref|Cref)\{([^}]*)\}/g, function (a, n) { return chip('→', n); });
-  s = s.replace(/\\rownumber\b/g, chip('№', 'авто'));
+  s = s.replace(/\\rownumber\b/g, chip('№', T('авто')));
   s = s.replace(/\\(?:cite[a-z]*|parencite|textcite|autocite)(?:\[[^\]]*\])*\{([^}]*)\}/g, '[$1]');
   s = s.replace(/\\SI\{([^}]*)\}\{([^}]*)\}/g, '$1\u00a0$2').replace(/\\(?:num|unit|si)\{([^}]*)\}/g, '$1');
   s = s.replace(/\\textbf\{([^{}]*)\}/g, '<b>$1</b>').replace(/\\(?:textit|emph)\{([^{}]*)\}/g, '<i>$1</i>').replace(/\\underline\{([^{}]*)\}/g, '<u>$1</u>');
@@ -92,7 +92,7 @@ const TEXT_GROUP = /\\(?:text|textrm|textit|textbf|textsf|mbox|mathrm)\s*\{[^{}]
 function finishCell(td, warn) {
   td.classList.toggle('mathwarn', !!warn);
   td.classList.toggle('matherr', !!mathErr);
-  const err = mathErr ? 'Формулу не вдалося намалювати: ' + mathErr + '. Якщо цей макрос визначено в проєкті, у PDF він спрацює; редактор лише не вміє його розгорнути.' : '';
+  const err = mathErr ? T('Формулу не вдалося намалювати: {0}. Якщо цей макрос визначено в проєкті, у PDF він спрацює; редактор лише не вміє його розгорнути.', mathErr) : '';
   const parts = [td.dataset.unk || '', td.dataset.spanNote || '', warn, err].filter(Boolean);
   if (parts.length) td.title = parts.join('\n'); else td.removeAttribute('title');
 }
@@ -105,7 +105,7 @@ function renderCell(td, raw) {
   const mode = td.dataset.mode;
   if ((mode === 'math' || mode === 'dmath') && s.trim() && !hasMathDelims(s)) {
     td.innerHTML = mathHtml((mode === 'dmath' ? '\\displaystyle ' : '') + s);
-    finishCell(td, CYRILLIC.test(s.replace(TEXT_GROUP, '')) ? 'Кирилиця поза \\text{…} у математичному режимі (mode=' + mode + '): у PDF буква може не мати гліфа. Загорніть текст у \\text{…}.' : '');
+    finishCell(td, CYRILLIC.test(s.replace(TEXT_GROUP, '')) ? T('Кирилиця поза \\text{…} у математичному режимі (mode={0}): у PDF буква може не мати гліфа. Загорніть текст у \\text{…}.', mode) : '');
     return;
   }
   td.innerHTML = fmt(s);
@@ -159,9 +159,9 @@ function logicalRect() {
   return l2 < 0 ? null : { r1: rc.r1, r2: rc.r2, c1: l1, c2: l2 };
 }
 function doMerge() {
-  if (!view || !view.canMerge) { toast('Об\'єднання працює в tblr, longtblr і talltblr; у tabular це \\multicolumn у коді.'); return; }
+  if (!view || !view.canMerge) { toast(T('Об\'єднання працює в tblr, longtblr і talltblr; у tabular це \\multicolumn у коді.')); return; }
   const lr = logicalRect();
-  if (!lr || (lr.r1 === lr.r2 && lr.c1 === lr.c2)) { toast('Виділи кілька клітинок (Shift+клік, Shift+стрілки чи перетягни), щоб їх об\'єднати.'); return; }
+  if (!lr || (lr.r1 === lr.r2 && lr.c1 === lr.c2)) { toast(T('Виділи кілька клітинок (Shift+клік, Shift+стрілки чи перетягни), щоб їх об\'єднати.')); return; }
   const rc = rect();
   post({ type: 'merge', r1: lr.r1, c1: lr.c1, r2: lr.r2, c2: lr.c2, focus: { r: rc.r1, c: rc.c1 } });
 }
@@ -176,7 +176,7 @@ function mergedTargets() {
 }
 function doUnmerge(list) {
   const targets = list || mergedTargets();
-  if (!targets.length) { toast('У виділенні немає об\'єднаних клітинок.'); return; }
+  if (!targets.length) { toast(T('У виділенні немає об\'єднаних клітинок.')); return; }
   post({ type: 'unmerge', list: targets });
 }
 // the buttons of the bar: merge, unmerge
@@ -185,8 +185,8 @@ function doUnmerge(list) {
   if (!bar) return;
   const box = document.createElement('span');
   box.id = 'spanTools';
-  box.appendChild(btn('⊞ Об\'єднати', 'Об\'єднати виділені клітинки (Ctrl+M): у файлі стане \\SetCell[r=…,c=…]', function () { doMerge(); }, 'tb'));
-  box.appendChild(btn('⊟ Роз\'єднати', 'Роз\'єднати виділене об\'єднання (Ctrl+Shift+M)', function () { doUnmerge(); }, 'tb'));
+  box.appendChild(btn(T('⊞ Об\'єднати'), T('Об\'єднати виділені клітинки (Ctrl+M): у файлі стане \\SetCell[r=…,c=…]'), function () { doMerge(); }, 'tb'));
+  box.appendChild(btn(T('⊟ Роз\'єднати'), T('Роз\'єднати виділене об\'єднання (Ctrl+Shift+M)'), function () { doUnmerge(); }, 'tb'));
   bar.appendChild(box);
 })();
 
@@ -214,12 +214,12 @@ function render(v, focus) {
     const th = document.createElement('th'); th.className = 'ch'; th.dataset.col = c;
     th.appendChild(document.createTextNode(colName(c)));
     const tl = document.createElement('div'); tl.className = 'tools';
-    tl.appendChild(btn('◀', 'Лівіше (Alt+←)', function () { post({ type: 'moveCol', c: c, dir: -1 }); }, '', !cols || c === 0));
-    tl.appendChild(btn('▶', 'Правіше (Alt+→)', function () { post({ type: 'moveCol', c: c, dir: 1 }); }, '', !cols || c === v.width - 1));
-    tl.appendChild(btn('+◀', 'Додати стовпець ліворуч', function () { post({ type: 'addCol', at: c }); }, '', !cols));
-    tl.appendChild(btn('▶+', 'Додати стовпець праворуч', function () { post({ type: 'addCol', at: c + 1 }); }, '', !cols));
-    if (v.align) ['l', 'c', 'r'].forEach(function (a) { tl.appendChild(btn(a, 'Вирівняти: ' + a, function () { post({ type: 'setAlign', c: c, a: a }); }, v.align[c] === a ? 'on' : '')); });
-    tl.appendChild(btn('✕', 'Видалити стовпець', function () { post({ type: 'delCol', c: c }); }, 'x', !cols || v.width <= 1));
+    tl.appendChild(btn('◀', T('Лівіше (Alt+←)'), function () { post({ type: 'moveCol', c: c, dir: -1 }); }, '', !cols || c === 0));
+    tl.appendChild(btn('▶', T('Правіше (Alt+→)'), function () { post({ type: 'moveCol', c: c, dir: 1 }); }, '', !cols || c === v.width - 1));
+    tl.appendChild(btn('+◀', T('Додати стовпець ліворуч'), function () { post({ type: 'addCol', at: c }); }, '', !cols));
+    tl.appendChild(btn('▶+', T('Додати стовпець праворуч'), function () { post({ type: 'addCol', at: c + 1 }); }, '', !cols));
+    if (v.align) ['l', 'c', 'r'].forEach(function (a) { tl.appendChild(btn(a, T('Вирівняти: {0}', a), function () { post({ type: 'setAlign', c: c, a: a }); }, v.align[c] === a ? 'on' : '')); });
+    tl.appendChild(btn('✕', T('Видалити стовпець'), function () { post({ type: 'delCol', c: c }); }, 'x', !cols || v.width <= 1));
     th.appendChild(tl); head.appendChild(th);
   }
   t.appendChild(head);
@@ -230,12 +230,12 @@ function render(v, focus) {
     const rh = document.createElement('th'); rh.className = 'rh'; rh.textContent = String(r + 1); rh.dataset.row = r;
     if (row.extra) rh.title = row.extra;
     const tl = document.createElement('div'); tl.className = 'tools';
-    tl.appendChild(btn('▲', 'Вище (Alt+↑)', function () { post({ type: 'moveRow', r: r, dir: -1 }); }, '', r === 0));
-    tl.appendChild(btn('▼', 'Нижче (Alt+↓)', function () { post({ type: 'moveRow', r: r, dir: 1 }); }, '', r === v.rows.length - 1));
-    tl.appendChild(btn('+▲', 'Додати рядок вище (Ctrl+Shift+Enter)', function () { post({ type: 'addRow', at: r, focus: { r: r, c: 0 } }); }));
-    tl.appendChild(btn('▼+', 'Додати рядок нижче (Ctrl+Enter)', function () { post({ type: 'addRow', at: r + 1, below: true, focus: { r: r + 1, c: 0 } }); }));
-    tl.appendChild(btn('⧉', 'Дублювати рядок (Ctrl+D)', function () { post({ type: 'dupRows', r1: r, r2: r, focus: { r: r + 1, c: 0 } }); }));
-    tl.appendChild(btn('✕', 'Видалити рядок (Ctrl+Shift+K)', function () { post({ type: 'delRow', r: r }); }, 'x', v.rows.length <= 1));
+    tl.appendChild(btn('▲', T('Вище (Alt+↑)'), function () { post({ type: 'moveRow', r: r, dir: -1 }); }, '', r === 0));
+    tl.appendChild(btn('▼', T('Нижче (Alt+↓)'), function () { post({ type: 'moveRow', r: r, dir: 1 }); }, '', r === v.rows.length - 1));
+    tl.appendChild(btn('+▲', T('Додати рядок вище (Ctrl+Shift+Enter)'), function () { post({ type: 'addRow', at: r, focus: { r: r, c: 0 } }); }));
+    tl.appendChild(btn('▼+', T('Додати рядок нижче (Ctrl+Enter)'), function () { post({ type: 'addRow', at: r + 1, below: true, focus: { r: r + 1, c: 0 } }); }));
+    tl.appendChild(btn('⧉', T('Дублювати рядок (Ctrl+D)'), function () { post({ type: 'dupRows', r1: r, r2: r, focus: { r: r + 1, c: 0 } }); }));
+    tl.appendChild(btn('✕', T('Видалити рядок (Ctrl+Shift+K)'), function () { post({ type: 'delRow', r: r }); }, 'x', v.rows.length <= 1));
     rh.appendChild(tl); tr.appendChild(rh);
     let logical = 0;
     LG[r] = []; SPN[r] = [];
@@ -252,15 +252,15 @@ function render(v, focus) {
       td.spellcheck = false;
       td.dataset.r = r; td.dataset.c = c; td.dataset.orig = cell.raw;
       td.dataset.l = lg; td.dataset.kind = cell.kind || '';
-      if (cell.fromOpts) td.dataset.spanNote = 'Об\'єднання задано в параметрах таблиці (cell{…} = {r=…,c=…}). Перенести його в \\SetCell: лампочка в тексті файла.';
-      if (cell.conflict) td.dataset.spanNote = (td.dataset.spanNote ? td.dataset.spanNote + '\n' : '') + 'Конфлікт об\'єднань у цій клітинці, див. попередження над таблицею.';
+      if (cell.fromOpts) td.dataset.spanNote = T('Об\'єднання задано в параметрах таблиці (cell{…} = {r=…,c=…}). Перенести його в \\SetCell: лампочка в тексті файла.');
+      if (cell.conflict) td.dataset.spanNote = (td.dataset.spanNote ? td.dataset.spanNote + '\n' : '') + T('Конфлікт об\'єднань у цій клітинці, див. попередження над таблицею.');
       if (st.mode) td.dataset.mode = st.mode;
       if (cell.span > 1) td.colSpan = cell.span;
       if (cell.rowspan > 1) td.rowSpan = cell.rowspan;
       if (st.bg) td.style.background = st.bg;
       if (st.fg) td.style.color = st.fg;
       if (st.bold) td.style.fontWeight = '700';
-      if (st.unknownColor) { td.dataset.unk = 'Колір «' + st.unknownColor + '» не знайдено в проєкті: у PDF він буде з визначення (тут показано без фону)'; td.title = td.dataset.unk; }
+      if (st.unknownColor) { td.dataset.unk = T('Колір «{0}» не знайдено в проєкті: у PDF він буде з визначення (тут показано без фону)', st.unknownColor); td.title = td.dataset.unk; }
       renderCell(td, cell.raw);
       tr.appendChild(td);
     });
@@ -268,22 +268,22 @@ function render(v, focus) {
   });
   const add = document.createElement('tr');
   add.appendChild(document.createElement('th'));
-  const tdA = document.createElement('td'); tdA.className = 'addr'; tdA.colSpan = Math.max(1, v.width); tdA.textContent = '＋ рядок';
+  const tdA = document.createElement('td'); tdA.className = 'addr'; tdA.colSpan = Math.max(1, v.width); tdA.textContent = T('＋ рядок');
   tdA.addEventListener('click', function () { post({ type: 'addRow', at: v.rows.length, focus: { r: v.rows.length, c: 0 } }); });
   add.appendChild(tdA); t.appendChild(add);
-  const th = document.createElement('th'); th.appendChild(btn('＋', cols ? 'Додати стовпець у кінець' : v.colsWhy, function () { post({ type: 'addCol', at: v.width }); }, 'add', !cols)); head.appendChild(th);
+  const th = document.createElement('th'); th.appendChild(btn('＋', cols ? T('Додати стовпець у кінець') : v.colsWhy, function () { post({ type: 'addCol', at: v.width }); }, 'add', !cols)); head.appendChild(th);
   $('size').textContent = v.rows.length + ' × ' + v.width + (v.spread ? ' · spreadtab' : '');
   const w = [];
-  if (v.indexedKeys) w.push('У параметрах є row{odd}, row{even} або відкриті діапазони: вони залежать від кількості рядків, перевір їх після змін.');
-  if (v.merged) w.push('Є об\'єднані клітинки: стовпці можна додавати й видаляти, а переставляти лише в коді.');
+  if (v.indexedKeys) w.push(T('У параметрах є row{odd}, row{even} або відкриті діапазони: вони залежать від кількості рядків, перевір їх після змін.'));
+  if (v.merged) w.push(T('Є об\'єднані клітинки: стовпці можна додавати й видаляти, а переставляти лише в коді.'));
   (v.conflicts || []).forEach(function (m) { w.push('⚠ ' + m); });
   $('warn').textContent = w.join('\n');
   const tools = $('spanTools');
   if (tools) tools.style.display = v.canMerge ? '' : 'none';
   const inf = [];
-  if (v.optSpans) inf.push('Об\'єднання в параметрах таблиці: текст правиться, але рядки й стовпці всередині них додавати й видаляти не можна: перенеси їх у \\SetCell (лампочка в тексті файла).');
-  if (v.keysAuto) inf.push('Номери в row{…}, column{…}, cell{…}, hline{…}, vline{…} зсуваються разом із рядками й стовпцями.');
-  if (v.absRefs) inf.push('Посилання на клітинки у формулах (c2…) теж зсуваються автоматично.');
+  if (v.optSpans) inf.push(T('Об\'єднання в параметрах таблиці: текст правиться, але рядки й стовпці всередині них додавати й видаляти не можна: перенеси їх у \\SetCell (лампочка в тексті файла).'));
+  if (v.keysAuto) inf.push(T('Номери в row{…}, column{…}, cell{…}, hline{…}, vline{…} зсуваються разом із рядками й стовпцями.'));
+  if (v.absRefs) inf.push(T('Посилання на клітинки у формулах (c2…) теж зсуваються автоматично.'));
   $('info').textContent = inf.join(' ');
   if (sel && (sel.a.r >= v.rows.length || sel.f.r >= v.rows.length)) sel = null;
   paintSel();
@@ -379,7 +379,7 @@ function selKey(e) {
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); post({ type: 'clear', r1: rc.r1, c1: rc.c1, r2: rc.r2, c2: rc.c2 }); return; }
   if (mod && (e.key === 'a' || e.key === 'A') && view) { e.preventDefault(); setSel({ r: 0, c: 0 }, { r: view.rows.length - 1, c: view.width - 1 }); return; }
   if (mod && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); post({ type: 'dupRows', r1: rc.r1, r2: rc.r2, focus: { r: rc.r2 + 1, c: rc.c1 } }); return; }
-  if (mod && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); if (rc.r1 !== rc.r2) { toast('Видаляй рядки по одному.'); return; } post({ type: 'delRow', r: rc.r1 }); return; }
+  if (mod && e.shiftKey && (e.key === 'K' || e.key === 'k')) { e.preventDefault(); if (rc.r1 !== rc.r2) { toast(T('Видаляй рядки по одному.')); return; } post({ type: 'delRow', r: rc.r1 }); return; }
   if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && rc.r1 === rc.r2) { e.preventDefault(); const d = e.key === 'ArrowUp' ? -1 : 1; post({ type: 'moveRow', r: rc.r1, dir: d }); return; }
   if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && rc.c1 === rc.c2) { e.preventDefault(); const d = e.key === 'ArrowLeft' ? -1 : 1; post({ type: 'moveCol', c: rc.c1, dir: d }); return; }
   if (e.key.indexOf('Arrow') === 0) {
@@ -474,8 +474,8 @@ window.addEventListener('message', function (ev) {
     const active = isCell(document.activeElement);
     if (s !== last || !active || macrosChanged) { last = s; render(m.view, m.focus); } else { view = m.view; }
   } else if (m.type === 'skip') {
-    $('t').innerHTML = ''; $('size').textContent = ''; $('what').textContent = 'Цю таблицю не можна редагувати візуально';
-    $('warn').textContent = m.reason + '. Правь її в коді.'; $('info').textContent = ''; last = ''; sel = null;
+    $('t').innerHTML = ''; $('size').textContent = ''; $('what').textContent = T('Цю таблицю не можна редагувати візуально');
+    $('warn').textContent = T('{0}. Правь її в коді.', m.reason); $('info').textContent = ''; last = ''; sel = null;
   } else if (m.type === 'error') {
     toast(m.message); last = '';
   }

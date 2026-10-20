@@ -115,7 +115,7 @@ const rd = (...p) => fs.readFileSync(path.join(EXT, ...p), 'utf8');
 for (const [mod, pageJs] of [['tableEditor.js', path.join('media', 'tableEditor', 'webview.js')], ['selectionPreview.js', path.join('media', 'selectionPreview', 'webview.js')]]) {
   const src = rd(mod);
   const a = src.indexOf('optmacros.js');
-  ok(a > 0 && a < src.indexOf('webview.js'), mod + ': optmacros.js is loaded before the script of the page');
+  ok(a > 0 && a < src.lastIndexOf('webview.js'), mod + ': optmacros.js is loaded before the script of the page'); // the last mention is the script tag (the first may be the list of texts of the page, webviewI18n)
   ok(a > src.indexOf('katex.min.js'), mod + ': and after KaTeX');
   // since 0.18.0 the preview page draws through media/common/kit.js (shared with the macro gallery and the overview of formulas)
   ok(/window\.tssKatexMacros|window\.tssKit/.test(rd(pageJs)), pageJs + ' uses window.tssKatexMacros (directly or through kit.js)');

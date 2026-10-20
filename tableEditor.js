@@ -13,6 +13,9 @@ const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
 const { EXCLUDE_PDF_VERSIONS, cfg, debounce, isTex, openDocByPath } = require('./util');
 const K = require('./webviewKit');
+const WI = require('./webviewI18n');
+const { tr, getLang } = require('./i18n');
+const escHtml = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const SEL = [{ language: 'latex' }, { language: 'tex' }];
 
@@ -52,7 +55,7 @@ function projectColors() {
         if (t && DEF_RE.test(t)) { results[k] = t; files.add(u.fsPath); }
       };
       for (let k = 0; k < found.length; k += 32) await Promise.all(found.slice(k, k + 32).map((u, n) => read(u, k + n)));
-      log('[таблиця] кольори проєкту: ' + found.length + ' файлів; пошук файлів ' + (t1 - t0) + ' мс, читання ' + ms(t1) + ' мс; з визначеннями ' + files.size);
+      log(tr('[таблиця] кольори проєкту: {0} файлів; пошук файлів {1} мс, читання {2} мс; з визначеннями {3}', found.length, t1 - t0, ms(t1), files.size));
     } catch (e) { /* no workspace */ }
     defsCache = { at: Date.now(), defs: X.colorDefs(results.filter(Boolean)), files };
     return defsCache.defs;
@@ -64,10 +67,10 @@ function projectColors() {
 async function current() {
   if (!target) return null;
   let doc;
-  try { doc = await vscode.workspace.openTextDocument(target.uri); } catch (e) { return { skip: 'файл недоступний' }; }
+  try { doc = await vscode.workspace.openTextDocument(target.uri); } catch (e) { return { skip: tr('файл недоступний') }; }
   const text = doc.getText();
   const envs = X.locateTables(text);
-  if (!envs.length) return { skip: 'У файлі більше немає таблиць, які можна редагувати.', doc };
+  if (!envs.length) return { skip: tr('У файлі більше немає таблиць, які можна редагувати.'), doc };
   const same = envs.filter((e) => e.name === target.name);
   const pool = same.length ? same : envs;
   const env = pool.sort((a, b) => Math.abs(a.start - target.start) - Math.abs(b.start - target.start))[0];
@@ -104,7 +107,7 @@ async function katexMacros(doc) {
   try { fileOpt = MJ.optMacros(doc); } catch (e) { /* none */ }
   macros = Object.assign({}, macros, opt, fromFile, fileOpt);
   macrosCache = { key: doc.uri.toString(), at: Date.now(), stamp: MJ.stamp(doc), ver, macros, cmds };
-  log('[таблиця] макроси проєкту: ' + Object.keys(macros).length + ' (з файла макросів ' + (Object.keys(fromFile).length + Object.keys(fileOpt).length) + ', з необов\'язковим аргументом ' + (Object.keys(opt).length + Object.keys(fileOpt).length) + ') за ' + ms(t0) + ' мс');
+  log(tr('[таблиця] макроси проєкту: {0} (з файла макросів {1}, з необов\'язковим аргументом {2}) за {3} мс', Object.keys(macros).length, Object.keys(fromFile).length + Object.keys(fileOpt).length, Object.keys(opt).length + Object.keys(fileOpt).length, ms(t0)));
   return macros;
 }
 
@@ -117,15 +120,15 @@ async function push(extra) {
   if (!cur) return;
   if (cur.skip) { ctl.panel.webview.postMessage({ type: 'skip', reason: cur.skip }); return; }
   const where = path.basename(cur.doc.uri.fsPath) + ':' + lineOf(cur.doc, cur.env);
-  ctl.panel.title = 'Таблиця: ' + where;
+  ctl.panel.title = tr('Таблиця: {0}', where);
   const send = (colors, macros) => ctl.panel && ctl.panel.webview.postMessage(Object.assign({ type: 'model', view: X.toView(cur.model, colors), macros, where }, extra || {}));
   const known = macrosCache.key === cur.doc.uri.toString() ? macrosCache.macros : {};
   if (colorsFresh() && macrosFresh(cur.doc)) { send(defsCache.defs, macrosCache.macros); return; }
   send(defsCache.defs, known);
-  log('[таблиця] сітка надіслана за ' + ms(t0) + ' мс; кольори й макроси проєкту ще шукаються');
+  log(tr('[таблиця] сітка надіслана за {0} мс; кольори й макроси проєкту ще шукаються', ms(t0)));
   const t1 = Date.now();
   await Promise.all([projectColors(), katexMacros(cur.doc)]);
-  log('[таблиця] кольори й макроси готові за ' + ms(t1) + ' мс');
+  log(tr('[таблиця] кольори й макроси готові за {0} мс', ms(t1)));
   if (ctl.panel && colorsFresh()) await push(); // the second picture, now with colours and macros (nothing is left to wait for)
 }
 
@@ -135,7 +138,7 @@ async function onOp(op) {
   let res = X.applyOp(cur.model, op);
   // merging cells that hold text: the text of all but the first cell is lost, so the user is asked first
   if (res.confirm) {
-    const yes = 'Об\'єднати';
+    const yes = tr('Об\'єднати');
     const answer = await vscode.window.showWarningMessage(res.confirm, { modal: true }, yes);
     if (answer !== yes) { push(); return; }
     res = X.applyOp(cur.model, Object.assign({}, op, { confirmed: true }));
@@ -244,24 +247,24 @@ function html(webview, extUri) {
   const kx = (f) => asset('katex', f);
   const own = (f) => asset('tableEditor', f);
   const csp = "default-src 'none'; style-src " + webview.cspSource + " 'unsafe-inline'; script-src 'nonce-" + n + "' " + webview.cspSource + '; font-src ' + webview.cspSource + '; img-src ' + webview.cspSource + ' data:;';
-  return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
+  return '<!DOCTYPE html><html lang="' + getLang() + '"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '">' +
     '<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="' + kx('katex.min.css') + '"><link rel="stylesheet" href="' + own('webview.css') + '"></head><body>' +
     '<div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div>' +
-    '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+M / Ctrl+Shift+M: об\'єднати / розʼєднати виділене · Ctrl+Z: скасувати зміну у файлі</div>' +
-    '<script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + kx('optmacros.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
+    '<div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint">' + escHtml(tr('Enter/Tab/стрілки: рух · Shift+клік чи перетягування: виділення · Delete: очистити · Ctrl+C/X/V: копіювати, вирізати, вставити (в тому числі з Excel) · Ctrl+D: дублювати рядок · Ctrl+Enter: рядок нижче · Alt+стрілки: перемістити · Ctrl+M / Ctrl+Shift+M: об\'єднати / розʼєднати виділене · Ctrl+Z: скасувати зміну у файлі')) + '</div>' +
+    WI.block([path.join(__dirname, 'media', 'tableEditor', 'webview.js')]) + '<script nonce="' + n + '" src="' + asset('common', 'i18n.js') + '"></script><script nonce="' + n + '" src="' + kx('katex.min.js') + '"></script><script nonce="' + n + '" src="' + kx('mhchem.min.js') + '"></script><script nonce="' + n + '" src="' + kx('optmacros.js') + '"></script><script nonce="' + n + '" src="' + own('webview.js') + '"></script></body></html>';
 }
 
 // the frame of the panel (panel, deferred update, 'ready', panelScope) is webviewKit.createPanelController; this module gives the page and its messages
 const ctl = K.createPanelController({
   id: 'tableEditor',
-  title: 'Таблиця',
+  get title() { return tr('Таблиця'); }, // read when the panel is opened: the language is known by then
   preserveFocus: true,
   noCopy: true, // the page of the table does not send 'copy'
   timers: ['tableEditor.follow', 'tableEditor.refresh'],
   html: (webview, uri) => html(webview, uri),
   onReveal: (c, p) => { p.reveal(vscode.ViewColumn.Beside, true); },
   // the page has loaded: it asks for the table itself
-  onReady: () => { if (openedAt) { log('[таблиця] сторінка вкладки завантажилась за ' + ms(openedAt) + ' мс'); openedAt = 0; } enqueue(() => push()); },
+  onReady: () => { if (openedAt) { log(tr('[таблиця] сторінка вкладки завантажилась за {0} мс', ms(openedAt))); openedAt = 0; } enqueue(() => push()); },
   onMessage: (m, c) => {
     if (m.type === 'op') enqueue(() => onOp(m.op)).catch((e) => c.post({ type: 'error', message: String(e && e.message ? e.message : e) }));
     else if (m.type === 'follow') scheduleFollow(Number.isInteger(m.r) ? m.r : null);
@@ -281,23 +284,23 @@ async function openTable(context, uri, start) {
     env = X.locateTables(doc.getText()).find((e) => e.start === start);
   } else {
     const ed = vscode.window.activeTextEditor;
-    if (!ed || !isTex(ed.document)) { vscode.window.showInformationMessage('Постав курсор усередину таблиці в .tex-файлі.'); return; }
+    if (!ed || !isTex(ed.document)) { vscode.window.showInformationMessage(tr('Постав курсор усередину таблиці в .tex-файлі.')); return; }
     doc = ed.document;
     const text = doc.getText();
     env = X.tableAt(text, doc.offsetAt(ed.selection.active));
     if (!env) {
       const all = X.locateTables(text);
-      if (!all.length) { vscode.window.showInformationMessage('У файлі немає таблиць tblr, longtblr, talltblr, tabular, tabularx, array, longtable.'); return; }
+      if (!all.length) { vscode.window.showInformationMessage(tr('У файлі немає таблиць tblr, longtblr, talltblr, tabular, tabularx, array, longtable.')); return; }
       if (all.length === 1) env = all[0];
       else {
-        const items = all.map((e) => ({ label: '$(table) ' + e.name, description: 'рядок ' + (doc.positionAt(e.start).line + 1), detail: text.slice(e.bodyStart, e.bodyEnd).trim().split('\n').slice(0, 2).join(' ').slice(0, 90), e }));
-        const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Яку таблицю редагувати?' });
+        const items = all.map((e) => ({ label: '$(table) ' + e.name, description: tr('рядок {0}', doc.positionAt(e.start).line + 1), detail: text.slice(e.bodyStart, e.bodyEnd).trim().split('\n').slice(0, 2).join(' ').slice(0, 90), e }));
+        const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Яку таблицю редагувати?') });
         if (!pick) return;
         env = pick.e;
       }
     }
   }
-  if (!env) { vscode.window.showWarningMessage('Таблицю не знайдено (файл змінився?).'); return; }
+  if (!env) { vscode.window.showWarningMessage(tr('Таблицю не знайдено (файл змінився?).')); return; }
   target = { uri: doc.uri, start: env.start, name: env.name };
   const fresh = !ctl.panel;
   const t0 = Date.now();
@@ -344,16 +347,16 @@ const spanActions = {
     if (dup) {
       const mine = (ctx && ctx.diagnostics ? ctx.diagnostics : []).filter((d) => d.code === 'table-span-dup');
       const p = dup.cells[0];
-      add('Залишити \\SetCell, прибрати об\'єднання з параметрів таблиці', { type: 'spanKeep', r: p.r, c: p.c, keep: 'cell' }, kinds.QuickFix, mine);
-      add('Залишити об\'єднання в параметрах таблиці, прибрати з \\SetCell', { type: 'spanKeep', r: p.r, c: p.c, keep: 'opts' }, kinds.QuickFix, mine);
+      add(tr('Залишити \\SetCell, прибрати об\'єднання з параметрів таблиці'), { type: 'spanKeep', r: p.r, c: p.c, keep: 'cell' }, kinds.QuickFix, mine);
+      add(tr('Залишити об\'єднання в параметрах таблиці, прибрати з \\SetCell'), { type: 'spanKeep', r: p.r, c: p.c, keep: 'opts' }, kinds.QuickFix, mine);
     }
     if (here && !dup) {
       const nm = 'cell{' + (here.r + 1) + '}{' + (here.c + 1) + '}';
-      if (here.src === 'cell') add('Перенести це об\'єднання в параметри таблиці (' + nm + ' = {r=…,c=…})', { type: 'spansToOptions', r: here.r, c: here.c }, kinds.RefactorRewrite);
-      else add('Перенести це об\'єднання (' + nm + ') у \\SetCell', { type: 'spansToCells', r: here.r, c: here.c }, kinds.RefactorRewrite);
+      if (here.src === 'cell') add(tr('Перенести це об\'єднання в параметри таблиці ({0} = {r=…,c=…})', nm), { type: 'spansToOptions', r: here.r, c: here.c }, kinds.RefactorRewrite);
+      else add(tr('Перенести це об\'єднання ({0}) у \\SetCell', nm), { type: 'spansToCells', r: here.r, c: here.c }, kinds.RefactorRewrite);
     }
-    if (cells.length && (cells.length > 1 || !here || here.src !== 'cell')) add('Перенести всі об\'єднання таблиці (' + cells.length + ') з \\SetCell у параметри', { type: 'spansToOptions' }, kinds.RefactorRewrite);
-    if (opts.length && (opts.length > 1 || !here || here.src !== 'opts')) add('Перенести всі об\'єднання таблиці (' + opts.length + ') з параметрів у \\SetCell', { type: 'spansToCells' }, kinds.RefactorRewrite);
+    if (cells.length && (cells.length > 1 || !here || here.src !== 'cell')) add(tr('Перенести всі об\'єднання таблиці ({0}) з \\SetCell у параметри', cells.length), { type: 'spansToOptions' }, kinds.RefactorRewrite);
+    if (opts.length && (opts.length > 1 || !here || here.src !== 'opts')) add(tr('Перенести всі об\'єднання таблиці ({0}) з параметрів у \\SetCell', opts.length), { type: 'spansToCells' }, kinds.RefactorRewrite);
     return out;
   }
 };
@@ -415,7 +418,7 @@ function register(context, api) {
       if (!/\.(?:tex|cls|sty)$/i.test(d.uri.fsPath)) return;
       if (defsCache.files.has(d.uri.fsPath) || DEF_RE.test(d.getText())) defsCache.at = 0;
     }),
-    vscode.commands.registerCommand('tssworkflow.editTable', (uri, start) => openTable(context, uri instanceof vscode.Uri ? uri : null, start).catch((e) => vscode.window.showErrorMessage('Редактор таблиць: ' + (e && e.message ? e.message : e)))),
+    vscode.commands.registerCommand('tssworkflow.editTable', (uri, start) => openTable(context, uri instanceof vscode.Uri ? uri : null, start).catch((e) => vscode.window.showErrorMessage(tr('Редактор таблиць: {0}', e && e.message ? e.message : e)))),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (!ctl.panel || !target || selfEdit || e.document.uri.toString() !== target.uri.toString()) return;
       debounce('tableEditor.refresh', 250, () => push());
@@ -427,7 +430,7 @@ function register(context, api) {
         const out = [];
         for (const e of X.locateTables(doc.getText())) {
           const p = doc.positionAt(e.start);
-          out.push(new vscode.CodeLens(new vscode.Range(p, p), { title: '$(table) Редагувати таблицю', command: 'tssworkflow.editTable', arguments: [doc.uri, e.start] }));
+          out.push(new vscode.CodeLens(new vscode.Range(p, p), { title: tr('$(table) Редагувати таблицю'), command: 'tssworkflow.editTable', arguments: [doc.uri, e.start] }));
         }
         if (out.length) warm(doc);
         return out;
@@ -437,6 +440,7 @@ function register(context, api) {
 }
 
 exports.register = register;
+exports._html = html; // for tests/tableEditorPage.vscode-stub.test.js: the HTML of the page of the panel
 exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
 // the caches of the colours and macros of the project are shared with the panel "Preview selection"
 exports.projectColors = projectColors;
