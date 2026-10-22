@@ -11,15 +11,17 @@ const O = require('./formulaOverviewPure');
 const P = require('./selectionPreviewPure');
 const TE = require('./tableEditor');
 const K = require('./webviewKit');
+const { tr } = require('./i18n');
+const { esc } = require('./webviewI18n');
 const { isTex } = require('./util');
 
 let files = []; // [{ abs }] in the order of the page; a click on the page names a file by its number here
 
 function body() {
-  return '<div id="top"><h1>Формули проєкту</h1><span id="stat"></span><button id="refresh" title="Перечитати файли проєкту">Оновити</button></div>' +
-    '<div id="bar"><input id="q" type="search" placeholder="Пошук: мітка, номер 2.3, фрагмент коду, файл" autocomplete="off">' +
-    '<label><input type="checkbox" id="fU"> не використовуються</label><label><input type="checkbox" id="fL"> без мітки</label>' +
-    '<label><input type="checkbox" id="fN"> показати й формули без номера</label></div><div id="list"></div>';
+  return '<div id="top"><h1>' + esc(tr('Формули проєкту')) + '</h1><span id="stat"></span><button id="refresh" title="' + esc(tr('Перечитати файли проєкту')) + '">' + esc(tr('Оновити')) + '</button></div>' +
+    '<div id="bar"><input id="q" type="search" placeholder="' + esc(tr('Пошук: мітка, номер 2.3, фрагмент коду, файл')) + '" autocomplete="off">' +
+    '<label><input type="checkbox" id="fU"> ' + esc(tr('не використовуються')) + '</label><label><input type="checkbox" id="fL"> ' + esc(tr('без мітки')) + '</label>' +
+    '<label><input type="checkbox" id="fN"> ' + esc(tr('показати й формули без номера')) + '</label></div><div id="list"></div>';
 }
 
 async function collect() {
@@ -51,7 +53,7 @@ async function goto(m) {
 // the frame of the panel (panel, ready, seq, deferred update, 'ready' / 'copy', panelScope) is webviewKit.createPanelController
 const ctl = K.createPanelController({
   id: 'formulaOverview',
-  title: 'Формули проєкту',
+  get title() { return tr('Формули проєкту'); }, // read when the panel is opened
   html: (webview, extUri) => K.shell(webview, extUri, { body: body(), css: ['formulaOverview/webview.css'], js: ['formulaOverview/webview.js'] }),
   collect,
   render: (r, c) => {
@@ -74,3 +76,4 @@ function register(context) {
 
 exports.register = register;
 exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
+exports._t = { body }; // the HTML of the page (tests/webviewPanels.vscode-stub.test.js)

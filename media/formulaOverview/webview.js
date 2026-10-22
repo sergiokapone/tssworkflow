@@ -26,9 +26,9 @@ function lazy(el) {
 
 function itemHtml(e, i) {
   const search = (e.labels.join(' ') + ' ' + e.num + ' ' + e.snippet + ' ' + files[e.f] + ' ' + e.env).toLowerCase();
-  const badges = (e.unused ? '<span class="badge bad" title="Жодна з міток не згадана в \\ref, \\eqref, \\cref…">не використовується</span>' : '') +
-    (e.numbered && e.noLabel ? '<span class="badge muted">без мітки</span>' : '') + (!e.numbered ? '<span class="badge muted">без номера</span>' : '');
-  const labs = e.labels.map((l) => '<code class="lab" title="Копіювати \\eqref{' + esc(l) + '}" data-eqref="' + esc(l) + '">' + esc(l) + '</code>').join(' ');
+  const badges = (e.unused ? '<span class="badge bad" title="' + esc(T('Жодна з міток не згадана в \\ref, \\eqref, \\cref…')) + '">' + T('не використовується') + '</span>' : '') +
+    (e.numbered && e.noLabel ? '<span class="badge muted">' + T('без мітки') + '</span>' : '') + (!e.numbered ? '<span class="badge muted">' + T('без номера') + '</span>' : '');
+  const labs = e.labels.map((l) => '<code class="lab" title="' + esc(T('Копіювати \\eqref{{0}}', l)) + '" data-eqref="' + esc(l) + '">' + esc(l) + '</code>').join(' ');
   return '<div class="it" data-i="' + i + '" data-s="' + esc(search) + '" data-u="' + (e.unused ? 1 : 0) + '" data-nl="' + (e.noLabel ? 1 : 0) + '" data-n="' + (e.numbered ? 1 : 0) + '">' +
     '<div class="ih"><span class="num">' + (e.num ? '(' + esc(e.num) + ')' : '—') + '</span>' + labs + badges + '<span class="env">' + esc(e.env) + '</span><a class="go" href="#" data-go="' + i + '">' + esc(files[e.f]) + ':' + e.line + '</a></div>' +
     '<div class="fx" style="min-height:2.6em">' + e.html + '</div></div>';
@@ -42,7 +42,7 @@ function build() {
     html += itemHtml(e, i);
   });
   if (cur >= 0) html += '</section>';
-  $('list').innerHTML = html || '<p class="empty">У проєкті немає формул (відкрий папку проєкту).</p>';
+  $('list').innerHTML = html || '<p class="empty">' + T('У проєкті немає формул (відкрий папку проєкту).') + '</p>';
   if (io) { io.disconnect(); io = null; }
   document.querySelectorAll('#list .fx').forEach(lazy);
   filter();
@@ -67,13 +67,13 @@ function filter() {
   const numbered = entries.filter((e) => e.numbered).length;
   const unused = entries.filter((e) => e.unused).length;
   const noLabel = entries.filter((e) => e.numbered && e.noLabel).length;
-  $('stat').textContent = 'Нумерованих: ' + numbered + ', не використовуються: ' + unused + ', без мітки: ' + noLabel + '. Показано: ' + shown + ' з ' + entries.length + '.';
+  $('stat').textContent = T('Нумерованих: {0}, не використовуються: {1}, без мітки: {2}. Показано: {3} з {4}.', numbered, unused, noLabel, shown, entries.length);
 }
 
 window.addEventListener('message', function (e) {
   const m = e.data;
   if (!m) return;
-  if (m.type === 'copied') { kit.toast('Скопійовано: ' + (m.what || '')); return; }
+  if (m.type === 'copied') { kit.toast(T('Скопійовано: {0}', m.what || '')); return; }
   if (m.type !== 'data') return;
   macros = m.macros || {};
   files = m.files || [];

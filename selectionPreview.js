@@ -8,6 +8,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./selectionPreviewPure');
+const { tr } = require('./i18n');
 const TE = require('./tableEditor');
 const { EXCLUDE, cfg, isTex } = require('./util');
 const K = require('./webviewKit');
@@ -147,7 +148,7 @@ async function openTikz(m) {
   const doc = last && last.doc;
   if (!doc || !m || typeof m.name !== 'string') return;
   const f = resolveTikz(m.name, doc);
-  if (!f) { vscode.window.showWarningMessage('Файл не знайдено: ' + String(m.name).slice(0, 200)); return; }
+  if (!f) { vscode.window.showWarningMessage(tr('Файл не знайдено: {0}', String(m.name).slice(0, 200))); return; }
   // into the column of the .tex editor (the panel stands beside it), as a click on the name in the editor does
   await vscode.window.showTextDocument(vscode.Uri.file(f), { viewColumn: (last && last.column) || vscode.ViewColumn.One, preserveFocus: false });
 }
@@ -175,19 +176,19 @@ function fragment(ed) {
   const doc = ed.document;
   const sels = ed.selections.filter((s) => !s.isEmpty).sort((a, b) => a.start.compareTo(b.start));
   if (sels.length) {
-    return { text: sels.map((s) => doc.getText(s)).join('\n\n'), what: 'Виділене', from: sels[0].start.line + 1, to: sels[sels.length - 1].end.line + 1 };
+    return { text: sels.map((s) => doc.getText(s)).join('\n\n'), what: tr('Виділене'), from: sels[0].start.line + 1, to: sels[sels.length - 1].end.line + 1 };
   }
-  if (cfg().get('selectionPreview.emptySelection', 'paragraph') !== 'paragraph') return { text: '', what: 'Нічого не виділено', from: 0, to: 0 };
+  if (cfg().get('selectionPreview.emptySelection', 'paragraph') !== 'paragraph') return { text: '', what: tr('Нічого не виділено'), from: 0, to: 0 };
   const at = ed.selection.active.line;
   const blank = (i) => !doc.lineAt(i).text.trim();
-  if (blank(at)) return { text: '', what: 'Порожній рядок', from: 0, to: 0 };
+  if (blank(at)) return { text: '', what: tr('Порожній рядок'), from: 0, to: 0 };
   let a = at;
   let b = at;
   while (a > 0 && !blank(a - 1)) a--;
   while (b < doc.lineCount - 1 && !blank(b + 1)) b++;
   const lines = [];
   for (let i = a; i <= b; i++) lines.push(doc.lineAt(i).text);
-  return { text: lines.join('\n'), what: 'Абзац біля курсора', from: a + 1, to: b + 1 };
+  return { text: lines.join('\n'), what: tr('Абзац біля курсора'), from: a + 1, to: b + 1 };
 }
 
 // the tooltip of a link \\ref: the number of the formula / section from the last compilation (main.aux), if there is one
@@ -229,7 +230,7 @@ async function openRef(m) {
       if (pos) { uri = f; break; }
     }
   }
-  if (!pos || !uri) { vscode.window.showWarningMessage('Мітку не знайдено: ' + name.slice(0, 200)); return; }
+  if (!pos || !uri) { vscode.window.showWarningMessage(tr('Мітку не знайдено: {0}', name.slice(0, 200))); return; }
   const range = new vscode.Range(new vscode.Position(pos.line, pos.col), new vscode.Position(pos.line, pos.col + pos.len));
   const ed = await vscode.window.showTextDocument(uri, { viewColumn: (last && last.column) || vscode.ViewColumn.One, preserveFocus: false, selection: range });
   try { if (ed && ed.revealRange) ed.revealRange(range, vscode.TextEditorRevealType ? vscode.TextEditorRevealType.InCenterIfOutsideViewport : undefined); } catch (e) { /* the selection is already there */ }
@@ -262,7 +263,7 @@ async function update() {
 // this module gives the page, the update (its own: it follows the editor), the messages 'open' / 'ref' and the toggle
 const ctl = K.createPanelController({
   id: 'selectionPreview',
-  title: 'Перегляд виділеного',
+  get title() { return tr('Перегляд виділеного'); }, // read when the panel is opened
   preserveFocus: true, // the caret stays in the editor, the panel only appears
   roots: () => roots.map((r) => vscode.Uri.file(r)),
   html: (webview, uri) => html(webview, uri),

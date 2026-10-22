@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.21.8",
+  "version": "0.21.9",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -1072,7 +1072,7 @@
           "enum": ["uk", "en", "auto"],
           "enumDescriptions": [
             "Ukrainian messages and reports (as before)",
-            "English messages and reports where a translation exists (build and its status bar, the log of LaTeX and Problems, wrap in command and environment, Doctor, table editor, tblr and tikz formatting, citations and project settings, state of the extension, normalize, framing, new chapter, DOI to BibTeX, latexdiff, project statistics, typography hints and macros, labels and files: rename of labels and files, packages, tables, .bib, equations, the project reports, snapshots, rename and move of chapters, replace in project, notation, terms); the rest stays Ukrainian for now",
+            "English messages and reports where a translation exists (build and its status bar, the log of LaTeX and Problems, wrap in command and environment, Doctor, table editor, macro gallery, formula overview, selection preview, tblr and tikz formatting, citations and project settings, state of the extension, normalize, framing, new chapter, DOI to BibTeX, latexdiff, project statistics, typography hints and macros, labels and files: rename of labels and files, packages, tables, .bib, equations, the project reports, snapshots, rename and move of chapters, replace in project, notation, terms); the rest stays Ukrainian for now",
             "English unless the display language of VS Code is Ukrainian"
           ],
           "description": "Language of the messages, prompts and reports of the extension. Partly translated: see the changelog for what is covered."

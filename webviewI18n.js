@@ -34,9 +34,12 @@ function block(files) {
     if (!cache.has(f)) { let t = ''; try { t = fs.readFileSync(f, 'utf8'); } catch (e) { /* no script: no texts */ } cache.set(f, keysOf(t)); }
     for (const k of cache.get(f)) d[k] = tr(k);
   }
+  if (!Object.keys(d).length) return ''; // a page that asks for no texts needs neither the block nor the helper
   // < > & as \u escapes: nothing in a text can close the block or start a comment
   const json = JSON.stringify(d).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
   return '<script type="application/json" id="tss-i18n">' + json + '</script>';
 }
 
-module.exports = { keysOf, dictionary, block, T_RE };
+const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); // a text of the host inside the HTML of a page
+
+module.exports = { keysOf, dictionary, block, esc, T_RE };

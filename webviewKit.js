@@ -8,6 +8,9 @@
  * clipboard fallback of the page. The page of the panel "Preview selection" has its own shell (selectionPreview.js). */
 const vscode = require('vscode');
 const { cancelTimer, debounce, panelScope } = require('./util');
+const path = require('path');
+const WI = require('./webviewI18n');
+const { getLang } = require('./i18n');
 
 const nonce = () => { let t = ''; const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; for (let i = 0; i < 32; i++) t += c[Math.floor(Math.random() * c.length)]; return t; };
 
@@ -17,8 +20,9 @@ function shell(webview, extUri, opts) {
   const asset = (p) => webview.asWebviewUri(vscode.Uri.joinPath(extUri, 'media', ...p.split('/'))).toString();
   const csp = "default-src 'none'; style-src " + webview.cspSource + " 'unsafe-inline'; script-src 'nonce-" + n + "' " + webview.cspSource + '; font-src ' + webview.cspSource + '; img-src ' + webview.cspSource + ' data:;';
   const css = ['katex/katex.min.css'].concat(opts.css || []).map((p) => '<link rel="stylesheet" href="' + asset(p) + '">').join('');
-  const js = ['katex/katex.min.js', 'katex/mhchem.min.js', 'katex/optmacros.js', 'common/kit.js'].concat(opts.js || []).map((p) => '<script nonce="' + n + '" src="' + asset(p) + '"></script>').join('');
-  return '<!DOCTYPE html><html lang="uk"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '"><meta name="viewport" content="width=device-width, initial-scale=1">' + css + '</head><body>' + opts.body + '<div id="toast"></div>' + js + '</body></html>';
+  const i18n = WI.block((opts.js || []).map((p) => path.join(__dirname, 'media', ...p.split('/')))); // the texts of the page (T('...')), '' if it asks for none
+  const js = ['katex/katex.min.js', 'katex/mhchem.min.js', 'katex/optmacros.js', 'common/kit.js'].concat(i18n ? ['common/i18n.js'] : []).concat(opts.js || []).map((p) => '<script nonce="' + n + '" src="' + asset(p) + '"></script>').join('');
+  return '<!DOCTYPE html><html lang="' + getLang() + '"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '"><meta name="viewport" content="width=device-width, initial-scale=1">' + css + '</head><body>' + opts.body + '<div id="toast"></div>' + i18n + js + '</body></html>';
 }
 
 // the page could not use the clipboard itself: the text goes through the extension

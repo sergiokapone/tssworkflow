@@ -1,5 +1,6 @@
 const vscode = acquireVsCodeApi();
 const $ = (id) => document.getElementById(id);
+const attr = (t) => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); // a text inside an attribute of the markup built below
 let macros = {};
 const stepAt = []; // per derivation block (by its order in the page): 0 = all rows, k = rows 1..k; kept while the text is edited
 
@@ -17,27 +18,27 @@ function paintSteps(box, idx) {
   const k = stepAt[idx] || 0;
   if (k > 0 && steps[k - 1]) draw(el, steps[k - 1]); else draw(el);
   const lab = box.querySelector('.stpn');
-  if (lab) lab.textContent = !steps.length ? 'рядків: ' + n + ' (покроково лише до 24)' : k ? 'Крок ' + k + ' з ' + n : 'Усі ' + n + ' рядків';
+  if (lab) lab.textContent = !steps.length ? T('рядків: {0} (покроково лише до 24)', n) : k ? T('Крок {0} з {1}', k, n) : T('Усі {0} рядків', n);
   box.querySelectorAll('.stpbar button[data-step]').forEach((b) => { b.disabled = !steps.length; });
 }
 function addSteps(box, idx) {
   if (box.querySelector('.stpbar')) return;
   const bar = document.createElement('div');
   bar.className = 'stpbar';
-  bar.innerHTML = '<button data-step="prev" title="Попередній крок">◀</button><span class="stpn"></span><button data-step="next" title="Наступний крок">▶</button><button data-step="all" title="Усі рядки зі змінами">Усе</button>';
+  bar.innerHTML = '<button data-step="prev" title="' + attr(T('Попередній крок')) + '">◀</button><span class="stpn"></span><button data-step="next" title="' + attr(T('Наступний крок')) + '">▶</button><button data-step="all" title="' + attr(T('Усі рядки зі змінами')) + '">' + T('Усе') + '</button>';
   box.appendChild(bar);
   paintSteps(box, idx);
 }
 
 window.addEventListener('message', function (e) {
   const m = e.data;
-  if (m && m.type === 'copied') { kit.toast('Скопійовано: ' + (m.what || '')); return; }
+  if (m && m.type === 'copied') { kit.toast(T('Скопійовано: {0}', m.what || '')); return; }
   if (!m || m.type !== 'render') return;
   macros = m.macros || {};
   const wrap = $('wrap');
   const y = wrap.scrollTop;
   const out = $('out');
-  out.innerHTML = m.html || '<p class="empty">Виділи фрагмент у файлі: тут з\u2019явиться його вигляд.</p>';
+  out.innerHTML = m.html || '<p class="empty">' + T('Виділи фрагмент у файлі: тут з\u2019явиться його вигляд.') + '</p>';
   out.querySelectorAll('span.m').forEach((el) => { if (!el.closest('.stp')) draw(el); });
   const blocks = out.querySelectorAll('.stp');
   stepAt.length = Math.min(stepAt.length, blocks.length);
@@ -45,7 +46,7 @@ window.addEventListener('message', function (e) {
   out.querySelectorAll('div.dm').forEach(kit.addCopy);
   $('what').textContent = m.what || '';
   $('where').textContent = m.where || '';
-  $('notes').textContent = m.notes && m.notes.length ? 'Не відтворено (є лише в PDF): ' + m.notes.slice(0, 12).join(', ') + (m.notes.length > 12 ? '…' : '') : '';
+  $('notes').textContent = m.notes && m.notes.length ? T('Не відтворено (є лише в PDF): {0}', m.notes.slice(0, 12).join(', ') + (m.notes.length > 12 ? '…' : '')) : '';
   wrap.scrollTop = y;
 });
 

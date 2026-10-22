@@ -7,8 +7,8 @@ const kit = window.tssKit(vscode, () => macros);
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const MJ = {
-  ok: ['MathJax: є у файлі', 'ok'], differs: ['MathJax: у файлі інше означення', 'warn'], missing: ['MathJax: немає у файлі', 'bad'],
-  skip: ['MathJax цього не виразить', 'muted'], nofile: ['файла макросів MathJax немає', 'muted'], na: ['', '']
+  ok: [T('MathJax: є у файлі'), 'ok'], differs: [T('MathJax: у файлі інше означення'), 'warn'], missing: [T('MathJax: немає у файлі'), 'bad'],
+  skip: [T('MathJax цього не виразить'), 'muted'], nofile: [T('файла макросів MathJax немає'), 'muted'], na: ['', '']
 };
 
 // the first call is drawn by KaTeX; when KaTeX does not know the command, a text command is drawn by the converter of the panel
@@ -37,12 +37,12 @@ function paint(card, it) {
       row.appendChild(d);
       shown = true;
     }
-    if (!shown) { row.textContent = 'не відтворюється'; row.classList.add('nr'); }
+    if (!shown) { row.textContent = T('не відтворюється'); row.classList.add('nr'); }
   });
   const isEnv = it.kind === 'env';
   card.setAttribute('data-k', isEnv ? 'na' : katexOk ? '1' : '0');
   const kb = card.querySelector('.kb');
-  if (isEnv) { kb.textContent = 'середовище'; kb.className = 'kb badge muted'; } else if (katexOk) { kb.textContent = 'KaTeX: відтворюється'; kb.className = 'kb badge ok'; } else { kb.textContent = 'не відтворюється в KaTeX'; kb.className = 'kb badge bad'; }
+  if (isEnv) { kb.textContent = T('середовище'); kb.className = 'kb badge muted'; } else if (katexOk) { kb.textContent = T('KaTeX: відтворюється'); kb.className = 'kb badge ok'; } else { kb.textContent = T('не відтворюється в KaTeX'); kb.className = 'kb badge bad'; }
 }
 
 function cardHtml(it) {
@@ -50,10 +50,10 @@ function cardHtml(it) {
   const ex = it.examples.map((e, k) => '<div class="exrow"><code class="call">' + esc(e.call) + '</code>' + (e.note ? '<span class="note">' + esc(e.note) + '</span>' : '') + '<div class="res" data-k="' + k + '"></div></div>').join('');
   return '<article class="mc" data-i="' + it.i + '" data-mj="' + it.mj + '" data-kind="' + it.kind + '">' +
     '<header><code class="nm">' + esc(it.kind === 'env' ? it.name : '\\' + it.name) + '</code><code class="sig">' + esc(it.sig) + '</code><span class="kb badge"></span>' + (mj[0] ? '<span class="badge ' + mj[1] + '" title="' + esc(it.mjNote) + '">' + esc(mj[0]) + '</span>' : '') + '</header>' +
-    (it.doc ? '<div class="doc">' + esc(it.doc) + '</div>' : '') + (it.alias ? '<div class="doc">Те саме, що <code>\\' + esc(it.alias) + '</code></div>' : '') +
+    (it.doc ? '<div class="doc">' + esc(it.doc) + '</div>' : '') + (it.alias ? '<div class="doc">' + T('Те саме, що <code>\\{0}</code>', esc(it.alias)) + '</div>' : '') +
     '<div class="exs">' + ex + '</div>' +
-    '<details><summary>означення</summary><pre>' + esc(it.src) + '</pre></details>' +
-    '<a class="go" href="#" data-go="' + it.i + '" title="Відкрити означення">' + esc(it.fileName) + ':' + it.line + '</a></article>';
+    '<details><summary>' + T('означення') + '</summary><pre>' + esc(it.src) + '</pre></details>' +
+    '<a class="go" href="#" data-go="' + it.i + '" title="' + esc(T('Відкрити означення')) + '">' + esc(it.fileName) + ':' + it.line + '</a></article>';
 }
 
 function build() {
@@ -65,7 +65,7 @@ function build() {
     html += cardHtml(it);
   }
   if (cur !== null) html += '</section>';
-  list.innerHTML = html || '<p class="empty">Макросів не знайдено: .cls/.sty беруться з \\documentclass і \\usepackage преамбули main.tex (або з налаштування macroFiles).</p>';
+  list.innerHTML = html || '<p class="empty">' + T('Макросів не знайдено: .cls/.sty беруться з \\documentclass і \\usepackage преамбули main.tex (або з налаштування macroFiles).') + '</p>';
   const cards = Array.from(list.querySelectorAll('.mc'));
   cards.forEach((c) => paint(c, items[Number(c.getAttribute('data-i'))]));
   list.querySelectorAll('div.dm').forEach(kit.addCopy);
@@ -78,7 +78,7 @@ function stat() {
   const notK = cards.filter((c) => c.getAttribute('data-k') === '0').length;
   const mjBad = items.filter((x) => x.mj === 'missing' || x.mj === 'differs').length;
   const skip = items.filter((x) => x.mj === 'skip').length;
-  $('stat').textContent = 'Команд: ' + cmds.length + ', середовищ: ' + (items.length - cmds.length) + '. Не відтворюються в KaTeX: ' + notK + (mjFile ? '. У mathjax-macros.tex немає або інше: ' + mjBad + '. MathJax не виразить: ' + skip : '. Файла макросів MathJax немає (команда «Файл макросів для MathJax»)') + '.';
+  $('stat').textContent = T('Команд: {0}, середовищ: {1}. Не відтворюються в KaTeX: {2}', cmds.length, items.length - cmds.length, notK) + (mjFile ? T('. У mathjax-macros.tex немає або інше: {0}. MathJax не виразить: {1}', mjBad, skip) : T('. Файла макросів MathJax немає (команда «Файл макросів для MathJax»)')) + '.';
 }
 
 function filter() {
@@ -99,13 +99,13 @@ function filter() {
   });
   document.querySelectorAll('#list section').forEach((s) => { s.hidden = !s.querySelector('.mc:not([hidden])'); });
   stat();
-  $('stat').textContent += ' Показано: ' + shown + '.';
+  $('stat').textContent += T(' Показано: {0}.', shown);
 }
 
 window.addEventListener('message', function (e) {
   const m = e.data;
   if (!m) return;
-  if (m.type === 'copied') { kit.toast('Скопійовано: ' + (m.what || '')); return; }
+  if (m.type === 'copied') { kit.toast(T('Скопійовано: {0}', m.what || '')); return; }
   if (m.type !== 'items') return;
   macros = m.macros || {};
   items = m.items || [];

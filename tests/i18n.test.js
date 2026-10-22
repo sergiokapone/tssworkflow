@@ -352,7 +352,7 @@ t('media/common/i18n.js (the page side): T fills {0}, keeps a missing key and a 
 t('the pages of webviews: every T(...) has an English text, none is called with a non-literal, and the table editor loads the dictionary and the helper before its script', () => {
   assert.ok(pages.length >= 1 && pages.some((p) => p.panel === 'tableEditor'), 'the pages are found: ' + pages.map((p) => p.panel));
   for (const p of pages) {
-    assert.ok(p.keys.length > 20, p.panel + ': keys ' + p.keys.length);
+    assert.ok(p.keys.length >= 5, p.panel + ': keys ' + p.keys.length);
     const missing = p.keys.filter((k) => !Object.prototype.hasOwnProperty.call(EN, k));
     assert.deepStrictEqual(missing, [], p.panel + ': no English text for ' + missing.map((k) => JSON.stringify(k.slice(0, 50))).join(', '));
     // a text of the page that is not asked through T(...) is a text that stays Ukrainian in English
@@ -408,6 +408,32 @@ t('the table editor: the hint of the page and the title of the panel come from t
   const te_page = pages.find((p) => p.panel === 'tableEditor');
   const hostKeys = new Set([...te.matchAll(/(?<![\w.$])tr\(\s*('(?:[^'\\\n]|\\.)*')/g)].map((m) => Function('return ' + m[1])()));
   for (const k of te_page.keys) assert.ok(!hostKeys.has(k) || EN[k], 'a key of the page that the host also uses has its text: ' + k.slice(0, 40));
+});
+
+
+// the preview of the selection (0.21.9): the placeholders, the titles and the notes of selectionPreviewPure.js; a table that cannot be parsed gives its reason in the language of the table editor too
+const SPV = require(path.join(ext, 'selectionPreviewPure'));
+t('selectionPreviewPure in English and in Ukrainian: the placeholders of pictures, the title of a reference, the note of a table that was not parsed (with the reason from tableEditorPure); the structure does not depend on the language', () => {
+  const run = (lang) => {
+    I.setLang(lang);
+    return {
+      tikz: SPV.render('\\begin{tikzpicture}\\draw (0,0);\\end{tikzpicture}', {}),
+      missing: SPV.render('\\begin{figure}\\includegraphics{b.png}\\end{figure}', { image: () => ({ skip: 'missing' }) }),
+      pdf: SPV.render('\\includegraphics{a.pdf}', { image: () => ({ skip: 'pdf' }) }),
+      ref: SPV.render('\\ref{x}', {}),
+      table: SPV.render('\\begin{tabular}{l}\\verb|x|\\end{tabular}', {})
+    };
+  };
+  const uk = run('uk'), en = run('en');
+  assert.strictEqual(uk.tikz.html, '<div class="ph">tikzpicture: рисунок буде лише в PDF</div>');
+  assert.strictEqual(en.tikz.html, '<div class="ph">tikzpicture: the picture will appear only in the PDF</div>');
+  assert.ok(en.missing.html.includes('b.png (file not found)') && uk.missing.html.includes('b.png (файл не знайдено)'));
+  assert.ok(en.pdf.html.includes('a.pdf (PDF and EPS are not shown in the preview)') && uk.pdf.html.includes('a.pdf (PDF і EPS у перегляді не показуються)'));
+  assert.ok(en.ref.html.includes('title="To \\label{x} in the code"') && uk.ref.html.includes('title="До \\label{x} у коді"'));
+  assert.deepStrictEqual(en.table.notes, ['table (not parsed: the table has \\verb or code)']);
+  assert.deepStrictEqual(uk.table.notes, ['таблиця (не розібрано: у таблиці є \\verb або код)']);
+  for (const k of Object.keys(uk)) assert.strictEqual(uk[k].html.replace(/>[^<]*</g, '><').replace(/ title="[^"]*"/g, ''), en[k].html.replace(/>[^<]*</g, '><').replace(/ title="[^"]*"/g, ''), k + ': the same markup in both languages');
+  I.setLang('uk');
 });
 
 console.log(n + ' tests passed');

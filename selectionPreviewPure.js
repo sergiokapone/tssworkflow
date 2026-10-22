@@ -11,6 +11,7 @@
 
 const X = require('./tableEditorPure');
 const D = require('./derivationPure');
+const { tr } = require('./i18n');
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -134,7 +135,7 @@ function graphic(opt, name, ctx, block) {
     const w = imgWidth(opt);
     return '<' + tag + ' class="pic"><img src="' + esc(r.src) + '" alt="' + esc(base) + '" title="' + esc(base) + '"' + (w ? ' style="' + w + '"' : '') + '></' + tag + '>';
   }
-  const why = r && r.skip === 'pdf' ? ' (PDF і EPS у перегляді не показуються)' : r && r.skip === 'missing' ? ' (файл не знайдено)' : '';
+  const why = r && r.skip === 'pdf' ? tr(' (PDF і EPS у перегляді не показуються)') : r && r.skip === 'missing' ? tr(' (файл не знайдено)') : '';
   return '<' + tag + ' class="img">🖼 ' + esc(base) + why + '</' + tag + '>';
 }
 const note = (ctx, s) => ctx.notes.add(s);
@@ -147,7 +148,7 @@ function refHtml(raw, open, close, ctx) {
   const link = (n) => {
     let extra = '';
     try { extra = ctx.refInfo ? String(ctx.refInfo(n) || '') : ''; } catch (e) { extra = ''; }
-    return '<a class="ref" href="#" data-ref="' + esc(n) + '" title="До \\label{' + esc(n) + '} у коді' + (extra ? ' · ' + esc(extra) : '') + '">' + esc(n) + '</a>';
+    return '<a class="ref" href="#" data-ref="' + esc(n) + '" title="' + esc(tr('До \\label{{0}} у коді', n)) + (extra ? ' · ' + esc(extra) : '') + '">' + esc(n) + '</a>';
   };
   return open + names.map(link).join(', ') + close;
 }
@@ -155,7 +156,7 @@ function refHtml(raw, open, close, ctx) {
 // \\localinput{x.tikz} / \\input{x.tikz}: a frame with the name of the file in the middle; a click opens the file (the panel resolves the name)
 function tikzFrame(name, via) {
   const base = String(name).split('/').pop();
-  return '<a class="tikzf" href="#" data-open="' + esc(name) + '" data-via="' + esc(via) + '" title="Відкрити ' + esc(name) + '">' + esc(base) + '</a>';
+  return '<a class="tikzf" href="#" data-open="' + esc(name) + '" data-via="' + esc(via) + '" title="' + esc(tr('Відкрити {0}', name)) + '">' + esc(base) + '</a>';
 }
 const isTikzRef = (cmd, name, ctx) => !!name && !/[\\{}$]/.test(name) && (/\.tikz$/i.test(name) || (cmd === 'localinput' && ctx.fig > 0));
 
@@ -399,7 +400,7 @@ const paragraphs = (text, ctx) => {
   let code = false;
   for (const p of text.split(/\n[ \t]*\n/).map((q) => q.trim()).filter(Boolean)) {
     if (TIKZ_CODE.test(p)) {
-      if (!code) { note(ctx, 'tikz'); html += '<div class="ph">tikz: код рисунка, рисунок буде лише в PDF</div>'; }
+      if (!code) { note(ctx, 'tikz'); html += '<div class="ph">' + esc(tr('tikz: код рисунка, рисунок буде лише в PDF')) + '</div>'; }
       code = true;
       continue;
     }
@@ -457,7 +458,7 @@ function tableHtml(src, ctx) {
     env = X.locateTables(src)[0];
     res = env && env.start === 0 ? X.parseTable(src, env) : null;
   } catch (e) { res = null; }
-  if (!res || res.skip) { note(ctx, 'таблиця (не розібрано' + (res && res.skip ? ': ' + res.skip : '') + ')'); return '<pre class="raw">' + esc(src) + '</pre>'; }
+  if (!res || res.skip) { note(ctx, res && res.skip ? tr('таблиця (не розібрано: {0})', res.skip) : tr('таблиця (не розібрано)')); return '<pre class="raw">' + esc(src) + '</pre>'; }
   const view = X.toView(res.model, ctx.colors);
   let h = '<table class="tb">';
   view.rows.forEach((row, r) => {
@@ -592,7 +593,7 @@ function envHtml(name, body, whole, ctx) {
   if (name === 'document' || name === 'subequations') return blocks(body, ctx);
   if (LIST_ENVS.has(name)) return listHtml(name, body, ctx);
   if (TABLE_ENVS.has(name)) return tableHtml(whole, ctx);
-  if (PICTURE_ENVS.has(name)) { note(ctx, name); return '<div class="ph">' + esc(name) + ': рисунок буде лише в PDF</div>'; }
+  if (PICTURE_ENVS.has(name)) { note(ctx, name); return '<div class="ph">' + esc(tr('{0}: рисунок буде лише в PDF', name)) + '</div>'; }
   if (base === 'SCfigure' || base === 'SCtable') {
     // sidecap: the options [width][pos] are not shown, the caption stands beside the picture
     const sc = splitCaption(body.replace(/^\s*(?:\[[^\]]*\]\s*)+/, ''));
@@ -627,7 +628,7 @@ function render(src, opts) {
   const ctx = makeCtx(o);
   let text = String(src || '');
   const limit = o.limit || 200000;
-  if (text.length > limit) { text = text.slice(0, limit); note(ctx, 'текст обрізано до ' + limit + ' символів'); }
+  if (text.length > limit) { text = text.slice(0, limit); note(ctx, tr('текст обрізано до {0} символів', limit)); }
   // verbatim blocks first: their % is not a comment
   text = text.replace(new RegExp('\\\\begin\\{(' + VERB_ENVS.map((v) => v.replace('*', '\\*')).join('|') + ')\\}(?:\\[[^\\]]*\\])?(?:\\{[^}]*\\})?([\\s\\S]*?)\\\\end\\{\\1\\}', 'g'), (m, name, body) => { ctx.verb.push(body.replace(/^\n/, '')); return '\n\n\\TSSVERB' + (ctx.verb.length - 1) + '\n\n'; });
   text = stripComments(text);

@@ -13,6 +13,8 @@ const MJ = require('./mathjaxFile');
 const G = require('./macroGalleryPure');
 const P = require('./selectionPreviewPure');
 const K = require('./webviewKit');
+const { tr } = require('./i18n');
+const { esc } = require('./webviewI18n');
 const M = require('./macros');
 
 let items = [];
@@ -20,11 +22,11 @@ let items = [];
 const SRC_RE = /\.(cls|sty|ltx)$/i;
 
 function body() {
-  return '<div id="top"><h1>Галерея макросів</h1><span id="stat"></span><button id="refresh" title="Перечитати .cls/.sty і файл макросів">Оновити</button></div>' +
-    '<div id="bar"><input id="q" type="search" placeholder="Пошук за назвою, коментарем, означенням" autocomplete="off">' +
-    '<label><input type="checkbox" id="fK"> не відтворюється в KaTeX</label>' +
-    '<label><input type="checkbox" id="fM"> немає або інше у mathjax-macros.tex</label>' +
-    '<select id="fT"><option value="">усе</option><option value="cmd">команди</option><option value="env">середовища</option></select></div>' +
+  return '<div id="top"><h1>' + esc(tr('Галерея макросів')) + '</h1><span id="stat"></span><button id="refresh" title="' + esc(tr('Перечитати .cls/.sty і файл макросів')) + '">' + esc(tr('Оновити')) + '</button></div>' +
+    '<div id="bar"><input id="q" type="search" placeholder="' + esc(tr('Пошук за назвою, коментарем, означенням')) + '" autocomplete="off">' +
+    '<label><input type="checkbox" id="fK"> ' + esc(tr('не відтворюється в KaTeX')) + '</label>' +
+    '<label><input type="checkbox" id="fM"> ' + esc(tr('немає або інше у mathjax-macros.tex')) + '</label>' +
+    '<select id="fT"><option value="">' + esc(tr('усе')) + '</option><option value="cmd">' + esc(tr('команди')) + '</option><option value="env">' + esc(tr('середовища')) + '</option></select></div>' +
     '<div id="list"></div>';
 }
 
@@ -64,7 +66,7 @@ async function goto(m) {
 // the frame of the panel (panel, ready, seq, deferred update, 'ready' / 'copy', panelScope) is webviewKit.createPanelController
 const ctl = K.createPanelController({
   id: 'macroGallery',
-  title: 'Галерея макросів',
+  get title() { return tr('Галерея макросів'); }, // read when the panel is opened
   html: (webview, extUri) => K.shell(webview, extUri, { body: body(), css: ['macroGallery/webview.css'], js: ['macroGallery/webview.js'] }),
   collect,
   render: (r, c) => {
@@ -86,4 +88,4 @@ function register(context) {
 
 exports.register = register;
 exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
-exports._t = { collect };
+exports._t = { collect, body }; // body: the HTML of the page (tests/webviewPanels.vscode-stub.test.js)
