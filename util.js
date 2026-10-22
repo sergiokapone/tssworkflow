@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 
 // folders that are never project text; the only place where this list is written (macros.js, filesAndLabels.js and the rest import it)
 const EXCLUDED_DIRS = ['**/build/**', '**/.archive/**', '**/node_modules/**', '**/.git/**'];
@@ -75,7 +76,7 @@ function chunkRange(ed) {
   }
   const cur = ed.selection.active.line;
   if (P.lineKind(doc.lineAt(cur).text) === 'hard') {
-    info('Постав курсор в абзац або виділи рядки.');
+    info(tr('Постав курсор в абзац або виділи рядки.'));
     return null;
   }
   let s = cur;

@@ -29,6 +29,11 @@ for (const d of fs.existsSync(path.join(ext, 'media')) ? fs.readdirSync(path.joi
   const keys = WI.keysOf(text);
   if (keys.length) { pages.push({ panel: d, file: f, text, keys }); for (const k of keys) used.set(k, 'media/' + d + '/webview.js'); }
 }
+// media/common/kit.js is shared by the pages (toast, titles of the copy buttons): its texts are in every page block (webviewKit.shell)
+{
+  const kf = path.join(ext, 'media', 'common', 'kit.js');
+  if (fs.existsSync(kf)) for (const k of WI.keysOf(fs.readFileSync(kf, 'utf8'))) used.set(k, 'media/common/kit.js');
+}
 const ph = (s) => (s.match(/\{\d+\}/g) || []).sort().join(' ');
 const cyr = /[А-Яа-яІіЇїЄєҐґ]/;
 

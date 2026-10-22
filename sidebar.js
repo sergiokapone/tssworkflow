@@ -3,6 +3,7 @@
  * a click builds, build on save) and all commands in groups, like the panel of LaTeX Workshop. The list of groups
  * is in sidebarPure.js. A click runs the command on the editor that was active last. */
 const vscode = require('vscode');
+const VT = require('./viewTitles');
 const path = require('path');
 const S = require('./sidebarPure');
 const P = require('./corePure');
@@ -95,7 +96,7 @@ function register(context) {
   for (const c of contrib.commands || []) titles[c.command] = c.title;
   provider = new Provider(S.keyMap(contrib.keybindings), titles);
   context.subscriptions.push(
-    vscode.window.createTreeView('tssworkflow.commandsView', { treeDataProvider: provider, showCollapseAll: true }),
+    VT.track(vscode.window.createTreeView('tssworkflow.commandsView', { treeDataProvider: provider, showCollapseAll: true }), 'tssworkflow.commandsView'),
     vscode.window.onDidChangeActiveTextEditor(() => provider.refresh()),
     vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow')) provider.refresh(); })
   );

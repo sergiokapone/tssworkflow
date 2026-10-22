@@ -4,7 +4,9 @@
  * .vscode/settings.json") is shown; as soon as such a file appears, the panels "Команди" and "Розділи" take its place.
  * Also: a one-time warning at the start when latexmk or lualatex is not in PATH. */
 const vscode = require('vscode');
+const VT = require('./viewTitles');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { EXCLUDE, cfg, debounce } = require('./util');
 
 
@@ -31,12 +33,14 @@ async function offerEnvironmentCheck(context) {
   const missing = requiredTools().filter((t) => !P.findInPath(t.cmd));
   if (!missing.length) return;
   await context.globalState.update('tssworkflow.envPromptShown', true);
+  const check = tr('Перевірити');
+  const never = tr('Не нагадувати');
   const pick = await vscode.window.showWarningMessage(
-    'TSS Workflow: у PATH не знайдено ' + missing.map((t) => t.name).join(', ') + ': збірка не запуститься. Показати перевірку середовища?',
-    'Перевірити', 'Не нагадувати'
+    tr('TSS Workflow: у PATH не знайдено {0}: збірка не запуститься. Показати перевірку середовища?', missing.map((t) => t.name).join(', ')),
+    check, never
   );
-  if (pick === 'Перевірити') await vscode.commands.executeCommand('tssworkflow.checkEnvironment');
-  else if (pick === 'Не нагадувати') await cfg().update('checkEnvironmentOnStart', false, vscode.ConfigurationTarget.Global);
+  if (pick === check) await vscode.commands.executeCommand('tssworkflow.checkEnvironment');
+  else if (pick === never) await cfg().update('checkEnvironmentOnStart', false, vscode.ConfigurationTarget.Global);
 }
 
 function register(context) {
@@ -52,7 +56,7 @@ function register(context) {
   const later = () => debounce('start.apply', 300, apply);
 
   context.subscriptions.push(
-    vscode.window.createTreeView('tssworkflow.startView', { treeDataProvider: new EmptyTree() }),
+    VT.track(vscode.window.createTreeView('tssworkflow.startView', { treeDataProvider: new EmptyTree() }), 'tssworkflow.startView'),
     vscode.workspace.onDidChangeWorkspaceFolders(later),
     vscode.workspace.onDidSaveTextDocument((d) => { if (/\.(tex|tikz)$/i.test(d.fileName)) later(); })
   );

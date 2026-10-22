@@ -4,6 +4,7 @@
  *   parse  text -> { pick, name, label, withArgs } | null; the typed text as a payload
  * Returns the chosen payload, or undefined when the list is dismissed. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 
 function pickTyped(base, placeHolder, parse) {
   return new Promise((resolve) => {
@@ -19,7 +20,7 @@ function pickTyped(base, placeHolder, parse) {
       if (!p) { qp.items = base; return; }
       const exact = base.some((b) => b.pick && b.pick.name === p.name);
       if (exact && !p.withArgs) { qp.items = base; return; }
-      const typed = { label: '$(add) ' + p.label, description: 'ввести як є', pick: p.pick, alwaysShow: true };
+      const typed = { label: '$(add) ' + p.label, description: tr('ввести як є'), pick: p.pick, alwaysShow: true };
       // with arguments typed the typed entry is the one wanted; a bare name must not hide the usual matches
       qp.items = p.withArgs ? [typed, ...base] : [...base, typed];
     });

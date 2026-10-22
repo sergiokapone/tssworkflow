@@ -60,9 +60,11 @@ try {
   const spd = blockOf(sp), spT = helper(sp);
   ok(sp.includes('common/i18n.js') && spd['Попередній крок'] === 'Previous step' && spd['Наступний крок'] === 'Next step', 'the block of the preview');
   eq([spT('Крок {0} з {1}', 2, 5), spT('Усі {0} рядків', 7), spT('Не відтворено (є лише в PDF): {0}', 'tikz, table')], ['Step 2 of 5', 'All 7 lines', 'Not rendered (only in the PDF): tikz, table']);
-  // a page that asks for no texts: no block, no helper
+  // a page of its own that asks for no texts still gets the texts of the shared kit.js (0.21.10: the toast and the titles of the copy buttons), and nothing else
   const none = page('en', '<p>x</p>', ['no-such-panel/webview.js']);
-  ok(!none.includes('tss-i18n') && !none.includes('common/i18n.js'), 'no texts: neither the block nor the helper');
+  const nd = blockOf(none);
+  ok(none.includes('common/i18n.js') && nd['Нічого копіювати'] === 'Nothing to copy' && nd['Копіювати LaTeX формули'] === 'Copy the LaTeX of the formula', 'the shared kit texts are in every page');
+  ok(!('Попередній крок' in nd) && !('Крок {0} з {1}' in nd), 'but not the texts of another page');
   ok(none.includes('<html lang="en">'), 'but the language of the page is set');
 } finally { I.setLang('uk'); Module._load = orig; }
 console.log('webviewPanels.vscode-stub: ' + n + ' checks passed');

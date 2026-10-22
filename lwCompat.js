@@ -3,6 +3,7 @@
  * The rules are in lwCompatPure.js. The fixes are written into the latex-workshop.* settings (the workspace, see writeTarget). */
 const vscode = require('vscode');
 const L = require('./lwCompatPure');
+const { tr } = require('./i18n');
 const { cfg, debounce } = require('./util');
 
 const LW_ID = 'James-Yu.latex-workshop';
@@ -29,7 +30,7 @@ async function applyFixes(fixes) {
     let ins = null;
     try { ins = c.inspect(f.key); } catch (e) { /* the default target */ }
     const target = TARGETS()[L.writeTarget(ins, hasWs)];
-    try { await c.update(f.key, f.value, target); n++; } catch (e) { vscode.window.showWarningMessage('Не вдалося записати latex-workshop.' + f.key + ': ' + (e && e.message ? e.message : e)); }
+    try { await c.update(f.key, f.value, target); n++; } catch (e) { vscode.window.showWarningMessage(tr('Не вдалося записати latex-workshop.{0}: {1}', f.key, e && e.message ? e.message : e)); }
   }
   return n;
 }
@@ -38,31 +39,31 @@ const fixText = (f) => f.fixes.map((x) => 'latex-workshop.' + x.key + ' → ' + 
 
 async function check() {
   if (!lwInstalled()) {
-    vscode.window.showInformationMessage('LaTeX Workshop не встановлено: конфліктувати нема з чим. PDF відкриватиметься через vscode.open.');
+    vscode.window.showInformationMessage(tr('LaTeX Workshop не встановлено: конфліктувати нема з чим. PDF відкриватиметься через vscode.open.'));
     return { installed: false, findings: [], applied: 0 };
   }
   const findings = L.lwFindings(readLw(), readOurs());
   if (!findings.length) {
-    vscode.window.showInformationMessage('Конфліктів із LaTeX Workshop не знайдено.');
+    vscode.window.showInformationMessage(tr('Конфліктів із LaTeX Workshop не знайдено.'));
     return { installed: true, findings, applied: 0 };
   }
   const items = findings.map((f) => ({
     label: (f.level === 'warning' ? '$(warning) ' : '$(info) ') + f.title,
-    description: f.fixes.length ? fixText(f) : 'лише інформація',
+    description: f.fixes.length ? fixText(f) : tr('лише інформація'),
     detail: f.why,
     picked: !f.optional && f.fixes.length > 0,
     f
   }));
   const picks = await vscode.window.showQuickPick(items, {
     canPickMany: true,
-    title: 'LaTeX Workshop: що може заважати цьому розширенню',
-    placeHolder: 'Відмічені пункти буде виправлено (запис у налаштування робочого простору). Esc нічого не змінює'
+    title: tr('LaTeX Workshop: що може заважати цьому розширенню'),
+    placeHolder: tr('Відмічені пункти буде виправлено (запис у налаштування робочого простору). Esc нічого не змінює')
   });
   if (!picks) return { installed: true, findings, applied: 0 };
   const fixes = [];
   for (const p of picks) fixes.push(...p.f.fixes);
   const applied = fixes.length ? await applyFixes(fixes) : 0;
-  if (applied) vscode.window.setStatusBarMessage('LaTeX Workshop: записано налаштувань ' + applied + '. Перезавантажувати вікно не треба.', 6000);
+  if (applied) vscode.window.setStatusBarMessage(tr('LaTeX Workshop: записано налаштувань {0}. Перезавантажувати вікно не треба.', applied), 6000);
   return { installed: true, findings, applied };
 }
 
@@ -72,10 +73,10 @@ async function nudge(context) {
   const ours = readOurs();
   const findings = L.lwFindings(readLw(), ours);
   if (!L.needsNudge(findings, ours)) return null;
-  const fix = 'Виправити…';
-  const never = 'Не нагадувати';
+  const fix = tr('Виправити…');
+  const never = tr('Не нагадувати');
   const pick = await vscode.window.showWarningMessage(
-    'Увімкнені дві автозбірки: «Auto» цього розширення і autoBuild LaTeX Workshop. Кожне збереження запускає дві збірки в ті самі файли.',
+    tr('Увімкнені дві автозбірки: «Auto» цього розширення і autoBuild LaTeX Workshop. Кожне збереження запускає дві збірки в ті самі файли.'),
     fix, never
   );
   if (pick === fix) return check();

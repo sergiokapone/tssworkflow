@@ -1,6 +1,7 @@
 'use strict';
 /* normalizePure.js: normalization of line breaks and blank lines, \[ ... \] -> equation*, citations, figure checks, user lint rules. No vscode. */
 const { codePart, unwrapLines, wrapLines } = require('./texBasePure');
+const { tr } = require('./i18n');
 const { typography } = require('./typographyPure');
 const { EQ_BEGIN_RE, VERB_BEGIN_RE, alignAllTables, braceEnd, envEnd, envTokensPure, frameSections, isRuleLine, pairEnvsPure, pushRefs } = require('./structurePure');
 
@@ -280,8 +281,8 @@ function figureChecks(lines) {
       if (/\\label\b/.test(code)) lab = true;
     }
     const name = t.name;
-    if (!cap) out.push({ line: t.line, col: t.tokStart, len: t.tokEnd - t.tokStart, code: 'figure-no-caption', message: 'У «' + name + '» немає \\caption' });
-    if (!lab) out.push({ line: t.line, col: t.tokStart, len: t.tokEnd - t.tokStart, code: 'figure-no-label', message: 'У «' + name + '» немає \\label' });
+    if (!cap) out.push({ line: t.line, col: t.tokStart, len: t.tokEnd - t.tokStart, code: 'figure-no-caption', message: tr('У «{0}» немає \\caption', name) });
+    if (!lab) out.push({ line: t.line, col: t.tokStart, len: t.tokEnd - t.tokStart, code: 'figure-no-label', message: tr('У «{0}» немає \\label', name) });
   }
   return out;
 }
@@ -302,7 +303,7 @@ function lintRules(lines, rules, filePath) {
     } catch (err) { continue; }
     if (fre && !fre.test(p)) continue;
     const sev = ['error', 'warning', 'information', 'hint'].includes(r.severity) ? r.severity : 'warning';
-    const msg = r.message || ('Правило: ' + r.pattern);
+    const msg = r.message || tr('Правило: {0}', r.pattern);
     let n = 0;
     lines.forEach((line, i) => {
       const code = codePart(line);

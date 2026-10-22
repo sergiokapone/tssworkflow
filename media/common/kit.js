@@ -2,6 +2,8 @@
  * a formula drawn with KaTeX and the macros of the project, a formula copied as MathML or TeX, a short notice.
  * window.tssKit(vscode, getMacros) -> { draw, copyFormula, addCopy, click, dblclick, toast, tex } */
 window.tssKit = function (vscode, getMacros) {
+  // T() is defined by common/i18n.js, which is loaded after this file; it is called only when the page already runs
+  const T = function () { return window.T ? window.T.apply(null, arguments) : arguments[0]; };
   const macrosFor = () => (window.tssKatexMacros || ((m) => Object.assign({}, m)))(getMacros() || {});
   const kopts = (display, throwOnError) => ({ displayMode: display, throwOnError, strict: 'ignore', output: 'html', trust: false, macros: macrosFor() });
   const texOf = (el) => el.getAttribute('data-plain') || el.getAttribute('data-tex') || '';
@@ -48,11 +50,11 @@ window.tssKit = function (vscode, getMacros) {
   }
 
   function copy(text, html, what) {
-    if (!text) { toast('Нічого копіювати'); return; }
+    if (!text) { toast(T('Нічого копіювати')); return; }
     const fallback = () => vscode.postMessage({ type: 'copy', text, what });
     try {
       if (navigator.clipboard && window.ClipboardItem && html) {
-        navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]).then(() => toast('Скопійовано: ' + what), fallback);
+        navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]).then(() => toast(T('Скопійовано: {0}', what)), fallback);
         return;
       }
     } catch (e) { /* the extension copies the text */ }
@@ -69,7 +71,7 @@ window.tssKit = function (vscode, getMacros) {
     if (box.querySelector(':scope > .cpb') || !box.querySelector('span.m')) return;
     const b = document.createElement('div');
     b.className = 'cpb';
-    b.innerHTML = '<button data-cp="mathml" title="Копіювати формулу як MathML (для Word)">MathML</button><button data-cp="tex" title="Копіювати LaTeX формули">TeX</button>';
+    b.innerHTML = '<button data-cp="mathml" title="' + T('Копіювати формулу як MathML (для Word)') + '">MathML</button><button data-cp="tex" title="' + T('Копіювати LaTeX формули') + '">TeX</button>';
     box.appendChild(b);
   }
 

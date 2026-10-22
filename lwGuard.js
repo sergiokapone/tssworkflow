@@ -6,6 +6,7 @@
  * tssworkflow.lwGuard: 'job' (default: the same document), 'project' (any build under the project folder), 'off'.
  * A list that cannot be read (no ps / PowerShell, a timeout) never blocks: the build starts as it did before this module. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 const L = require('./lwGuardPure');
 const { cfg, debounce, cancelTimer, execFileT } = require('./util');
 
@@ -81,20 +82,20 @@ function guard(b, opts) {
 async function decide(b, interactive) {
   const busy = await busyNow(b, false);
   if (!busy.length) return true;
-  const what = b.what || 'збірку';
-  const text = 'LaTeX Workshop ' + L.describe(busy, b.job) + '. Паралельна збірка пише в ті самі ' + b.job + '.aux, .log і .pdf, тому ' + what + ' плагіна не запущено.';
+  const what = b.what || tr('збірку');
+  const text = tr('LaTeX Workshop {0}. Паралельна збірка пише в ті самі {1}.aux, .log і .pdf, тому {2} плагіна не запущено.', L.describe(busy, b.job), b.job, what);
   if (!interactive) {
-    vscode.window.setStatusBarMessage('$(circle-slash) ' + b.job + ': автозбірку пропущено, LaTeX Workshop ще збирає', 5000);
+    vscode.window.setStatusBarMessage(tr('$(circle-slash) {0}: автозбірку пропущено, LaTeX Workshop ще збирає', b.job), 5000);
     return false;
   }
-  const wait = 'Дочекатися й запустити';
-  const stop = 'Зупинити збірку LaTeX Workshop';
-  const force = 'Все одно запустити';
+  const wait = tr('Дочекатися й запустити');
+  const stop = tr('Зупинити збірку LaTeX Workshop');
+  const force = tr('Все одно запустити');
   const pick = await vscode.window.showWarningMessage(text, wait, stop, force);
   if (pick === force) return true;
   if (pick === wait) {
     const free = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'Чекаю, поки LaTeX Workshop закінчить збірку ' + b.job + '…', cancellable: true },
+      { location: vscode.ProgressLocation.Notification, title: tr('Чекаю, поки LaTeX Workshop закінчить збірку {0}…', b.job), cancellable: true },
       (progress, token) => waitFree(b, token)
     );
     return !!free;
@@ -102,7 +103,7 @@ async function decide(b, interactive) {
   if (pick === stop) {
     try { await vscode.commands.executeCommand('latex-workshop.kill'); } catch (e) { /* the command may be absent in another version */ }
     const free = await waitFree(b, null, 10000);
-    if (!free) vscode.window.showWarningMessage('Збірка LaTeX Workshop не зупинилась за 10 с. Дочекайся її кінця або зупини процес самостійно, потім повтори.');
+    if (!free) vscode.window.showWarningMessage(tr('Збірка LaTeX Workshop не зупинилась за 10 с. Дочекайся її кінця або зупини процес самостійно, потім повтори.'));
     return !!free;
   }
   return false; // the message was closed: nothing starts

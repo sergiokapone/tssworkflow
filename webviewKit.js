@@ -20,7 +20,7 @@ function shell(webview, extUri, opts) {
   const asset = (p) => webview.asWebviewUri(vscode.Uri.joinPath(extUri, 'media', ...p.split('/'))).toString();
   const csp = "default-src 'none'; style-src " + webview.cspSource + " 'unsafe-inline'; script-src 'nonce-" + n + "' " + webview.cspSource + '; font-src ' + webview.cspSource + '; img-src ' + webview.cspSource + ' data:;';
   const css = ['katex/katex.min.css'].concat(opts.css || []).map((p) => '<link rel="stylesheet" href="' + asset(p) + '">').join('');
-  const i18n = WI.block((opts.js || []).map((p) => path.join(__dirname, 'media', ...p.split('/')))); // the texts of the page (T('...')), '' if it asks for none
+  const i18n = WI.block(['common/kit.js'].concat(opts.js || []).map((p) => path.join(__dirname, 'media', ...p.split('/')))); // the texts of the page (T('...')), '' if it asks for none
   const js = ['katex/katex.min.js', 'katex/mhchem.min.js', 'katex/optmacros.js', 'common/kit.js'].concat(i18n ? ['common/i18n.js'] : []).concat(opts.js || []).map((p) => '<script nonce="' + n + '" src="' + asset(p) + '"></script>').join('');
   return '<!DOCTYPE html><html lang="' + getLang() + '"><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="' + csp + '"><meta name="viewport" content="width=device-width, initial-scale=1">' + css + '</head><body>' + opts.body + '<div id="toast"></div>' + i18n + js + '</body></html>';
 }

@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const X = require('./projectInfoPure');
 const { PIC_EXTS, baseOf, cfg, docLines, info, isTexDoc, texFiles, textOf } = require('./util');
 const { buildIndex } = require('./labels');
@@ -65,7 +66,7 @@ function checkSyntax(doc) {
 function labelPreviewMd(file, l, aux) {
   const lines = textOf(vscode.Uri.file(file)).split(/\r?\n/);
   const md = new vscode.MarkdownString();
-  md.appendMarkdown('**' + l.name + '**' + (aux ? '  ·  № ' + aux.num + (aux.page ? ', стор. ' + aux.page : '') : '') + '  \n' + path.basename(file) + ':' + (l.line + 1) + '\n\n');
+  md.appendMarkdown('**' + l.name + '**' + (aux ? '  ·  ' + (aux.page ? tr('№ {0}, стор. {1}', aux.num, aux.page) : tr('№ {0}', aux.num)) : '') + '  \n' + path.basename(file) + ':' + (l.line + 1) + '\n\n');
   let body = null;
   if (l.envLine >= 0 && lines[l.envLine]) {
     const m = /\\begin\{([^{}]*)\}/.exec(lines[l.envLine]);
@@ -108,9 +109,9 @@ function imageHoverMd(file) {
   md.isTrusted = { enabledCommands: ['vscode.open'] };
   md.appendMarkdown('**' + path.basename(file) + '**  ·  ' + P.formatFileSize(size) + '\n\n');
   const cmdArgs = encodeURIComponent(JSON.stringify([vscode.Uri.file(file)]));
-  const open = '[Відкрити зображення](command:vscode.open?' + cmdArgs + ')';
+  const open = '[' + tr('Відкрити зображення') + '](command:vscode.open?' + cmdArgs + ')';
   if (!IMG_MIME[ext]) {
-    md.appendMarkdown('Попередній перегляд для ' + ext + ' недоступний.  \n[Відкрити файл](command:vscode.open?' + cmdArgs + ')');
+    md.appendMarkdown(tr('Попередній перегляд для {0} недоступний.', ext) + '  \n[' + tr('Відкрити файл') + '](command:vscode.open?' + cmdArgs + ')');
     return md;
   }
   const plan = P.imagePreviewPlan(size, conf.get('imagePreviewMode', 'file'), conf.get('imagePreviewMaxMB', 1));
@@ -119,9 +120,9 @@ function imageHoverMd(file) {
   } else if (plan.kind === 'data') {
     md.appendMarkdown('![](data:' + IMG_MIME[ext] + ';base64,' + fs.readFileSync(file).toString('base64') + ')\n\n' + open);
   } else if (plan.kind === 'too-big') {
-    md.appendMarkdown('Завеликий для превʼю: ' + P.formatFileSize(size) + ', ліміт ' + String(plan.limitMB).replace('.', ',') + ' МБ (`tssworkflow.imagePreviewMaxMB`).  \n' + open);
+    md.appendMarkdown(tr('Завеликий для превʼю: {0}, ліміт {1} МБ (`tssworkflow.imagePreviewMaxMB`).', P.formatFileSize(size), String(plan.limitMB).replace('.', tr(','))) + '  \n' + open);
   } else if (plan.kind === 'data-too-big') {
-    md.appendMarkdown('У режимі `data` показуються лише файли до ' + P.formatFileSize(P.DATA_URI_MAX) + '. Постав `tssworkflow.imagePreviewMode` = `file`.  \n' + open);
+    md.appendMarkdown(tr('У режимі `data` показуються лише файли до {0}. Постав `tssworkflow.imagePreviewMode` = `file`.', P.formatFileSize(P.DATA_URI_MAX)) + '  \n' + open);
   } else {
     md.appendMarkdown(open);
   }
@@ -144,7 +145,7 @@ const hoverProvider = {
         }
       }
       const range = new vscode.Range(pos.line, ref.col, pos.line, ref.col + ref.len);
-      if (!found) return new vscode.Hover('Мітку «' + ref.name + '» не знайдено в проєкті', range);
+      if (!found) return new vscode.Hover(tr('Мітку «{0}» не знайдено в проєкті', ref.name), range);
       return new vscode.Hover(labelPreviewMd(file, found, require('./projectInfo').auxInfo(doc.uri, ref.name)), range);
     }
     const code = P.codePart(line);
@@ -154,7 +155,7 @@ const hoverProvider = {
       const b = path.join(dir, X5sub('\\includegraphics', 'Pictures'), inc.name);
       const file = [b].concat(PIC_EXTS.map((e) => b + e)).find((c) => { try { return fs.statSync(c).isFile(); } catch (e) { return false; } });
       const range = new vscode.Range(pos.line, inc.start, pos.line, inc.start + inc.len);
-      if (!file) return new vscode.Hover('Файл не знайдено: Pictures/' + inc.name, range);
+      if (!file) return new vscode.Hover(tr('Файл не знайдено: Pictures/{0}', inc.name), range);
       return new vscode.Hover(imageHoverMd(file), range);
     }
     const lin = argAt(code, /\\localinput\{([^}]*)\}/g, pos.character);
@@ -162,10 +163,10 @@ const hoverProvider = {
       const b = path.join(dir, X5sub('\\localinput', 'tikz'), lin.name);
       const file = [b, b + '.tikz', b + '.tex'].find((c) => { try { return fs.statSync(c).isFile(); } catch (e) { return false; } });
       const range = new vscode.Range(pos.line, lin.start, pos.line, lin.start + lin.len);
-      if (!file) return new vscode.Hover('Файл не знайдено: tikz/' + lin.name, range);
+      if (!file) return new vscode.Hover(tr('Файл не знайдено: tikz/{0}', lin.name), range);
       const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
       const md = new vscode.MarkdownString();
-      md.appendMarkdown('**' + path.basename(file) + '**  (' + lines.length + ' рядків)\n\n');
+      md.appendMarkdown('**' + path.basename(file) + '**  ' + tr('({0} рядків)', lines.length) + '\n\n');
       md.appendCodeblock(lines.slice(0, 15).join('\n') + (lines.length > 15 ? '\n...' : ''), 'latex');
       return new vscode.Hover(md, range);
     }
@@ -177,7 +178,7 @@ const hoverProvider = {
 async function goToHeading() {
   const ed = vscode.window.activeTextEditor;
   const folder = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
-  if (!folder) { info('Відкрий папку проєкту.'); return; }
+  if (!folder) { info(tr('Відкрий папку проєкту.')); return; }
   const root = folder.uri.fsPath;
   const items = [];
   const seen = new Set();
@@ -199,13 +200,13 @@ async function goToHeading() {
   walk(path.join(root, (cfg().get('jobname', 'main') || 'main') + '.tex'));
   const rest = (await texFiles()).map((u) => u.fsPath).filter((p) => !seen.has(p) && p.startsWith(root)).sort();
   for (const fp of rest) walk(fp);
-  if (!items.length) { info('Заголовків не знайдено.'); return; }
+  if (!items.length) { info(tr('Заголовків не знайдено.')); return; }
   const picks = items.map((it) => ({
     label: '\u00a0\u00a0'.repeat(Math.max(0, it.h.level - 1)) + it.h.title,
     description: it.h.kind + (it.h.star ? '*' : '') + ' · ' + path.relative(root, it.file).replace(/\\/g, '/') + ':' + (it.h.line + 1),
     it
   }));
-  const pick = await vscode.window.showQuickPick(picks, { matchOnDescription: true, placeHolder: 'Перейти до заголовка (весь проєкт)' });
+  const pick = await vscode.window.showQuickPick(picks, { matchOnDescription: true, placeHolder: tr('Перейти до заголовка (весь проєкт)') });
   if (!pick) return;
   const pos = new vscode.Position(pick.it.h.line, 0);
   await vscode.window.showTextDocument(vscode.Uri.file(pick.it.file), { selection: new vscode.Range(pos, pos) });

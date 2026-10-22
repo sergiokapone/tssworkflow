@@ -2,6 +2,7 @@
 // Move tikzpicture / circuitikz environments out of a .tex file into tikz/<name>.tikz and put \localinput{<name>.tikz}
 // in their place. The name comes from the \label of the enclosing figure (without the "tikz:" / "pic:" prefix).
 const P = require('./corePure');
+const { tr } = require('./i18n');
 
 const FIGURE_RE = /^[A-Za-z]*figure\*?$/i;
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -187,42 +188,42 @@ function register(context, helpers) {
   const askName = async (doc, suggested, why) => {
     const dir = tikzDir(doc);
     return vscode.window.showInputBox({
-      prompt: why || "Ім'я файла для tikz/ (розширення .tikz можна не писати)",
+      prompt: why || tr('Ім\'я файла для tikz/ (розширення .tikz можна не писати)'),
       value: suggested ? suggested.replace(/\.tikz$/i, '') : '',
       validateInput: (v) => {
         const n = v.trim().replace(/\.tikz$/i, '');
-        if (!n) return "Введи ім'я";
-        if (!validName(n)) return "Недозволені символи в імені";
-        if (fs.existsSync(path.join(dir, n + '.tikz'))) return 'Файл tikz/' + n + '.tikz уже існує';
+        if (!n) return tr('Введи ім\'я');
+        if (!validName(n)) return tr('Недозволені символи в імені');
+        if (fs.existsSync(path.join(dir, n + '.tikz'))) return tr('Файл tikz/{0}.tikz уже існує', n);
         return null;
       }
     });
   };
 
-  const openBtn = 'Відкрити';
   const offerOpen = async (msg, file) => {
+    const openBtn = tr('Відкрити');
     const pick = await info(msg, openBtn);
     if (pick === openBtn) await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(vscode.Uri.file(file)), { preview: false, preserveFocus: false });
   };
 
   async function extractOne() {
     const ed = vscode.window.activeTextEditor;
-    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.'); return; }
+    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info(tr('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.')); return; }
     const doc = ed.document;
     const lines = docLines(doc);
     const pics = pictures(lines);
-    if (!pics.length) { info('У файлі немає ' + what() + '.'); return; }
+    if (!pics.length) { info(tr('У файлі немає {0}.', what())); return; }
     const cur = ed.selection.active;
     const at = pictureAt(lines, pics, { line: cur.line, col: cur.character });
-    if (!at.pic) { info(at.many ? 'У цьому рисунку кілька малюнків: постав курсор усередину потрібного.' : 'Постав курсор усередину ' + what() + '.'); return; }
+    if (!at.pic) { info(at.many ? tr('У цьому рисунку кілька малюнків: постав курсор усередину потрібного.') : tr('Постав курсор усередину {0}.', what())); return; }
     const pic = at.pic;
     const sug = suggestName(lines, pic);
     let name = sug.name;
     const dir = tikzDir(doc);
     if (!name || fs.existsSync(path.join(dir, name))) {
       const why = !name
-        ? (sug.figure ? 'У рисунку немає \\label: ' : 'Малюнок не в figure: ') + "ім'я файла для tikz/"
-        : 'Файл tikz/' + name + " уже існує: інше ім'я для tikz/";
+        ? (sug.figure ? tr('У рисунку немає \\label: ім\'я файла для tikz/') : tr('Малюнок не в figure: ім\'я файла для tikz/'))
+        : tr('Файл tikz/{0} уже існує: інше ім\'я для tikz/', name);
       const typed = await askName(doc, name, why);
       if (!typed) return;
       name = typed.trim().replace(/\.tikz$/i, '') + '.tikz';
@@ -233,24 +234,24 @@ function register(context, helpers) {
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(target, p.content, { encoding: 'utf8', flag: 'wx' });
     } catch (err) {
-      vscode.window.showErrorMessage('Не вдалося створити ' + target + ': ' + (err && err.message ? err.message : err));
+      vscode.window.showErrorMessage(tr('Не вдалося створити {0}: {1}', target, err && err.message ? err.message : err));
       return;
     }
     const ok = await ed.edit((b) => b.replace(new vscode.Range(pic.begin.line, pic.begin.col, pic.end.line, pic.end.col), p.replacement));
-    if (!ok) { vscode.window.showErrorMessage('Файл ' + name + ' створено, але замінити код у документі не вдалося.'); return; }
-    await offerOpen('Винесено в tikz/' + name + ' (Ctrl+Z повертає код у документ, файл лишається).', target);
+    if (!ok) { vscode.window.showErrorMessage(tr('Файл {0} створено, але замінити код у документі не вдалося.', name)); return; }
+    await offerOpen(tr('Винесено в tikz/{0} (Ctrl+Z повертає код у документ, файл лишається).', name), target);
   }
 
   async function extractAll() {
     const ed = vscode.window.activeTextEditor;
-    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.'); return; }
+    if (!ed || isTikzFile(ed.document) || ed.document.isUntitled) { info(tr('Відкрий збережений .tex-файл з tikzpicture, circuitikz чи \\tikz{…}.')); return; }
     const doc = ed.document;
     const lines = docLines(doc);
     let pics = pictures(lines);
     const incStyle = await includeStyle(doc);
     const sel = ed.selection;
     if (sel && !sel.isEmpty) pics = pics.filter((p) => p.begin.line >= sel.start.line && p.end.line <= sel.end.line);
-    if (!pics.length) { info('Немає ' + what() + (sel && !sel.isEmpty ? ' у виділенні.' : ' у файлі.')); return; }
+    if (!pics.length) { info(sel && !sel.isEmpty ? tr('Немає {0} у виділенні.', what()) : tr('Немає {0} у файлі.', what())); return; }
     const dir = tikzDir(doc);
     const used = new Set();
     const todo = [];
@@ -262,11 +263,13 @@ function register(context, helpers) {
       used.add(name.toLowerCase());
       todo.push({ pic, name });
     }
-    if (!todo.length) { info('Нічого виносити: без мітки ' + skipped.nolabel + ', ім\'я зайняте ' + skipped.taken + '.'); return; }
-    const msg = 'Винести ' + todo.length + ' з ' + pics.length + ' малюнків у tikz/ (' + todo.map((t) => t.name).slice(0, 6).join(', ') + (todo.length > 6 ? ', ...' : '') + ')?' +
-      (skipped.nolabel + skipped.taken ? ' Пропущено: без мітки ' + skipped.nolabel + ", ім'я зайняте " + skipped.taken + '.' : '');
-    const go = await vscode.window.showInformationMessage(msg, { modal: true }, 'Винести');
-    if (go !== 'Винести') return;
+    if (!todo.length) { info(tr('Нічого виносити: без мітки {0}, ім\'я зайняте {1}.', skipped.nolabel, skipped.taken)); return; }
+    const goBtn = tr('Винести');
+    const names = todo.map((t) => t.name).slice(0, 6).join(', ') + (todo.length > 6 ? ', ...' : '');
+    const msg = tr('Винести {0} з {1} малюнків у tikz/ ({2})?', todo.length, pics.length, names) +
+      (skipped.nolabel + skipped.taken ? ' ' + tr('Пропущено: без мітки {0}, ім\'я зайняте {1}.', skipped.nolabel, skipped.taken) : '');
+    const go = await vscode.window.showInformationMessage(msg, { modal: true }, goBtn);
+    if (go !== goBtn) return;
     fs.mkdirSync(dir, { recursive: true });
     const eol = eolOf(doc);
     const edits = [];
@@ -282,8 +285,9 @@ function register(context, helpers) {
     const ok = await ed.edit((b) => {
       for (const e of edits) b.replace(new vscode.Range(e.pic.begin.line, e.pic.begin.col, e.pic.end.line, e.pic.end.col), e.text);
     });
-    if (!ok) { vscode.window.showErrorMessage('Файли створено (' + written.length + '), але замінити код у документі не вдалося.'); return; }
-    info('Винесено ' + written.length + ' малюнків у tikz/' + (skipped.nolabel + skipped.taken ? ' (пропущено: без мітки ' + skipped.nolabel + ", ім'я зайняте " + skipped.taken + ')' : '') + '. Ctrl+Z повертає код у документ, файли лишаються.');
+    if (!ok) { vscode.window.showErrorMessage(tr('Файли створено ({0}), але замінити код у документі не вдалося.', written.length)); return; }
+    const skipNote = skipped.nolabel + skipped.taken ? ' ' + tr('(пропущено: без мітки {0}, ім\'я зайняте {1})', skipped.nolabel, skipped.taken) : '';
+    info(tr('Винесено {0} малюнків у tikz/{1}. Ctrl+Z повертає код у документ, файли лишаються.', written.length, skipNote));
   }
 
   context.subscriptions.push(

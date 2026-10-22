@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const path = require('path');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { PIC_EXTS, cfg, docLines, listFiles } = require('./util');
 const { buildIndex, renameProvider } = require('./labels');
 const { bibKeys } = require('./settingsCitations');
@@ -46,19 +47,19 @@ const quickFixes = {
       if (code === 'missing-backslash') {
         const we = new vscode.WorkspaceEdit();
         we.insert(uri, d.range.start, '\\');
-        out.push(mkFix('Додати «\\»', d, we));
+        out.push(mkFix(tr('Додати «\\»'), d, we));
       } else if (code === 'blank-in-math') {
         const ln = d.range.start.line;
         const del = new vscode.WorkspaceEdit();
         if (ln + 1 < doc.lineCount) del.delete(uri, new vscode.Range(ln, 0, ln + 1, 0));
         else del.delete(uri, new vscode.Range(ln, 0, ln, doc.lineAt(ln).text.length));
-        out.push(mkFix('Видалити порожній рядок', d, del));
+        out.push(mkFix(tr('Видалити порожній рядок'), d, del));
         const com = new vscode.WorkspaceEdit();
         com.replace(uri, new vscode.Range(ln, 0, ln, doc.lineAt(ln).text.length), '%');
-        out.push(mkFix('Замінити порожній рядок на «%»', d, com));
+        out.push(mkFix(tr('Замінити порожній рядок на «%»'), d, com));
       } else if (code === 'end-mismatch') {
         const m = /\\begin\{([^}]*)\}/.exec(d.message);
-        if (m) replaceWith('Замінити на \\end{' + m[1] + '}', '\\end{' + m[1] + '}');
+        if (m) replaceWith(tr('Замінити на \\end{{0}}', m[1]), '\\end{' + m[1] + '}');
       } else if (code === 'missing-end') {
         const m = /\\end\{([^}]*)\}/.exec(d.message);
         if (m) {
@@ -67,7 +68,7 @@ const quickFixes = {
           const indent = /^\s*/.exec(doc.lineAt(ln).text)[0];
           const we = new vscode.WorkspaceEdit();
           we.insert(uri, new vscode.Position(last, doc.lineAt(last).text.length), '\n' + indent + '\\end{' + m[1] + '}');
-          out.push(mkFix('Додати \\end{' + m[1] + '} після цього блоку (до порожнього рядка)', d, we));
+          out.push(mkFix(tr('Додати \\end{{0}} після цього блоку (до порожнього рядка)', m[1]), d, we));
         }
       } else if (code === 'file-missing-tikz' || code === 'file-missing-pic') {
         const isTikz = code === 'file-missing-tikz';
@@ -77,15 +78,15 @@ const quickFixes = {
         for (const rel of listFiles(dir, isTikz ? ['.tikz', '.tex'] : PIC_EXTS, 3)) {
           names.push(isTikz ? rel : rel.slice(0, rel.length - path.extname(rel).length));
         }
-        for (const s of P.suggest(name, names, 3)) replaceWith('Замінити на «' + s + '»', s);
+        for (const s of P.suggest(name, names, 3)) replaceWith(tr('Замінити на «{0}»', s), s);
       } else if (code === 'label-undefined') {
         const name = doc.getText(d.range).trim();
-        for (const s of P.suggest(name, [...(await allLabelNames())], 3)) replaceWith('Замінити на «' + s + '»', s);
+        for (const s of P.suggest(name, [...(await allLabelNames())], 3)) replaceWith(tr('Замінити на «{0}»', s), s);
       } else if (code === 'cite-undefined') {
         const name = doc.getText(d.range).trim();
-        for (const s of P.suggest(name, bibKeys(), 3)) replaceWith('Замінити на «' + s + '»', s);
+        for (const s of P.suggest(name, bibKeys(), 3)) replaceWith(tr('Замінити на «{0}»', s), s);
       } else if (code === 'figure-no-caption' || code === 'figure-no-label') {
-        const nm = /«([^»]*)»/.exec(d.message);
+        const nm = /[«“]([^»”]*)[»”]/.exec(d.message); // the name of the environment: in quotes in both languages
         const lines = docLines(doc);
         const end = nm && P.envEnd(lines, nm[1], d.range.start.line, d.range.end.character);
         if (end) {
@@ -98,17 +99,17 @@ const quickFixes = {
             const text = before + (isCap ? '\\caption{}' : '\\label{' + prefix + '}') + '\n';
             const we = new vscode.WorkspaceEdit();
             we.insert(uri, new vscode.Position(end.line, 0), text);
-            out.push(mkFix(isCap ? 'Додати \\caption{} перед ' + endTok : 'Додати \\label{' + prefix + '} перед ' + endTok, d, we));
+            out.push(mkFix(isCap ? tr('Додати \\caption{} перед {0}', endTok) : tr('Додати \\label{{0}} перед {1}', prefix, endTok), d, we));
           }
         }
       } else if (code === 'label-prefix') {
-        const m = /починатися з «([^»]*)»/.exec(d.message);
+        const m = /[«“]([^»”]*)[»”]\s*$/.exec(d.message); // the required prefix is the last quoted text of the message, in both languages
         if (m && m[1]) {
           const newName = m[1] + doc.getText(d.range).trim();
           if (!(await allLabelNames()).has(newName)) {
             try {
               const we = await renameProvider.provideRenameEdits(doc, d.range.start, newName);
-              if (we) out.push(mkFix('Перейменувати мітку на «' + newName + '» у всьому проєкті', d, we));
+              if (we) out.push(mkFix(tr('Перейменувати мітку на «{0}» у всьому проєкті', newName), d, we));
             } catch (e) { /* e.g. a label defined by a macro: no fix */ }
           }
         }

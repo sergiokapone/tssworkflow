@@ -77,38 +77,40 @@ function spelledAsRecorded(report, like) {
 
 const hhmmss = (t) => { const d = new Date(t); const z = (x) => String(x).padStart(2, '0'); return z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()); };
 
+const { tr } = require('./i18n');
+
 /* ctx: { pdf, synctex (path or null), synctexMtime, fileMtime, file, line, root } -> markdown lines */
 function formatSynctexReport(report, ctx) {
-  const L = ['# Діагностика SyncTeX', ''];
+  const L = [tr('# Діагностика SyncTeX'), ''];
   L.push('- PDF: `' + ctx.pdf + '`');
-  L.push('- Файл синхронізації: ' + (ctx.synctex ? '`' + ctx.synctex + '` (оновлено ' + hhmmss(ctx.synctexMtime) + ')' : '**немає**'));
-  L.push('- Файл редактора: `' + ctx.file + '`' + (ctx.line ? ', рядок ' + ctx.line : ''));
+  L.push('- ' + (ctx.synctex ? tr('Файл синхронізації: `{0}` (оновлено {1})', ctx.synctex, hhmmss(ctx.synctexMtime)) : tr('Файл синхронізації: **немає**')));
+  L.push('- ' + (ctx.line ? tr('Файл редактора: `{0}`, рядок {1}', ctx.file, ctx.line) : tr('Файл редактора: `{0}`', ctx.file)));
   L.push('');
   if (!ctx.synctex) {
-    L.push('✗ Немає `<job>.synctex.gz` поруч із PDF. Або збірка йшла без `-synctex=1`, або результат лежить в іншому каталозі (LaTeX Workshop: `latex-workshop.latex.outDir`).');
+    L.push(tr('✗ Немає `<job>.synctex.gz` поруч із PDF. Або збірка йшла без `-synctex=1`, або результат лежить в іншому каталозі (LaTeX Workshop: `latex-workshop.latex.outDir`).'));
     return L;
   }
   const rep = report || { status: 'missing', candidates: [], inProject: [], total: 0 };
   if (rep.status === 'ok') {
-    L.push('✓ Файл є в PDF (записаний як `' + rep.recorded + '`). Перехід має працювати.');
+    L.push(tr('✓ Файл є в PDF (записаний як `{0}`). Перехід має працювати.', rep.recorded));
   } else if (rep.status === 'case') {
-    L.push('⚠ Файл є в PDF, але записаний інакше: `' + rep.recorded + '`. SumatraPDF порівнює шляхи без пом\'якшень, тому плагін сам підставляє записаний шлях.');
+    L.push(tr('⚠ Файл є в PDF, але записаний інакше: `{0}`. SumatraPDF порівнює шляхи без пом\'якшень, тому плагін сам підставляє записаний шлях.', rep.recorded));
   } else if (rep.status === 'name') {
-    L.push('✗ У PDF немає саме цього шляху, але є файл із такою самою назвою:');
+    L.push(tr('✗ У PDF немає саме цього шляху, але є файл із такою самою назвою:'));
     for (const c of rep.candidates) L.push('  - `' + c + '`');
-    L.push('Імовірно, PDF зібрано з іншої копії проєкту або з іншого каталогу.');
+    L.push(tr('Імовірно, PDF зібрано з іншої копії проєкту або з іншого каталогу.'));
   } else {
-    L.push('✗ Цього файла немає в останній збірці PDF. Найчастіша причина: PDF зібрано з іншого розділу (збірка розділу через `alone.tex` перезаписує `main.pdf` і `main.synctex.gz`). Збери цей файл (▷) і повтори.');
+    L.push(tr('✗ Цього файла немає в останній збірці PDF. Найчастіша причина: PDF зібрано з іншого розділу (збірка розділу через `alone.tex` перезаписує `main.pdf` і `main.synctex.gz`). Збери цей файл (▷) і повтори.'));
   }
   if (rep.status !== 'ok' && rep.inProject && rep.inProject.length) {
-    L.push('', 'У PDF зараз файли проєкту (' + rep.inProject.length + '):');
+    L.push('', tr('У PDF зараз файли проєкту ({0}):', rep.inProject.length));
     for (const p of rep.inProject.slice(0, 12)) L.push('- `' + p + '`');
-    if (rep.inProject.length > 12) L.push('- … ще ' + (rep.inProject.length - 12));
+    if (rep.inProject.length > 12) L.push('- ' + tr('… ще {0}', rep.inProject.length - 12));
   }
   if ((rep.status === 'ok' || rep.status === 'case') && ctx.fileMtime && ctx.synctexMtime && ctx.fileMtime > ctx.synctexMtime + 1000) {
-    L.push('', '⚠ Файл змінено після останньої збірки (' + hhmmss(ctx.fileMtime) + ' проти ' + hhmmss(ctx.synctexMtime) + '): рядки в PDF можуть не збігатися. Збери ще раз.');
+    L.push('', tr('⚠ Файл змінено після останньої збірки ({0} проти {1}): рядки в PDF можуть не збігатися. Збери ще раз.', hhmmss(ctx.fileMtime), hhmmss(ctx.synctexMtime)));
   }
-  L.push('', 'Внутрішній вьюер LaTeX Workshop (`Ctrl+Alt+J`) читає ті самі дані: якщо тут ✗, там теж не спрацює.');
+  L.push('', tr('Внутрішній вьюер LaTeX Workshop (`Ctrl+Alt+J`) читає ті самі дані: якщо тут ✗, там теж не спрацює.'));
   return L;
 }
 

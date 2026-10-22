@@ -10,6 +10,7 @@
  *   unused packages, table from CSV / XLSX / clipboard, .bib tools, list of equations, dated PDF copy
  * The logic without VS Code is in filesAndLabelsPure.js. */
 const vscode = require('vscode');
+const VT = require('./viewTitles');
 const path = require('path');
 const fs = require('fs');
 const { tr } = require('./i18n');
@@ -776,7 +777,7 @@ function register(context, helpers) {
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const labels = new LabelsProvider();
   labelsProv = labels;
-  labels.view = vscode.window.createTreeView('tssworkflow.labelsView', { treeDataProvider: labels, showCollapseAll: true });
+  labels.view = VT.track(vscode.window.createTreeView('tssworkflow.labelsView', { treeDataProvider: labels, showCollapseAll: true }), 'tssworkflow.labelsView');
   if (typeof labels.view.onDidChangeVisibility === 'function') {
     context.subscriptions.push(labels.view.onDidChangeVisibility((e) => { if (e.visible && labels.stale) labels.schedule(0); }));
   }

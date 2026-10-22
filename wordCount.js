@@ -7,6 +7,7 @@
  * chapters) are those of filesAndLabels.js, which does not require this module (no cycle). */
 const vscode = require('vscode');
 const path = require('path');
+const { tr } = require('./i18n');
 const X = require('./filesAndLabelsPure');
 const PI = require('./projectIndex');
 const FL = require('./filesAndLabels');
@@ -81,9 +82,9 @@ function setupWordCount(context) {
     if (counted.big) { item.hide(); return; }
     const all = counted.all;
     const sel = ed.selection.isEmpty ? 0 : X.countWords(doc.getText(ed.selection));
-    item.text = '$(pencil) ' + (sel ? sel + ' із ' : '') + all + ' сл.';
-    const more = deep.key === keyOf(doc) && deep.files > 1 ? '\nЗ підключеними файлами (' + deep.files + '): ' + deep.total : '';
-    item.tooltip = 'Слів у ' + path.basename(doc.uri.fsPath) + ': ' + all + ' (без команд, формул, коментарів, рисунків)' + (sel ? '\nУ виділенні: ' + sel : '') + more + '\nКлік: слова в усіх файлах проєкту. Вимкнути: tssworkflow.wordCount';
+    item.text = '$(pencil) ' + (sel ? tr('{0} із {1} сл.', sel, all) : tr('{0} сл.', all));
+    const more = deep.key === keyOf(doc) && deep.files > 1 ? '\n' + tr('З підключеними файлами ({0}): {1}', deep.files, deep.total) : '';
+    item.tooltip = tr('Слів у {0}: {1} (без команд, формул, коментарів, рисунків)', path.basename(doc.uri.fsPath), all) + (sel ? '\n' + tr('У виділенні: {0}', sel) : '') + more + '\n' + tr('Клік: слова в усіх файлах проєкту. Вимкнути: tssworkflow.wordCount');
     item.show();
     debounce('wordcount.deep', 1500, () => {
       const cur = vscode.window.activeTextEditor;
@@ -103,22 +104,22 @@ function setupWordCount(context) {
 
 async function projectWordCountCmd() {
   const root = (vscode.workspace.workspaceFolders || [])[0];
-  if (!root) { info('Відкрий папку проєкту.'); return; }
+  if (!root) { info(tr('Відкрий папку проєкту.')); return; }
   const files = await FL.projectFiles(['.tex'], root.uri.fsPath);
   const rows = files.map((f) => ({ path: f.path, abs: f.abs, words: X.countWords(f.text) })).filter((r) => r.words > 0);
-  if (!rows.length) { info('У проєкті немає слів у .tex-файлах.'); return; }
+  if (!rows.length) { info(tr('У проєкті немає слів у .tex-файлах.')); return; }
   const total = rows.reduce((a, r) => a + r.words, 0);
   // per chapter (first folder)
   const byCh = new Map();
-  for (const r of rows) { const k = r.path.includes('/') ? r.path.split('/')[0] : '(корінь)'; byCh.set(k, (byCh.get(k) || 0) + r.words); }
+  for (const r of rows) { const k = r.path.includes('/') ? r.path.split('/')[0] : tr('(корінь)'); byCh.set(k, (byCh.get(k) || 0) + r.words); }
   const order = FL.chapterOrder();
   const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
-  const items = [{ label: '$(pencil) Усього: ' + total + ' слів у ' + rows.length + ' файлах', description: 'без команд, формул, коментарів, рисунків' }];
-  if (sep) items.push({ label: 'За розділами', kind: sep });
-  [...byCh].sort((a, b) => (FL.chapterRank(order, a[0] + '/x') - FL.chapterRank(order, b[0] + '/x')) || (a[0] < b[0] ? -1 : 1)).forEach(([k, n]) => items.push({ label: '$(folder) ' + k, description: n + ' сл. · ' + Math.round(100 * n / total) + '%' }));
-  if (sep) items.push({ label: 'За файлами', kind: sep });
-  rows.sort((a, b) => b.words - a.words).forEach((r) => items.push({ label: r.path, description: r.words + ' сл.', abs: r.abs }));
-  const pick = await vscode.window.showQuickPick(items, { placeHolder: 'Слова в проєкті; вибери файл, щоб відкрити', matchOnDescription: true });
+  const items = [{ label: tr('$(pencil) Усього: {0} слів у {1} файлах', total, rows.length), description: tr('без команд, формул, коментарів, рисунків') }];
+  if (sep) items.push({ label: tr('За розділами'), kind: sep });
+  [...byCh].sort((a, b) => (FL.chapterRank(order, a[0] + '/x') - FL.chapterRank(order, b[0] + '/x')) || (a[0] < b[0] ? -1 : 1)).forEach(([k, n]) => items.push({ label: '$(folder) ' + k, description: tr('{0} сл. · {1}%', n, Math.round(100 * n / total)) }));
+  if (sep) items.push({ label: tr('За файлами'), kind: sep });
+  rows.sort((a, b) => b.words - a.words).forEach((r) => items.push({ label: r.path, description: tr('{0} сл.', r.words), abs: r.abs }));
+  const pick = await vscode.window.showQuickPick(items, { placeHolder: tr('Слова в проєкті; вибери файл, щоб відкрити'), matchOnDescription: true });
   if (pick && pick.abs) vscode.window.showTextDocument(vscode.Uri.file(pick.abs));
 }
 

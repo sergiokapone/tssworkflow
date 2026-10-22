@@ -30,7 +30,9 @@ t('manifest: welcome buttons call real commands', () => {
   const ids = new Set(pk.contributes.commands.map((x) => x.command));
   const w = pk.contributes.viewsWelcome.filter((x) => x.view === 'tssworkflow.startView');
   assert.ok(w.length >= 2);
-  const text = w.map((x) => x.contents).join('\n');
+  // since 0.21.10 the texts are %keys% of package.nls.json (English); the Ukrainian ones are checked in nls.test.js
+  const nls = require(path.join(ext, 'package.nls.json'));
+  const text = w.map((x) => x.contents.replace(/^%(.+)%$/, (m, k) => nls[k])).join('\n');
   for (const m of text.matchAll(/\(command:([^)]+)\)/g)) assert.ok(ids.has(m[1]) || m[1].startsWith('workbench.'), m[1]);
   assert.ok(text.includes('command:tssworkflow.newFromTemplate') && text.includes('command:tssworkflow.initProjectSettings'));
 });

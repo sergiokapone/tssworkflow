@@ -414,8 +414,8 @@ function statusKind(o) {
 /* ------------------- image preview in the hover ------------------------- */
 // 91 KB -> "91 КБ", 2.4 MB -> "2,4 МБ"
 function formatFileSize(n) {
-  if (n < 1048576) return Math.max(1, Math.round(n / 1024)) + ' КБ';
-  return (n / 1048576).toFixed(1).replace('.', ',') + ' МБ';
+  if (n < 1048576) return tr('{0} КБ', Math.max(1, Math.round(n / 1024)));
+  return tr('{0} МБ', (n / 1048576).toFixed(1).replace('.', tr(',')));
 }
 // largest file shown as a data: URI; a markdown string with a longer base64 body was printed as raw text instead of an image
 const DATA_URI_MAX = 64 * 1024;

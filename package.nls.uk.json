@@ -1,0 +1,13 @@
+{
+  "submenu.text": "TSS Workflow: Текст і структура",
+  "submenu.nav": "TSS Workflow: Навігація й перевірка",
+  "submenu.build": "TSS Workflow: Збірка й прибирання",
+  "view.commands": "Команди",
+  "view.chapters": "Розділи",
+  "view.start": "Початок",
+  "view.problems": "Проблеми",
+  "view.labels": "Мітки",
+  "welcome.chapters": "Розділів не знайдено. Відкрий папку проєкту: розділ це файл X/X.tex, підключений у головному файлі рядком \\includechapter{X}.\n[Новий розділ](command:tssworkflow.newChapter)",
+  "welcome.noFolder": "Відкрий папку проєкту: тоді тут з'являться команди збірки, розділи й шаблони.\n[Відкрити папку](command:workbench.action.files.openFolder)",
+  "welcome.noTex": "У цій папці ще немає жодного .tex чи .tikz файла. Почни з шаблона або підготуй налаштування проєкту: коли з'явиться перший .tex, тут відкриються всі команди й розділи.\n[Новий з шаблона](command:tssworkflow.newFromTemplate)\n[Створити .vscode/settings.json](command:tssworkflow.initProjectSettings)\n[Перевірити середовище](command:tssworkflow.checkEnvironment)"
+}

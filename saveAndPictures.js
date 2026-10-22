@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { EXCLUDE, cfg, docLines, info, listFiles, texFiles, textOf } = require('./util');
 
 /* ------- code that typography leaves alone: tssworkflow.protectedCommands ------ */
@@ -35,7 +36,7 @@ async function picturesPanel() {
   const docUri = ed.document.uri;
   const dir = path.join(path.dirname(docUri.fsPath), 'Pictures');
   const files = fs.existsSync(dir) ? listFiles(dir, ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'], 3) : [];
-  if (!files.length) { vscode.window.showWarningMessage('У ' + dir + ' немає зображень для перегляду.'); return; }
+  if (!files.length) { vscode.window.showWarningMessage(tr('У {0} немає зображень для перегляду.', dir)); return; }
   const panel = vscode.window.createWebviewPanel(
     'tssworkflowPictures', 'Pictures', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
     { enableScripts: true, localResourceRoots: [vscode.Uri.file(dir)] }
@@ -86,10 +87,10 @@ async function unusedFiles() {
     const re = new RegExp('(?<![\\w-])' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w-])');
     return !texts.some((x) => x.p !== f.fsPath && re.test(x.t));
   });
-  if (!unused.length) { info('Файлів без посилань не знайдено.'); return; }
+  if (!unused.length) { info(tr('Файлів без посилань не знайдено.')); return; }
   const items = unused.map((f) => ({ label: vscode.workspace.asRelativePath(f), uri: f }));
   const pick = await vscode.window.showQuickPick(items, {
-    placeHolder: 'Файли, на які ніде немає посилань: ' + unused.length + ' (обери, щоб відкрити)'
+    placeHolder: tr('Файли, на які ніде немає посилань: {0} (обери, щоб відкрити)', unused.length)
   });
   if (pick) vscode.commands.executeCommand('vscode.open', pick.uri);
 }

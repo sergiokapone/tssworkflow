@@ -6,6 +6,7 @@
  *   { "type": "tssworkflow", "target": "main" }      the whole document (Shift+F5)
  * "openPdf": false builds without opening the PDF. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 
 const TARGETS = {
   current: { label: 'Build current file (chapter / figure / standalone) and open PDF', labelNoPdf: 'Build current file (no PDF)' },
@@ -31,10 +32,10 @@ function makeTask(def, api) {
         w.fire('TSS Workflow: ' + name + '\r\n');
         api.run(target, openPdf, () => {
           const o = api.outcome();
-          if (!o) { w.fire('Збірку не запущено (див. повідомлення в правому нижньому куті).\r\n'); end(1); }
-          else if (o.stopped) { w.fire('Збірку зупинено.\r\n'); end(1); }
-          else if (o.ok) { w.fire('Готово.\r\n'); end(0); }
-          else { w.fire('Збірка завершилась з помилками (код ' + o.code + '). Дивись Problems.\r\n'); end(1); }
+          if (!o) { w.fire(tr('Збірку не запущено (див. повідомлення в правому нижньому куті).') + '\r\n'); end(1); }
+          else if (o.stopped) { w.fire(tr('Збірку зупинено.') + '\r\n'); end(1); }
+          else if (o.ok) { w.fire(tr('Готово.') + '\r\n'); end(0); }
+          else { w.fire(tr('Збірка завершилась з помилками (код {0}). Дивись Problems.', o.code) + '\r\n'); end(1); }
         });
       },
       // the terminal of the task closed (Terminate Task) while the build runs: stop it, as the button ⏹ does

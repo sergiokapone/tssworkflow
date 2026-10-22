@@ -9,6 +9,7 @@ const path = require('path');
 const vm = require('vm');
 const Module = require('module');
 const FP = require('./formulaCopyPure');
+const { tr } = require('./i18n');
 const TE = require('./tableEditor');
 const { cfg, isTex, info, warn } = require('./util');
 
@@ -33,25 +34,25 @@ const isTexLike = (doc) => !!doc && (isTex(doc) || /\.tikz$/i.test(doc.uri.fsPat
 
 async function run(context) {
   const ed = vscode.window.activeTextEditor;
-  if (!ed || !isTexLike(ed.document)) { info('Відкрий .tex і постав курсор у формулу.'); return; }
+  if (!ed || !isTexLike(ed.document)) { info(tr('Відкрий .tex і постав курсор у формулу.')); return; }
   const doc = ed.document;
   let f = null;
   const sel = ed.selection;
   if (sel && !sel.isEmpty) f = FP.fromSelection(doc.getText(sel));
   else f = FP.formulaAt(doc.getText(), doc.offsetAt(sel.active));
-  if (!f) { info('Курсор не у формулі: постав його всередину $…$, \\[…\\] чи equation/align або виділи формулу.'); return; }
+  if (!f) { info(tr('Курсор не у формулі: постав його всередину $…$, \\[…\\] чи equation/align або виділи формулу.')); return; }
   let fmt = String(cfg().get('copyFormula.format', 'mathml'));
   if (fmt === 'ask') {
     const pick = await vscode.window.showQuickPick([
-      { label: 'MathML', description: 'для Word, PowerPoint, LibreOffice', v: 'mathml' },
-      { label: 'LaTeX', description: 'код формули як у файлі', v: 'latex' }
-    ], { placeHolder: 'Копіювати формулу як…' });
+      { label: 'MathML', description: tr('для Word, PowerPoint, LibreOffice'), v: 'mathml' },
+      { label: 'LaTeX', description: tr('код формули як у файлі'), v: 'latex' }
+    ], { placeHolder: tr('Копіювати формулу як…') });
     if (!pick) return;
     fmt = pick.v;
   }
   if (fmt === 'latex') {
     await vscode.env.clipboard.writeText(f.tex);
-    info('Формулу скопійовано як LaTeX.');
+    info(tr('Формулу скопійовано як LaTeX.'));
     return;
   }
   let text;
@@ -62,11 +63,11 @@ async function run(context) {
     if (optFn) macros = optFn(macros);
     text = FP.mathmlOf(f.tex, f.display, k, macros);
   } catch (e) {
-    warn('KaTeX не зміг прочитати формулу: ' + String(e && e.message ? e.message : e).split('\n')[0].slice(0, 200));
+    warn(tr('KaTeX не зміг прочитати формулу: {0}', String(e && e.message ? e.message : e).split('\n')[0].slice(0, 200)));
     return;
   }
   await vscode.env.clipboard.writeText(text);
-  info('Формулу скопійовано як MathML. У Word: Alt+= (рівняння), потім Ctrl+V.');
+  info(tr('Формулу скопійовано як MathML. У Word: Alt+= (рівняння), потім Ctrl+V.'));
 }
 
 function register(context) {

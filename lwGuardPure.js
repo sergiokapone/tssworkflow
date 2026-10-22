@@ -1,4 +1,5 @@
 'use strict';
+const { tr } = require('./i18n');
 /* lwGuardPure.js: is LaTeX Workshop (or any other tool: a latexmk in a terminal) building the same document right now?
  * No VS Code API. LaTeX Workshop does not tell other extensions that it is compiling (its API is not exported outside its own
  * tests), so the answer comes from the list of processes: its recipes start `latexmk ... "<abs path of the root file>"` /
@@ -86,7 +87,7 @@ function findBusy(procs, want) {
 // what to say: which program builds what
 function describe(busy, job) {
   const names = [...new Set(busy.map((b) => b.program))].join(', ');
-  return 'зараз збирає «' + job + '» (' + names + (busy.length === 1 ? ', PID ' + busy[0].pid : ', процесів: ' + busy.length) + ')';
+  return busy.length === 1 ? tr('зараз збирає «{0}» ({1}, PID {2})', job, names, busy[0].pid) : tr('зараз збирає «{0}» ({1}, процесів: {2})', job, names, busy.length);
 }
 
 // the command that lists the processes: [program, args] (the output goes to parsePs / parseCim)

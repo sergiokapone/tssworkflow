@@ -4,6 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
+const { tr } = require('./i18n');
 const { REF_CTX, SEL, SEL_ANY, cancelTimer, cfg, debounce, execFileT, initCaches, isTexDoc, texFiles, textOf } = require('./util');
 const { PREVIEW_SCHEME, applyWithPreview, convertEnv, displayToEquation, frameSectionsCmd, frameSettings, normalizeCmd, normalizeOptions, previewProvider, sentencesCmd, tableOps, typographyCmd, wrapParagraph } = require('./textCommands');
 const { buildIndex, checkLabels, diagLabels, refCompletion, renameProvider } = require('./labels');
@@ -71,7 +72,7 @@ function register(context, api) {
   const refreshAuto = () => {
     const ed = vscode.window.activeTextEditor;
     auto.text = '$(sync) Auto: ' + (cfg().get('compileOnSave', false) ? 'on' : 'off');
-    auto.tooltip = 'Компіляція при збереженні (розділ або рисунок). Клік перемикає.';
+    auto.tooltip = tr('Компіляція при збереженні (розділ або рисунок). Клік перемикає.');
     if (ed && isTexDoc(ed.document)) auto.show(); else auto.hide();
   };
   subs.push(auto, vscode.window.onDidChangeActiveTextEditor(refreshAuto));
@@ -120,7 +121,7 @@ function register(context, api) {
 async function showHooks() {
   const ed = vscode.window.activeTextEditor;
   const folder = (ed && vscode.workspace.getWorkspaceFolder(ed.document.uri)) || (vscode.workspace.workspaceFolders || [])[0];
-  if (!folder) { vscode.window.showWarningMessage('Відкрий папку проєкту (workspace).'); return; }
+  if (!folder) { vscode.window.showWarningMessage(tr('Відкрий папку проєкту (workspace).')); return; }
   const cwd = folder.uri.fsPath;
   const mainFile = cfg().get('mainFile', 'main.tex') || 'main.tex';
   // a chapter (or figure) file of the project: the same document the compile button builds (alone.tex + \TargetChapter);
@@ -130,16 +131,18 @@ async function showHooks() {
     : null;
   const input = target ? (cfg().get('driver', 'alone.tex') || 'alone.tex') : mainFile;
   if (!fs.existsSync(path.join(cwd, input))) {
-    vscode.window.showWarningMessage('Не знайдено ' + input + ' у корені проєкту (налаштування tssworkflow.' + (target ? 'driver' : 'mainFile') + ').');
+    vscode.window.showWarningMessage(tr('Не знайдено {0} у корені проєкту (налаштування tssworkflow.{1}).', input, target ? 'driver' : 'mainFile'));
     return;
   }
-  const what = target ? 'розділ «' + target.chapter + '»' + (target.tikz ? ', рисунок «' + target.tikz + '»' : '') + ' через ' + input : 'весь документ (' + input + ')';
+  const what = target
+    ? (target.tikz ? tr('розділ «{0}», рисунок «{1}» через {2}', target.chapter, target.tikz, input) : tr('розділ «{0}» через {1}', target.chapter, input))
+    : tr('весь документ ({0})', input);
   const jobname = path.basename(input, path.extname(input)) + '-hooks';
   const names = ['shipout/before', 'shipout/foreground', 'shipout/background', 'shipout/after', 'shipout/lastpage'];
   const inject = P.hooksInject(names, target, input);
   const exe = cfg().get('lualatex', 'lualatex');
-  outLog.appendLine('[hooks] ' + what + ': ' + exe + ' -jobname=' + jobname + ' (зупиняється на початку документа)');
-  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'TSS: читаю хуки виводу сторінки…' }, () =>
+  outLog.appendLine('[hooks] ' + tr('{0}: {1} -jobname={2} (зупиняється на початку документа)', what, exe, jobname));
+  await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: tr('TSS: читаю хуки виводу сторінки…') }, () =>
     new Promise((resolve) => {
       execFileT(exe, ['-interaction=nonstopmode', '-file-line-error', '-shell-escape', '-jobname=' + jobname, inject],
         { cwd, maxBuffer: 64 * 1024 * 1024, windowsHide: true, timeout: 180000, env: Object.assign({}, process.env, { max_print_line: '10000' }) }, (err) => {
@@ -153,21 +156,21 @@ async function showHooks() {
             // say what the log really shows instead of guessing
             const d = P.diagnoseHooksLog(log);
             let why;
-            if (err && err.code === 'ENOENT') why = ': не запустився ' + exe;
-            else if (err && err.killed) why = ': збірка перервана через 180 с';
-            else if (d.empty) why = ': LaTeX не створив логу (дивись вивід TSS Workflow)';
-            else if (d.old) why = ': LaTeX від ' + d.date + ' надто старий, хуки є від 2021 року';
-            else if (d.error) why = ': збірка зупинилась до початку документа (' + d.error + ')';
-            else why = ' (LaTeX' + (d.date ? ' від ' + d.date : '') + '; дивись вивід TSS Workflow)';
-            vscode.window.showWarningMessage('Хуки не знайдено' + why + '. Запускалось: ' + what + '.');
+            if (err && err.code === 'ENOENT') why = tr(': не запустився {0}', exe);
+            else if (err && err.killed) why = tr(': збірка перервана через 180 с');
+            else if (d.empty) why = tr(': LaTeX не створив логу (дивись вивід TSS Workflow)');
+            else if (d.old) why = tr(': LaTeX від {0} надто старий, хуки є від 2021 року', d.date);
+            else if (d.error) why = tr(': збірка зупинилась до початку документа ({0})', d.error);
+            else why = d.date ? tr(' (LaTeX від {0}; дивись вивід TSS Workflow)', d.date) : tr(' (LaTeX; дивись вивід TSS Workflow)');
+            vscode.window.showWarningMessage(tr('Хуки не знайдено{0}. Запускалось: {1}.', why, what));
             if (log) outLog.appendLine(log.slice(-3000));
             resolve();
             return;
           }
-          const head = 'Код, який пакети додали в хуки виводу сторінки (LaTeX \\ShowHook, зупинка на початку документа).\n' +
-            'Що запускалось: ' + what + '.\n' +
-            'Підозрюй те, що малює чи друкує під час виводу: eso-pic, background, draftwatermark, tikzpagenodes, zref, tcolorbox (remember picture) тощо.\n' +
-            'Хуки, які пакети додають пізніше, ніж у \\begin{document}, тут не видно.\n\n';
+          const head = tr('Код, який пакети додали в хуки виводу сторінки (LaTeX \\ShowHook, зупинка на початку документа).') + '\n' +
+            tr('Що запускалось: {0}.', what) + '\n' +
+            tr('Підозрюй те, що малює чи друкує під час виводу: eso-pic, background, draftwatermark, tikzpagenodes, zref, tcolorbox (remember picture) тощо.') + '\n' +
+            tr('Хуки, які пакети додають пізніше, ніж у \\begin{document}, тут не видно.') + '\n\n';
           const text = head + hooks.map((h) => '=== ' + h.hook + ' ===\n' + h.text).join('\n\n') + '\n';
           vscode.workspace.openTextDocument({ content: text, language: 'plaintext' }).then((doc) => vscode.window.showTextDocument(doc, { preview: false }));
           resolve();

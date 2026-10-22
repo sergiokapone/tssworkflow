@@ -5,7 +5,8 @@ const P = require('./corePure');
 const features = require('./features');
 const { EXCLUDE, PIC_EXTS, debounce } = require('./util');
 const build = require('./build');
-const { setLang } = require('./i18n');
+const { setLang, tr } = require('./i18n');
+const VT = require('./viewTitles');
 
 /* ------------------------------------------------------------------ *
  * 1. Clickable file names
@@ -236,7 +237,7 @@ async function pickFile() {
   const pos = ed.selection.active;
   const ctx = argContext(ed.document.lineAt(pos.line).text, pos.character);
   if (!ctx) {
-    vscode.window.showInformationMessage('Постав курсор усередину {...} у \\localinput або \\includegraphics.');
+    vscode.window.showInformationMessage(tr('Постав курсор усередину {...} у \\localinput або \\includegraphics.'));
     return;
   }
   const dir = path.join(path.dirname(ed.document.uri.fsPath), subOf(ctx.c.macro, ctx.c.sub));
@@ -249,10 +250,10 @@ async function pickFile() {
     items.push({ label: text, description: ctx.c.sub + '/' + rel });
   }
   if (!items.length) {
-    vscode.window.showWarningMessage('У папці ' + dir + ' немає підхожих файлів.');
+    vscode.window.showWarningMessage(tr('У папці {0} немає підхожих файлів.', dir));
     return;
   }
-  const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Файл із ' + ctx.c.sub + '/' });
+  const picked = await vscode.window.showQuickPick(items, { placeHolder: tr('Файл із {0}/', ctx.c.sub) });
   if (!picked) return;
   await ed.edit((b) => b.replace(new vscode.Range(pos.line, ctx.start, pos.line, ctx.end), picked.label));
 }
@@ -293,7 +294,7 @@ async function alignTable() {
       if (!best || toks[b].range.start.line >= toks[best[0]].range.start.line) best = [b, e];
     }
     if (!best) {
-      vscode.window.showInformationMessage('Постав курсор усередину таблиці (tblr, tabular, align...) або виділи рядки.');
+      vscode.window.showInformationMessage(tr('Постав курсор усередину таблиці (tblr, tabular, align...) або виділи рядки.'));
       return;
     }
     const bt = toks[best[0]];
@@ -321,14 +322,14 @@ async function alignTable() {
     endLine = et.range.start.line - 1;
   }
   if (endLine < startLine) {
-    vscode.window.showInformationMessage('У таблиці немає рядків для вирівнювання.');
+    vscode.window.showInformationMessage(tr('У таблиці немає рядків для вирівнювання.'));
     return;
   }
   const oldLines = [];
   for (let i = startLine; i <= endLine; i++) oldLines.push(doc.lineAt(i).text);
   const newLines = P.alignLines(oldLines);
   if (newLines.every((l, i) => l === oldLines[i])) {
-    vscode.window.setStatusBarMessage('Таблицю вже вирівняно', 2000);
+    vscode.window.setStatusBarMessage(tr('Таблицю вже вирівняно'), 2000);
     return;
   }
   const eol = doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
@@ -357,7 +358,7 @@ async function unwrapParagraph() {
   } else {
     const cur = ed.selection.active.line;
     if (P.lineKind(doc.lineAt(cur).text) === 'hard') {
-      vscode.window.showInformationMessage('Постав курсор в абзац або виділи рядки.');
+      vscode.window.showInformationMessage(tr('Постав курсор в абзац або виділи рядки.'));
       return;
     }
     startLine = cur;
@@ -369,7 +370,7 @@ async function unwrapParagraph() {
   for (let i = startLine; i <= endLine; i++) oldLines.push(doc.lineAt(i).text);
   const newLines = P.unwrapLines(oldLines);
   if (newLines.length === oldLines.length) {
-    vscode.window.setStatusBarMessage('Немає рядків для об\'єднання', 2000);
+    vscode.window.setStatusBarMessage(tr('Немає рядків для об\'єднання'), 2000);
     return;
   }
   const eol = doc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
@@ -387,18 +388,17 @@ async function offerProjectSettings(context) {
     if (context.globalState.get(key)) continue;
     const tex = await vscode.workspace.findFiles(new vscode.RelativePattern(f, '**/*.tex'), EXCLUDE, 1);
     if (!tex.length) continue;
-    const pick = await vscode.window.showInformationMessage(
-      'У «' + f.name + '» немає .vscode/settings.json. Створити його із шаблону?',
-      'Створити', 'Не питати для цієї папки'
-    );
-    if (pick === 'Створити') await vscode.commands.executeCommand('tssworkflow.initProjectSettings', f.uri.fsPath);
-    else if (pick === 'Не питати для цієї папки') await context.globalState.update(key, true);
+    const create = tr('Створити');
+    const dontAsk = tr('Не питати для цієї папки');
+    const pick = await vscode.window.showInformationMessage(tr('У «{0}» немає .vscode/settings.json. Створити його із шаблону?', f.name), create, dontAsk);
+    if (pick === create) await vscode.commands.executeCommand('tssworkflow.initProjectSettings', f.uri.fsPath);
+    else if (pick === dontAsk) await context.globalState.update(key, true);
   }
 }
 
 function activate(context) {
   // the language of the messages and reports (i18n.js): the setting tssworkflow.language, "auto" follows the language of VS Code
-  const applyLanguage = () => setLang(vscode.workspace.getConfiguration('tssworkflow').get('language', 'uk'), vscode.env.language);
+  const applyLanguage = () => { setLang(vscode.workspace.getConfiguration('tssworkflow').get('language', 'uk'), vscode.env.language); VT.apply(); };
   applyLanguage();
   context.subscriptions.push(vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.language')) applyLanguage(); }));
   const provider = {

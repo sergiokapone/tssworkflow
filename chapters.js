@@ -5,9 +5,11 @@
  * Click opens the file; the buttons build the chapter or show its page output hooks. Both build commands open the
  * file first, because the build commands act on the active editor. The logic without VS Code: chaptersPure.js. */
 const vscode = require('vscode');
+const VT = require('./viewTitles');
 const path = require('path');
 const fs = require('fs');
 const C = require('./chaptersPure');
+const { tr } = require('./i18n');
 const { cfg, debounce, projectRoot } = require('./util');
 
 
@@ -73,7 +75,7 @@ class Provider {
     }
     for (const g of nodes) if (g.kind === 'group') g.item.description = String(g.children.length);
     if (orphans.length) {
-      const g = this.group('orphans', 'Не підключені в головному файлі', 'circle-slash', vscode.TreeItemCollapsibleState.Collapsed);
+      const g = this.group('orphans', tr('Не підключені в головному файлі'), 'circle-slash', vscode.TreeItemCollapsibleState.Collapsed);
       g.item.description = String(orphans.length);
       for (const c of orphans) g.children.push(this.chapter(root, c, true));
       nodes.push(g);
@@ -91,13 +93,13 @@ class Provider {
     const figs = figuresOf(root, c.name);
     const item = new vscode.TreeItem(c.name, figs.length ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None);
     item.id = 'tssworkflow.chapter.' + c.name;
-    const note = !c.included && !grouped ? 'не підключено в головному файлі' : '';
-    item.description = !c.exists ? 'немає ' + c.name + '/' + c.name + '.tex' : note + (c.title ? (note ? ' · ' : '') + c.title : '');
+    const note = !c.included && !grouped ? tr('не підключено в головному файлі') : '';
+    item.description = !c.exists ? tr('немає {0}/{0}.tex', c.name) : note + (c.title ? (note ? ' · ' : '') + c.title : '');
     item.description = item.description || undefined;
     item.iconPath = new vscode.ThemeIcon(!c.exists ? 'warning' : c.included ? 'book' : 'circle-slash');
     item.contextValue = c.exists ? 'chapter' : 'chapterMissing';
     item.tooltip = c.file;
-    if (c.exists) item.command = { command: 'tssworkflow.openChapter', title: 'Відкрити', arguments: [{ file: c.file }] };
+    if (c.exists) item.command = { command: 'tssworkflow.openChapter', title: tr('Відкрити'), arguments: [{ file: c.file }] };
     const el = { kind: 'chapter', name: c.name, file: c.file, item };
     el.children = figs.map((f) => this.figure(f));
     return el;
@@ -108,7 +110,7 @@ class Provider {
     item.iconPath = new vscode.ThemeIcon('graph');
     item.contextValue = 'figure';
     item.tooltip = f.file;
-    item.command = { command: 'tssworkflow.openChapter', title: 'Відкрити', arguments: [{ file: f.file }] };
+    item.command = { command: 'tssworkflow.openChapter', title: tr('Відкрити'), arguments: [{ file: f.file }] };
     return { kind: 'figure', name: f.name, file: f.file, item };
   }
 }
@@ -122,7 +124,7 @@ async function openFile(file) {
 
 function register(context) {
   const provider = new Provider();
-  context.subscriptions.push(vscode.window.createTreeView('tssworkflow.chaptersView', { treeDataProvider: provider, showCollapseAll: true }));
+  context.subscriptions.push(VT.track(vscode.window.createTreeView('tssworkflow.chaptersView', { treeDataProvider: provider, showCollapseAll: true }), 'tssworkflow.chaptersView'));
 
   const later = () => debounce('chapters.refresh', 500, () => provider.refresh());
   const isTex = (p) => /\.(tex|tikz)$/i.test(p);

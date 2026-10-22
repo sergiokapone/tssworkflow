@@ -2,6 +2,7 @@
 /* synctex.js: does the PDF contain the file of the editor? Used before the jump to a line in the external viewer
  * (extension.js openPdfExternal) and by the command "Diagnose SyncTeX". The logic is in synctexPure.js. */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
@@ -63,16 +64,16 @@ function precheck(pdf, ctx) {
   if (report.status === 'ok') return {};
   if (report.status === 'case') { const f = S.spelledAsRecorded(report, ctx.file); return f ? { file: f } : {}; }
   const why = report.status === 'name'
-    ? 'У ' + path.basename(pdf) + ' є файл «' + name + '», але з іншого шляху (' + report.candidates.join(', ') + ').'
-    : 'У ' + path.basename(pdf) + ' немає файла «' + name + '»: PDF зібрано з іншого розділу?';
-  return { warn: why + ' Вьюер відкриє PDF, але не перейде до рядка. Збери цей файл (▷) і повтори.', buttons: ['Відкрити PDF без переходу', 'Діагностика SyncTeX'] };
+    ? tr('У {0} є файл «{1}», але з іншого шляху ({2}).', path.basename(pdf), name, report.candidates.join(', '))
+    : tr('У {0} немає файла «{1}»: PDF зібрано з іншого розділу?', path.basename(pdf), name);
+  return { warn: why + ' ' + tr('Вьюер відкриє PDF, але не перейде до рядка. Збери цей файл (▷) і повтори.'), buttons: [tr('Відкрити PDF без переходу'), tr('Діагностика SyncTeX')] };
 }
 
 async function diagnose(api) {
   const r = api.activePdf();
   if (r.warn) { vscode.window.showWarningMessage(r.warn); return null; }
-  if (!r.pdf) { vscode.window.showWarningMessage('PDF не знайдено. Спершу збери документ кнопкою ▷.'); return null; }
-  if (!r.ctx || !r.ctx.file) { vscode.window.showInformationMessage('Відкрий .tex-файл, для якого перевірити SyncTeX.'); return null; }
+  if (!r.pdf) { vscode.window.showWarningMessage(tr('PDF не знайдено. Спершу збери документ кнопкою ▷.')); return null; }
+  if (!r.ctx || !r.ctx.file) { vscode.window.showInformationMessage(tr('Відкрий .tex-файл, для якого перевірити SyncTeX.')); return null; }
   const { sx, report } = reportFor(r.pdf, r.ctx.file);
   const ed = vscode.window.activeTextEditor;
   let fileMtime = 0;

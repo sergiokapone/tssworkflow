@@ -3,16 +3,17 @@
  * numbers that grow when something leaks: the length of context.subscriptions, the pending timers, the sizes of the caches,
  * the open panels and the memory of the extension host. A second call shows the change since the first (debugStatePure.js). */
 const vscode = require('vscode');
+const { tr } = require('./i18n');
 const U = require('./util');
 const D = require('./debugStatePure');
 
 let previous = null; // counters() of the previous report
 
-const PANELS = [['Перегляд виділеного', './selectionPreview'], ['Таблиця', './tableEditor'], ['Галерея макросів', './macroGallery'], ['Формули проєкту', './formulaOverview']];
+const PANELS = () => [[tr('Перегляд виділеного'), './selectionPreview'], [tr('Таблиця'), './tableEditor'], [tr('Галерея макросів'), './macroGallery'], [tr('Формули проєкту'), './formulaOverview']];
 
 function collect(context) {
   const panels = {};
-  for (const [name, mod] of PANELS) {
+  for (const [name, mod] of PANELS()) {
     try { const m = require(mod); panels[name] = typeof m.isOpen === 'function' ? !!m.isOpen() : false; } catch (e) { panels[name] = false; }
   }
   let index = {};

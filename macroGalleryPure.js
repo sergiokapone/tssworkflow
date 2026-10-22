@@ -4,6 +4,7 @@
  *   mathjaxState(...)     is the macro in mathjax-macros.tex: ok | differs | missing | skip (MathJax cannot say it) | nofile | na
  *   buildItems(...)       every macro of the project as a card: signature, comment, source, examples, flags */
 const MP = require('./macrosPure');
+const { tr } = require('./i18n');
 
 const NAMES = ['x', 'y', 'z', 'u', 'v', 'w'];
 const norm = (s) => String(s || '').replace(/\s+/g, '');
@@ -14,7 +15,7 @@ function exampleCalls(e) {
     const req = (toks) => toks.map((t, k) => (t.optional ? '' : (t.t === 'v' ? '|' + NAMES[k % 6] + '|' : (t.open || '{') + NAMES[k % 6] + (t.close === undefined ? '}' : t.close)))).join('');
     return [{ call: '\\begin{' + e.name + '}' + req(e.tokens || []) + ' … \\end{' + e.name + '}', note: '' }];
   }
-  if (e.op) return [{ call: '\\' + e.name + ' f(x)', note: '' }].concat(e.starred ? [{ call: '\\' + e.name + '*_{n} f(x)', note: 'зі зірочкою' }] : []);
+  if (e.op) return [{ call: '\\' + e.name + ' f(x)', note: '' }].concat(e.starred ? [{ call: '\\' + e.name + '*_{n} f(x)', note: tr('зі зірочкою') }] : []);
   const toks = e.tokens || [];
   const build = (withOpt, withStar) => {
     let s = '\\' + e.name;
@@ -28,23 +29,23 @@ function exampleCalls(e) {
     return s;
   };
   const out = [{ call: build(false, false), note: '' }];
-  if (toks.some((t) => t.optional && (t.t === 'o' || t.t === 'O' || t.t === 'd' || t.t === 'D'))) out.push({ call: build(true, false), note: 'з необов’язковим аргументом' });
-  if (toks.some((t) => t.t === 's')) out.push({ call: build(false, true), note: 'зі зірочкою' });
+  if (toks.some((t) => t.optional && (t.t === 'o' || t.t === 'O' || t.t === 'd' || t.t === 'D'))) out.push({ call: build(true, false), note: tr('з необов’язковим аргументом') });
+  if (toks.some((t) => t.t === 's')) out.push({ call: build(false, true), note: tr('зі зірочкою') });
   return out;
 }
 
 // mjInfo: { has: bool (a macros file exists), defs: Map name -> entry of the file, generated: Map name -> entry the generator would write, skipped: Set }
 function mathjaxState(e, mjInfo) {
   if (e.kind !== 'cmd' || e.newif) return { st: 'na', note: '' };
-  if (!mjInfo.has) return { st: 'nofile', note: 'файла макросів MathJax ще немає' };
+  if (!mjInfo.has) return { st: 'nofile', note: tr('файла макросів MathJax ще немає') };
   const inFile = mjInfo.defs.get(e.name);
   if (inFile) {
     const g = mjInfo.generated.get(e.name);
-    if (g && (norm(g.body) !== norm(inFile.body) || g.nargs !== inFile.nargs)) return { st: 'differs', note: 'у файлі означення інше, ніж робить генератор' };
-    return { st: 'ok', note: 'є у файлі макросів MathJax' };
+    if (g && (norm(g.body) !== norm(inFile.body) || g.nargs !== inFile.nargs)) return { st: 'differs', note: tr('у файлі означення інше, ніж робить генератор') };
+    return { st: 'ok', note: tr('є у файлі макросів MathJax') };
   }
-  if (mjInfo.skipped.has(e.name)) return { st: 'skip', note: 'MathJax цього не виразить (xparse, \\par, \\label, \\input…)' };
-  return { st: 'missing', note: 'немає у файлі макросів MathJax' };
+  if (mjInfo.skipped.has(e.name)) return { st: 'skip', note: tr('MathJax цього не виразить (xparse, \\par, \\label, \\input…)') };
+  return { st: 'missing', note: tr('немає у файлі макросів MathJax') };
 }
 
 // all: { cmds: Map, envs: Map } (macros.js allMacros); files: the source files in the order of the project

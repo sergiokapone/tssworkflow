@@ -5,6 +5,7 @@
  *   fromSelection(text)       the selected text as a formula: the delimiters or the environment around it are taken off
  *   mathmlOf(tex, display, katex, macros)  the <math> element of KaTeX as a string (a stand-alone MathML for Word and others) */
 const P = require('./selectionPreviewPure');
+const { tr } = require('./i18n');
 
 const ENVS = [...P.MATH_ENVS].filter((n) => n !== 'split');
 
@@ -77,7 +78,7 @@ function fromSelection(sel) {
 function mathmlOf(tex, display, katex, macros) {
   const html = katex.renderToString(String(tex), { displayMode: !!display, throwOnError: true, strict: 'ignore', output: 'mathml', trust: false, macros: macros || {} });
   const m = /<math[\s\S]*<\/math>/.exec(html);
-  if (!m) throw new Error('KaTeX не повернув MathML');
+  if (!m) throw new Error(tr('KaTeX не повернув MathML'));
   return m[0];
 }
 

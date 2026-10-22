@@ -1,0 +1,13 @@
+{
+  "submenu.text": "TSS Workflow: Text and structure",
+  "submenu.nav": "TSS Workflow: Navigation and checks",
+  "submenu.build": "TSS Workflow: Build and cleanup",
+  "view.commands": "Commands",
+  "view.chapters": "Chapters",
+  "view.start": "Start",
+  "view.problems": "Problems",
+  "view.labels": "Labels",
+  "welcome.chapters": "No chapters found. Open the project folder: a chapter is a file X/X.tex included in the main file with the line \\includechapter{X}.\n[New chapter](command:tssworkflow.newChapter)",
+  "welcome.noFolder": "Open the project folder: the build commands, chapters and templates will appear here.\n[Open folder](command:workbench.action.files.openFolder)",
+  "welcome.noTex": "There is no .tex or .tikz file in this folder yet. Start from a template or prepare the project settings: when the first .tex appears, all commands and chapters will open here.\n[New from template](command:tssworkflow.newFromTemplate)\n[Create .vscode/settings.json](command:tssworkflow.initProjectSettings)\n[Check the environment](command:tssworkflow.checkEnvironment)"
+}

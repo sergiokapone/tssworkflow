@@ -11,6 +11,7 @@
  *   Panel "Проблеми"                         errors, warnings and overfull boxes of the project as a tree
  * The logic without VS Code is in projectRefactorPure.js. */
 const vscode = require('vscode');
+const VT = require('./viewTitles');
 const path = require('path');
 const fs = require('fs');
 const X = require('./projectRefactorPure');
@@ -674,7 +675,7 @@ function register(context, api) {
   api = api || {};
   const cmd = (id, fn) => vscode.commands.registerCommand(id, fn);
   const problems = new ProblemsProvider();
-  const view = vscode.window.createTreeView('tssworkflow.problemsView', { treeDataProvider: problems, showCollapseAll: true });
+  const view = VT.track(vscode.window.createTreeView('tssworkflow.problemsView', { treeDataProvider: problems, showCollapseAll: true }), 'tssworkflow.problemsView');
   problems.view = view;
   const later = () => debounce('problems.refresh', 300, () => problems.refresh());
   const resetBib = (d) => { if (!d || /\.bib$/i.test(d.fileName || '')) bibCache = null; };

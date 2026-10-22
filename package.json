@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.21.9",
+  "version": "0.21.10",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -2227,17 +2227,17 @@
     "submenus": [
       {
         "id": "tssworkflow.submenu.text",
-        "label": "TSS Workflow: Текст і структура",
+        "label": "%submenu.text%",
         "icon": "$(edit)"
       },
       {
         "id": "tssworkflow.submenu.nav",
-        "label": "TSS Workflow: Навігація й перевірка",
+        "label": "%submenu.nav%",
         "icon": "$(list-tree)"
       },
       {
         "id": "tssworkflow.submenu.build",
-        "label": "TSS Workflow: Збірка й прибирання",
+        "label": "%submenu.build%",
         "icon": "$(gear)"
       }
     ],
@@ -2314,31 +2314,31 @@
       "tssworkflow": [
         {
           "id": "tssworkflow.commandsView",
-          "name": "Команди",
+          "name": "%view.commands%",
           "contextualTitle": "TSS Workflow",
           "when": "tssworkflow.hasTex"
         },
         {
           "id": "tssworkflow.chaptersView",
-          "name": "Розділи",
+          "name": "%view.chapters%",
           "contextualTitle": "TSS Workflow",
           "when": "tssworkflow.hasTex"
         },
         {
           "id": "tssworkflow.startView",
-          "name": "Початок",
+          "name": "%view.start%",
           "when": "!tssworkflow.hasTex",
           "contextualTitle": "TSS Workflow"
         },
         {
           "id": "tssworkflow.problemsView",
-          "name": "Проблеми",
+          "name": "%view.problems%",
           "contextualTitle": "TSS Workflow",
           "when": "tssworkflow.hasTex"
         },
         {
           "id": "tssworkflow.labelsView",
-          "name": "Мітки",
+          "name": "%view.labels%",
           "when": "tssworkflow.hasTex",
           "contextualTitle": "TSS Workflow"
         }
@@ -2363,17 +2363,17 @@
     "viewsWelcome": [
       {
         "view": "tssworkflow.chaptersView",
-        "contents": "Розділів не знайдено. Відкрий папку проєкту: розділ це файл X/X.tex, підключений у головному файлі рядком \\includechapter{X}.\n[Новий розділ](command:tssworkflow.newChapter)"
+        "contents": "%welcome.chapters%"
       },
       {
         "view": "tssworkflow.startView",
         "when": "workspaceFolderCount == 0",
-        "contents": "Відкрий папку проєкту: тоді тут з'являться команди збірки, розділи й шаблони.\n[Відкрити папку](command:workbench.action.files.openFolder)"
+        "contents": "%welcome.noFolder%"
       },
       {
         "view": "tssworkflow.startView",
         "when": "workspaceFolderCount > 0",
-        "contents": "У цій папці ще немає жодного .tex чи .tikz файла. Почни з шаблона або підготуй налаштування проєкту: коли з'явиться перший .tex, тут відкриються всі команди й розділи.\n[Новий з шаблона](command:tssworkflow.newFromTemplate)\n[Створити .vscode/settings.json](command:tssworkflow.initProjectSettings)\n[Перевірити середовище](command:tssworkflow.checkEnvironment)"
+        "contents": "%welcome.noTex%"
       }
     ]
   },
