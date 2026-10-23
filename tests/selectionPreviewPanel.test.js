@@ -263,12 +263,15 @@ async function scenario(text, selections, cfgValues, act, extra) {
   // a picture outside the folders of the project: its folder is added to what the page may read (once)
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-out-'));
   fs.writeFileSync(path.join(outside, 'far.jpg'), 'jpg');
-  await scenario('\\includegraphics{' + outside.replace(/\\/g, '/') + '/far.jpg}', [[0, 0, 0, 80]], {}, async (a) => {
+  // the whole line is selected: on a CI machine the temporary folder (C:\Users\RUNNER~1\AppData\Local\Temp\...) makes it longer
+  // than 80 characters, and a selection of 80 cut the path
+  const farLine = '\\includegraphics{' + outside.replace(/\\/g, '/') + '/far.jpg}';
+  await scenario(farLine, [[0, 0, 0, farLine.length]], {}, async (a) => {
     await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
-    ok(a.renders().pop().html.includes('far.jpg?t='), 'the absolute path is found');
+    ok(a.renders().pop().html.includes('far.jpg?t='), 'the absolute path is found: ' + a.renders().pop().html);
     const roots = a.st.panel.webview.options.localResourceRoots.map((u) => u.fsPath || u.path);
     ok(roots.some((r) => r === outside), 'the folder of the picture is allowed: ' + roots.join(' | '));
-    a.select(0, 0, 0, 70);
+    a.select(0, 0, 0, farLine.length - 1);
     await a.sleep(500);
     eq(a.st.panel.webview.options.localResourceRoots.length, roots.length, 'not added twice');
   }, { dir: empty, folders: [empty] });
