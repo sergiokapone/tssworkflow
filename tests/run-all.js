@@ -35,7 +35,15 @@ function runJob(j) {
     const { status, out } = results[i];
     const last = out.trim().split('\n').filter(Boolean).slice(-1)[0] || '';
     if (status === 0) console.log('PASS  ' + j.name.padEnd(34) + last);
-    else { failed++; console.log('FAIL  ' + j.name + '\n' + out.split('\n').map((l) => '      ' + l).join('\n')); }
+    else {
+      failed++;
+      console.log('FAIL  ' + j.name + '\n' + out.split('\n').map((l) => '      ' + l).join('\n'));
+      // on GitHub Actions also an annotation: it is shown on the page of the run and read through the API without a token
+      if (process.env.GITHUB_ACTIONS) {
+        const esc = (x) => x.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+        console.log('::error title=' + esc(j.name).replace(/[:,]/g, ' ') + '::' + esc(out.trim().split('\n').slice(-40).join('\n')));
+      }
+    }
   });
   console.log(failed ? '\n' + failed + ' of ' + jobs.length + ' failed' : '\nall ' + jobs.length + ' passed');
   process.exit(failed ? 1 : 0);

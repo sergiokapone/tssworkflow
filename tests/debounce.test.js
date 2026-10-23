@@ -7,18 +7,44 @@ const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop });
 const stub = new Proxy({ workspace: { createFileSystemWatcher: () => null }, window: {}, Uri: {} }, { get: (o, k) => (k in o ? o[k] : noop) });
 const load = Module._load;
 Module._load = function (r, ...a) { return r === 'vscode' ? stub : load.call(this, r, ...a); };
+// a clock of the test's own: util.debounce reads the global setTimeout / clearTimeout at the call, so the timers are fake and the
+// time moves only by tick(ms). The tests ran on real timers before; under load (the tests run in parallel, a slow CI machine) a
+// wait of 40 ms was sometimes 80 and a timer fired before the check that it had not fired yet.
+const clock = { now: 0, seq: 0, timers: new Set() };
+global.setTimeout = (fn, ms) => {
+  const tm = { id: ++clock.seq, at: clock.now + Math.max(0, ms | 0), fn, ref: true };
+  tm.unref = () => { tm.ref = false; return tm; };
+  tm.hasRef = () => tm.ref;
+  tm.refresh = () => tm;
+  clock.timers.add(tm);
+  return tm;
+};
+global.clearTimeout = (tm) => { clock.timers.delete(tm); };
+// runs the timers that fall due within ms, in the order of their time (a timer scheduled by a timer runs too, if it is due)
+const tick = (ms) => {
+  const end = clock.now + ms;
+  for (;;) {
+    let next = null;
+    for (const tm of clock.timers) if (tm.at <= end && (!next || tm.at < next.at || (tm.at === next.at && tm.id < next.id))) next = tm;
+    if (!next) break;
+    clock.timers.delete(next);
+    clock.now = next.at;
+    next.fn();
+  }
+  clock.now = end;
+};
 const U = require(path.join(ext, 'util.js'));
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = async (ms) => tick(ms);
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);
 
 t('calls with one key run fn once, ms after the LAST call, with the last fn', async () => {
   const log = [];
-  const t0 = Date.now();
+  const t0 = clock.now;
   U.debounce('k', 60, () => log.push('first'));
   await sleep(35);
-  U.debounce('k', 60, () => log.push('second @' + (Date.now() - t0 >= 90)));
+  U.debounce('k', 60, () => log.push('second @' + (clock.now - t0 >= 95)));
   await sleep(40);
   assert.deepStrictEqual(log, [], 'the second call restarted the wait: not yet at 75 ms');
   assert.strictEqual(U.timerPending('k'), true);
