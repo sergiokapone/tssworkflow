@@ -1,9 +1,9 @@
 'use strict';
 // node tests/i18nRest.test.js [path/to/extension]
-// 0.21.10: the pure parts of the modules translated last (synctexPure, lwCompatPure, lwGuardPure, workspacePure.formatFileSize,
+// 0.22.0: the pure parts of the modules translated last (synctexPure, lwCompatPure, lwGuardPure, workspacePure.formatFileSize,
 // macroGalleryPure notes, normalizePure messages) in English and in Ukrainian; the diagnostics that quickFixes.js reads by their quotes
 const assert = require('assert'), path = require('path'), fs = require('fs');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const I = require(path.join(EXT, 'i18n'));
 const CYR = /[А-Яа-яІіЇїЄєҐґ]/;
 let n = 0;
@@ -49,16 +49,26 @@ t('formatFileSize: units and the decimal separator follow the language', () => {
   assert.strictEqual(W.formatFileSize(91 * 1024), '91 KB');
 });
 
-t('the diagnostics read by quickFixes.js keep the quoted name in both languages', () => {
+t('quickFixes.js does not read the language of a message: the prefix and the environment come from the file', () => {
   const src = fs.readFileSync(path.join(EXT, 'quickFixes.js'), 'utf8');
   assert.ok(!/починатися з/.test(src), 'the prefix must not be found by Ukrainian words');
-  const prefixRe = /[«“]([^»”]*)[»”]\s*$/, envRe = /[«“]([^»”]*)[»”]/;
-  for (const lang of ['uk', 'en']) {
-    I.setLang(lang);
-    assert.strictEqual(prefixRe.exec(I.tr('Мітка в «{0}» має починатися з «{1}»', 'figure', 'pic:'))[1], 'pic:');
-    assert.strictEqual(envRe.exec(I.tr('У «{0}» немає \\caption', 'figure'))[1], 'figure');
-    assert.strictEqual(envRe.exec(I.tr('У «{0}» немає \\label', 'wrapfigure'))[1], 'wrapfigure');
-  }
+  assert.ok(!/[«“]\(\[\^»”\]/.test(src), 'no regular expression over the quotes of a message');
+  const P = require(path.join(EXT, 'corePure'));
+  // labelPrefixRule: the innermost environment that has an entry decides; an environment without an entry is skipped
+  const lab = { envs: ['figure', 'wrapfigure'] };
+  assert.deepStrictEqual(P.labelPrefixRule(lab, { figure: 'pic:' }), { env: 'figure', pre: 'pic:' });
+  assert.deepStrictEqual(P.labelPrefixRule(lab, { figure: 'pic:', wrapfigure: 'wpic:' }), { env: 'wrapfigure', pre: 'wpic:' });
+  assert.strictEqual(P.labelPrefixRule(lab, { table: 'tab:' }), null);
+  assert.deepStrictEqual(P.labelPrefixRule(lab, { wrapfigure: '' }), { env: 'wrapfigure', pre: '' });
+  assert.strictEqual(P.labelPrefixRule({ envs: [] }, { figure: 'pic:' }), null);
+  // the token that figureChecks marks starts with \\begin{name}: this is where quickFixes reads the name
+  const lines = ['\\begin{wrapfigure}{r}{5cm}', '  \\includegraphics{a}', '\\end{wrapfigure}'];
+  const checks = require(path.join(EXT, 'normalizePure')).figureChecks(lines);
+  assert.ok(checks.length === 2);
+  for (const c of checks) assert.strictEqual(/\\begin\{([^}]*)\}/.exec(lines[c.line].slice(c.col))[1], 'wrapfigure');
+  // and the label whose prefix is wrong is found again by its line and column
+  const l = P.scanLabelsAndRefs('\\begin{figure}\n  \\label{x}\n\\end{figure}', 'a').labels[0];
+  assert.deepStrictEqual([l.line, l.col], [1, 9]);
 });
 
 console.log(n + ' tests passed');

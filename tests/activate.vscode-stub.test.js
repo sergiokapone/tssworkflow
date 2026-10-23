@@ -1,7 +1,7 @@
 'use strict';
 // node tests/activate.vscode-stub.test.js [path/to/extension]  - activate() runs against a stubbed vscode and registers every command of package.json
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = require(path.join(ext, 'package.json'));
 const registered = [];
 const handler = { get: (t, k) => (k === '__esModule' ? false : k === Symbol.toPrimitive ? () => '' : k === 'then' ? undefined : new Proxy(function () {}, handler)), apply: () => new Proxy(function () {}, handler), construct: () => new Proxy(function () {}, handler) };

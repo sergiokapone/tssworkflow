@@ -4,7 +4,7 @@
 // (a file that is not in the PDF: a warning with two buttons instead of a silent viewer; no synctex file: as before);
 // (2) the build tasks (Ctrl+Shift+B) are registered and a task that cannot start a build ends with 1.
 const path = require('path'), fs = require('fs'), os = require('os'), zlib = require('zlib'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = require(path.join(ext, 'package.json'));
 
 const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-fwd-'));

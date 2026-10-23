@@ -5,7 +5,7 @@
 // extension.js on a stub of vscode: tssworkflow.passes runs the same command exactly N times, and the spinner is a
 // separate status bar item whose text is written once per build (a codicon restarts its rotation when its item's text changes)
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'single-'));
 fs.mkdirSync(path.join(tmp, 'Ch'));
 fs.writeFileSync(path.join(tmp, 'Ch', 'Ch.tex'), '\\chapter{A}\n');

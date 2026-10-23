@@ -5,7 +5,7 @@
 // second call must not read the files again, and an edit of one file (the open document: its version; a closed one: mtime) must
 // show in the next number. The status bar item must not recount the document when only the selection moved.
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-wc-'));
 
 const handler = { get: (t, k) => (k === '__esModule' ? false : k === Symbol.toPrimitive ? () => '' : k === 'then' ? undefined : new Proxy(function () {}, handler)), apply: () => new Proxy(function () {}, handler), construct: () => new Proxy(function () {}, handler) };

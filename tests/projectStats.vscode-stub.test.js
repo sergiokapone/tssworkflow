@@ -3,7 +3,7 @@
 // The command "Project statistics" on a stubbed vscode: the control questions come from quizlist, stats.exclude leaves files and
 // folders out of the table and the total
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-stats-'));
 const QL = '\\begin{quizlist}\n\\item one\n\\item two\n\\begin{enumerate}\\item nested\\end{enumerate}\n\\item three\n\\end{quizlist}\n';
 const files = {

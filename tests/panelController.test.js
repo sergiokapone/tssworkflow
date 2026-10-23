@@ -1,7 +1,7 @@
 'use strict';
 // node tests/panelController.test.js [path/to/extension]  - webviewKit.createPanelController on a stub of vscode
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const created = [], written = [];
 function makePanel(viewType, title, show, options) {
   const p = { viewType, title, show, options, revealed: [], live: 0, posted: [], msgHandlers: [], disposeHandlers: [], stateHandlers: [], disposed: false, visible: true };

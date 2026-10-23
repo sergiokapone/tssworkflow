@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const P = require('./corePure');
 const { tr } = require('./i18n');
-const { PIC_EXTS, cfg, docLines, listFiles } = require('./util');
+const { PIC_EXTS, baseOf, cfg, docLines, listFiles } = require('./util');
 const { buildIndex, renameProvider } = require('./labels');
 const { bibKeys } = require('./settingsCitations');
 
@@ -86,7 +86,8 @@ const quickFixes = {
         const name = doc.getText(d.range).trim();
         for (const s of P.suggest(name, bibKeys(), 3)) replaceWith(tr('Замінити на «{0}»', s), s);
       } else if (code === 'figure-no-caption' || code === 'figure-no-label') {
-        const nm = /[«“]([^»”]*)[»”]/.exec(d.message); // the name of the environment: in quotes in both languages
+        // the name of the environment is read from the file (the token \begin{name} under the diagnostic), not from the message, which depends on the language
+        const nm = /\\begin\{([^}]*)\}/.exec(doc.lineAt(d.range.start.line).text.slice(d.range.start.character));
         const lines = docLines(doc);
         const end = nm && P.envEnd(lines, nm[1], d.range.start.line, d.range.end.character);
         if (end) {
@@ -103,7 +104,10 @@ const quickFixes = {
           }
         }
       } else if (code === 'label-prefix') {
-        const m = /[«“]([^»”]*)[»”]\s*$/.exec(d.message); // the required prefix is the last quoted text of the message, in both languages
+        // the prefix is found again from the file and the setting, not from the text of the message, which depends on the language
+        const here = P.scanLabelsAndRefs(doc.getText(), baseOf(uri.fsPath)).labels.find((x) => x.line === d.range.start.line && x.col === d.range.start.character);
+        const rule = here && P.labelPrefixRule(here, cfg().get('labelPrefixes', {}));
+        const m = rule && rule.pre ? [null, rule.pre] : null;
         if (m && m[1]) {
           const newName = m[1] + doc.getText(d.range).trim();
           if (!(await allLabelNames()).has(newName)) {

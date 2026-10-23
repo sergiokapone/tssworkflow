@@ -1,9 +1,9 @@
 'use strict';
 // node tests/trArgs.test.js [path/to/extension]
-// 0.21.10: every tr('text {0} {1}', a, b) in the code gets as many arguments as the highest placeholder asks for, and no more
+// 0.22.0: every tr('text {0} {1}', a, b) in the code gets as many arguments as the highest placeholder asks for, and no more
 // (a forgotten or an extra argument shows "{1}" or hides a value in the message, and no other test sees it in the modules without a stub).
 const assert = require('assert'), path = require('path'), fs = require('fs');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const bad = [];
 // texts that contain braces of LaTeX code and are shown as they are, without arguments
 const LITERAL_BRACES = /cell\{1-3\}\{2\}/;

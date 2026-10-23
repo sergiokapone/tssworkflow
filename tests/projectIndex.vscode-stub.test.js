@@ -3,7 +3,7 @@
 // util.js caches (open documents by a Map, lists of files until the watcher reports a change), projectIndex.js (per-file cache,
 // diagnostics by diff), labels.js / settingsCitations.js on top of them, the lazy labels panel, the pure label index.
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-pi-'));
 
 /* ------------------------------- the stub ------------------------------- */

@@ -3,7 +3,7 @@
 // TikZ-like code and `% tss-ignore` lines are not text for the typography checks / the typography command (0.5.2, 0.6.0),
 // tssworkflow.protectedCommands, and the "fix all" plan (0.6.0)
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const P = require(path.join(ext, 'corePure.js'));
 const X = require(path.join(ext, 'projectInfoPure.js'));
 let n = 0;

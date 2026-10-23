@@ -238,6 +238,20 @@ function pushRefs(refs, arg, line, off) {
 
 // fileBase: base name of the file (without extension); \label{\currfilebase} is resolved to it.
 // Other labels / refs that contain a macro (a backslash) are ignored.
+/* The rule of label prefixes (tssworkflow.labelPrefixes) for one label of scanLabelsAndRefs: the innermost environment of the label that
+ * has an entry decides. Returns { env, pre } or null (no environment of the label has an entry). labels.js uses it to report a wrong prefix and
+ * quickFixes.js to find the prefix again from the file itself, not from the text of the message (which depends on the language). */
+function labelPrefixRule(label, prefixes) {
+  for (let i = label.envs.length - 1; i >= 0; i--) {
+    const pre = (prefixes || {})[label.envs[i]];
+    if (typeof pre === 'string') return { env: label.envs[i], pre };
+  }
+  return null;
+}
+
+// listings and comments: a \label or a \ref there is text, not a label (verbatim-like environments, \iffalse ... \fi)
+const LABEL_SKIP_ENV = /^(verbatim|Verbatim|lstlisting|minted|comment|tcblisting)$/;
+
 function scanLabelsAndRefs(text, fileBase) {
   const labels = [];
   const refs = [];
@@ -250,8 +264,14 @@ function scanLabelsAndRefs(text, fileBase) {
   let lastSec = -100;
   const stack = [];
   const all = text.split(/\r?\n/);
+  let ifDepth = 0; // > 0: inside \iffalse (its \else branch is live again)
   all.forEach((line, i) => {
     const code = codePart(line);
+    const inFalse = ifDepth > 0; // the lines that begin inside \iffalse are skipped as a whole
+    for (const t of code.matchAll(/\\(if[a-zA-Z]*|fi|else)(?![a-zA-Z])/g)) {
+      if (ifDepth === 0) { if (t[1] === 'iffalse') ifDepth = 1; } else if (t[1] === 'fi') ifDepth--; else if (t[1] === 'else') { if (ifDepth === 1) ifDepth = 0; } else ifDepth++;
+    }
+    if (inFalse) return;
     if (SEC_LINE_RE.test(code)) lastSec = i;
     const ctxHere = code.replace(labelRe, '').replace(/\\(begin|end)\{[^}]*\}/g, '').trim();
     if (ctxHere) lastCtx = ctxHere.slice(0, 90);
@@ -281,6 +301,7 @@ function scanLabelsAndRefs(text, fileBase) {
         name = fileBase;
         macro = true;
       } else if (name.includes('\\')) continue;
+      if (stack.some((s) => LABEL_SKIP_ENV.test(s.name))) continue;
       const envs = stack.map((s) => s.name);
       if (!stack.length || i - lastSec <= 2) { if (i - lastSec <= 2 && !stack.some((s) => /^(equation|align|gather|multline|eqnarray|flalign|alignat|displaymath)$/.test(s.name))) envs.push('section'); }
       labels.push({
@@ -289,6 +310,7 @@ function scanLabelsAndRefs(text, fileBase) {
       });
     }
     applyEnvUpTo(Infinity);
+    if (stack.some((s) => LABEL_SKIP_ENV.test(s.name))) return; // the references of a listing are not references
     refRe.lastIndex = 0;
     while ((m = refRe.exec(code)) !== null) {
       pushRefs(refs, m[1], i, m.index + m[0].indexOf('{') + 1);
@@ -661,6 +683,7 @@ module.exports = {
   envTokensPure,
   frameSections,
   isRuleLine,
+  labelPrefixRule,
   labelAtPos,
   outlineTree,
   pairEnvsPure,

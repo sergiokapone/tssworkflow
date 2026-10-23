@@ -1,7 +1,7 @@
 'use strict';
 // node tests/tableEditor.test.js [path/to/extension]  - tableEditorPure.js: tabularray mode=, the Z selector; macrosPure.toKatexMacros
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const T = require(path.join(ext, 'tableEditorPure.js'));
 const MP = require(path.join(ext, 'macrosPure.js'));
 let n = 0;

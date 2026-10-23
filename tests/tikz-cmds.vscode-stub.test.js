@@ -2,7 +2,7 @@
 // node tests/tikz-cmds.vscode-stub.test.js [path/to/extension]  - 0.6.1: command "Format inline \tikz" (formatters.js) and
 // "Extract tikzpicture to tikz/" with inline \tikz pictures (tikzExtract.js), on a stub of `vscode` and real files in a temp folder
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const queue = [];
 const t = (name, fn) => queue.push({ name, fn });
 

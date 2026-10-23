@@ -2,7 +2,7 @@
 // node tests/buildTasks.vscode-stub.test.js [path/to/extension]
 // buildTasks.js: the tasks of type "tssworkflow" (target current / main), their pseudoterminal and the result of the build as exit code.
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);

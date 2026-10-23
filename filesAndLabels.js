@@ -16,7 +16,7 @@ const fs = require('fs');
 const { tr } = require('./i18n');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, textOfPath, warn } = require('./util');
+const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
 const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
@@ -673,7 +673,7 @@ async function bibDuplicatesCmd() {
   }
   we.replace(bibDoc.uri, fullRange(bibDoc), res.text.replace(/\n/g, bibDoc.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n'));
   if (!(await vscode.workspace.applyEdit(we))) { warn(tr('Не вдалося застосувати зміни.')); return; }
-  for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
+  warnUnsaved(await saveDocs(touched.concat([bibDoc])));
   info(tr('Об\'єднано. \\cite оновлено: {0}. Скасувати: Ctrl+Z у кожному файлі.', cites));
 }
 
@@ -709,7 +709,7 @@ async function bibKeysCmd() {
   const fmt = X.formatBib(bibDoc.getText(), Object.assign({}, bibOptions(ed), { keyMap: sub, sortBy: 'none' }));
   we.replace(bibDoc.uri, fullRange(bibDoc), fmt.text);
   if (!(await vscode.workspace.applyEdit(we))) { warn(tr('Не вдалося застосувати зміни.')); return; }
-  for (const d of touched.concat([bibDoc])) { try { await d.save(); } catch (e) { /* stays modified */ } }
+  warnUnsaved(await saveDocs(touched.concat([bibDoc])));
   info(tr('Ключів перейменовано: {0}, посилань \\cite оновлено: {1} (у {2} файлах). Скасувати: Ctrl+Z у кожному файлі.', sub.size, cites, touched.length));
 }
 

@@ -3,7 +3,7 @@
 // \ce{...} and \pu{...} (mhchem) in a cell of the table editor, outside $...$ and inside it: fmt() of media/tableEditor/webview.js
 // runs here without a DOM, with the real katex.min.js and mhchem.min.js of the extension
 const path = require('path'), fs = require('fs'), vm = require('vm'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const src = fs.readFileSync(path.join(ext, 'media', 'tableEditor', 'webview.js'), 'utf8');
 const from = src.indexOf('const esc = ');
 const a = src.indexOf('let mathErr', from), b = src.indexOf('// spreadtab:', a);

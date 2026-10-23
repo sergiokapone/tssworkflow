@@ -2,7 +2,7 @@
 // node tests/run.test.js [path/to/extension]
 // util.run / util.execFileT: the one way to start an external program, with a time limit by default.
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop });
 const stub = new Proxy({ workspace: { createFileSystemWatcher: () => null }, window: {}, Uri: {} }, { get: (o, k) => (k in o ? o[k] : noop) });
 const load = Module._load;

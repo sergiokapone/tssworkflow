@@ -4,7 +4,7 @@
 // automatic build on save, a clean) does not start while LaTeX Workshop builds the same job, and what the three buttons of the
 // question do (wait, stop LaTeX Workshop, start anyway). Nothing runs for real: tasks and processes are stubs.
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = require(path.join(ext, 'package.json'));
 
 const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-lwg-'));

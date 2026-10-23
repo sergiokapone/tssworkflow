@@ -3,7 +3,7 @@
 // Things that must be written in one place: the list of excluded folders and the lookup of an open document by path.
 // A static guard over the sources (a second copy is how the lists drift apart) plus the behaviour of the shared helpers.
 const path = require('path'), fs = require('fs'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);
@@ -53,7 +53,8 @@ t('saveDirtyDocs saves the open dirty documents among the paths, skips clean, cl
   const saves = [];
   const mkdoc = (p, dirty, fail) => ({ uri: { fsPath: p, scheme: 'file' }, isDirty: dirty, save: async () => { saves.push(p); if (fail) throw new Error('read-only'); return true; } });
   const docs = [mkdoc('/a', true), mkdoc('/b', false), mkdoc('/c', true, true), mkdoc('/d', true)];
-  const stub = new Proxy({ workspace: { textDocuments: docs }, window: {}, Uri: {} }, { get: (o, k) => (k in o ? o[k] : new Proxy(function () {}, {})) });
+  const warnings = [];
+  const stub = new Proxy({ workspace: { textDocuments: docs }, window: { showWarningMessage: (m) => { warnings.push(m); } }, Uri: {} }, { get: (o, k) => (k in o ? o[k] : new Proxy(function () {}, {})) });
   const load = Module._load;
   Module._load = function (r, ...a) { return r === 'vscode' ? stub : load.call(this, r, ...a); };
   delete require.cache[require.resolve(path.join(ext, 'util.js'))];
@@ -62,7 +63,13 @@ t('saveDirtyDocs saves the open dirty documents among the paths, skips clean, cl
     const n = await U.saveDirtyDocs(new Set(['/a', '/b', '/c', '/not-open']));
     assert.deepStrictEqual(saves, ['/a', '/c'], 'only dirty open ones are saved; /d is not asked for');
     assert.strictEqual(n, 1, 'a failed save is not counted');
+    assert.strictEqual(warnings.length, 1, 'and the person is told which file stayed modified');
+    assert.ok(warnings[0].includes('c'), warnings[0]);
+    // a save that answers false (VS Code did not save) is a failure as well
+    const f = await U.saveDocs([{ uri: { fsPath: '/x/y.tex' }, save: async () => false }, { uri: { fsPath: '/x/z.tex' }, save: async () => true }]);
+    assert.deepStrictEqual(f, ['y.tex']);
     assert.strictEqual(await U.saveDirtyDocs([]), 0);
+    assert.strictEqual(warnings.length, 1, 'nothing failed: no warning');
   } finally { Module._load = load; delete require.cache[require.resolve(path.join(ext, 'util.js'))]; }
 });
 

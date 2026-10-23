@@ -1,7 +1,7 @@
 'use strict';
 // node tests/tableEditor.webview.test.js [path/to/extension]  - media/tableEditor/webview.js in a real DOM (needs the jsdom package; skipped without it)
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let JSDOM;
 try { JSDOM = require(require.resolve('jsdom', { paths: [process.cwd(), __dirname, path.join(__dirname, '..')] })).JSDOM; }
 catch (e) { console.log('skip: jsdom is not installed (npm i -D jsdom)'); process.exit(0); }

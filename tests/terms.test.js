@@ -1,7 +1,7 @@
 'use strict';
 // node tests/terms.test.js [path/to/extension]  - termsPure.js (terms: used before defined, index) and the index step of the build (workspacePure.js)
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const T = require(path.join(ext, 'termsPure.js'));
 const W = require(path.join(ext, 'workspacePure.js'));
 let n = 0;

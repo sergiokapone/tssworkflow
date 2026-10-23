@@ -1,7 +1,7 @@
 'use strict';
 // end-to-end run of templates.js against a stub of the vscode API
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-'));
 const proj = path.join(tmp, 'proj'); fs.mkdirSync(proj);
 const store = path.join(tmp, 'store');

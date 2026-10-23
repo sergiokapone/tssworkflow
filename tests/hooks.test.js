@@ -1,7 +1,7 @@
 'use strict';
 // node tests/hooks.test.js [path/to/extension]
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const P = require(path.join(ext, 'corePure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

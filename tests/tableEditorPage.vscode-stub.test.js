@@ -3,7 +3,7 @@
 // the HTML of the page of the table editor, host and page together: the language of the page, the translated hint, the JSON block with the texts, the helper before the script of the page,
 // and the helper (media/common/i18n.js) run over the very block that the host made: T('...') gives the text in the language of the extension.
 const assert = require('assert'), path = require('path'), fs = require('fs'), vm = require('vm'), Module = require('module');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const I = require(path.join(EXT, 'i18n'));
 let n = 0;
 const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };

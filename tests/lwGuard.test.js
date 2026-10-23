@@ -2,7 +2,7 @@
 // node tests/lwGuard.test.js [path/to/extension]
 // lwGuardPure.js: the list of processes (ps, PowerShell) and the match of a running TeX build with the job that is about to start.
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const G = require(path.join(ext, 'lwGuardPure.js'));
 let n = 0;
 const tests = [];

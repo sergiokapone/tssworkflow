@@ -1,7 +1,7 @@
 'use strict';
 // node tests/docs.test.js [path/to/extension] [LaTeX-VSCode-setup.md]  - the reference against package.json and the files of the extension
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const cands = [process.argv[3], path.join(__dirname, '..', 'LaTeX-VSCode-setup.md'), path.join(__dirname, '..', '..', 'LaTeX-VSCode-setup.md'), path.join(ext, '..', '..', 'LaTeX-VSCode-setup.md'), path.join(process.cwd(), 'LaTeX-VSCode-setup.md')].filter(Boolean);
 const docPath = cands.find((p) => fs.existsSync(p));
 if (!docPath) { console.log('skip: LaTeX-VSCode-setup.md not found (pass its path as the second argument)'); process.exit(0); }

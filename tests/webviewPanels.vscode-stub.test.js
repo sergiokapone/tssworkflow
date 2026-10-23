@@ -4,7 +4,7 @@
 // the shell (webviewKit.shell): the language of the page, the block with the texts, the helper before the script of the page, a page that asks for no texts gets neither;
 // the HTML of the host (the title, the buttons, the placeholders) and the page helper over the very block that the host made.
 const assert = require('assert'), path = require('path'), fs = require('fs'), vm = require('vm'), Module = require('module');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const I = require(path.join(EXT, 'i18n'));
 let n = 0;
 const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };
@@ -60,7 +60,7 @@ try {
   const spd = blockOf(sp), spT = helper(sp);
   ok(sp.includes('common/i18n.js') && spd['Попередній крок'] === 'Previous step' && spd['Наступний крок'] === 'Next step', 'the block of the preview');
   eq([spT('Крок {0} з {1}', 2, 5), spT('Усі {0} рядків', 7), spT('Не відтворено (є лише в PDF): {0}', 'tikz, table')], ['Step 2 of 5', 'All 7 lines', 'Not rendered (only in the PDF): tikz, table']);
-  // a page of its own that asks for no texts still gets the texts of the shared kit.js (0.21.10: the toast and the titles of the copy buttons), and nothing else
+  // a page of its own that asks for no texts still gets the texts of the shared kit.js (0.22.0: the toast and the titles of the copy buttons), and nothing else
   const none = page('en', '<p>x</p>', ['no-such-panel/webview.js']);
   const nd = blockOf(none);
   ok(none.includes('common/i18n.js') && nd['Нічого копіювати'] === 'Nothing to copy' && nd['Копіювати LaTeX формули'] === 'Copy the LaTeX of the formula', 'the shared kit texts are in every page');

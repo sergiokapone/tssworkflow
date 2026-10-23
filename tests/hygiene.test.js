@@ -7,7 +7,7 @@
 //     each holding the closed webview) - panel listeners belong to util.panelScope;
 //  3. an external program started without the time limit of util.run / util.execFileT (a hung git or latexdiff lived for ever).
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);

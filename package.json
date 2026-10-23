@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.21.10",
+  "version": "0.22.0",
   "engines": {
     "vscode": "^1.74.0"
   },

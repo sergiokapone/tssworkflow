@@ -1,7 +1,7 @@
 'use strict';
 // node tests/sidebar.test.js [path/to/extension]; checks the tree against package.json and runs sidebar.js on a vscode stub
 const path = require('path'), fs = require('fs'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
 const S = require(path.join(ext, 'sidebarPure.js'));
 let n = 0;

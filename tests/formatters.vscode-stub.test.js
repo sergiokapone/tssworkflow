@@ -3,7 +3,7 @@
 // formatters.js (tblr, \tikz, beamer slide numbers) against the shared stub of vscode, in Ukrainian and in English (tssworkflow.language):
 // the messages, the titles and the summaries of the previews, the reasons of the skipped places (formattersPure.js).
 const assert = require('assert'), path = require('path'), Module = require('module');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const { makeVscode } = require('./vscodeStub');
 const I = require(path.join(EXT, 'i18n'));
 let n = 0;

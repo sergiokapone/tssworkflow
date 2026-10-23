@@ -19,7 +19,7 @@ const { tr } = require('./i18n');
 const TERMS = require('./termsPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
-const { EXCLUDE, SEL_ANY, cfg, debounce, errText, info, projectRoot, textOfPath, warn } = require('./util');
+const { EXCLUDE, SEL_ANY, cfg, debounce, errText, info, projectRoot, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
 const { posix } = require('./corePure');
 
 const SRC_GLOB = '**/*.{tex,tikz,cls,sty,bib}';
@@ -69,7 +69,7 @@ async function applyChanges(root, changes) {
   }
   const ok = await vscode.workspace.applyEdit(edit);
   if (!ok) return false;
-  for (const d of docs) { try { await d.save(); } catch (e) { /* the file stays modified in the editor */ } }
+  warnUnsaved(await saveDocs(docs));
   return true;
 }
 

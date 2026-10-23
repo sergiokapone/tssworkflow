@@ -2,7 +2,7 @@
 // node tests/tableMerge.test.js [path/to/extension]  - tableEditorPure.js: merged cells written in the body (\SetCell) and in the
 // options (cell{i}{j} = {r=,c=}{…}): reading both, merging / unmerging, moving between the two places, conflicts, the guards
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const X = require(path.join(ext, 'tableEditorPure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

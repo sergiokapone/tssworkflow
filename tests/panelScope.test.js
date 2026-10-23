@@ -5,7 +5,7 @@
 // three more disposables there for good, each holding the closed panel. Here panels are opened and closed 40 times on a stub that
 // behaves like VS Code (a listener registered with `disposables` is pushed there; dispose() fires onDidDispose).
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);

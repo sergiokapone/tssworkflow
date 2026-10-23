@@ -1,7 +1,7 @@
 'use strict';
 // node tests/fixall.vscode-stub.test.js [path/to/extension]  - projectInfo.js (0.6.0): "fix all" code actions, source.fixAll.tssworkflow, the command
 const Module = require('module'), path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const queue = [];
 const t = (name, fn) => queue.push({ name, fn });

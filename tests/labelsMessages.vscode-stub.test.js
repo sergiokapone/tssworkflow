@@ -3,7 +3,7 @@
 // labels.js: the check of the labels of the project says the same things in Ukrainian and in English (tssworkflow.language), the codes of the diagnostics do not depend on the language.
 // vscode, util.js and projectIndex.js are replaced: only the messages of checkLabels are looked at.
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const I = require(path.join(ext, 'i18n'));
 
 const lab = (name, line, envs, o) => Object.assign({ name, line, col: 0, len: name.length, envs: envs || [], macro: false }, o || {});

@@ -3,7 +3,7 @@
 // synctexPure.js (inputs of a .synctex file, spellings of a path, the verdicts, the report) and synctex.js (the real files:
 // a truncated .gz, the cache, precheck, the command "Diagnose SyncTeX") on a small stub of vscode.
 const path = require('path'), fs = require('fs'), os = require('os'), zlib = require('zlib'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const S = require(path.join(ext, 'synctexPure.js'));
 let n = 0;
 const tests = [];

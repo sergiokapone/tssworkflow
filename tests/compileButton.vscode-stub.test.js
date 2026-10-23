@@ -3,7 +3,7 @@
 // activate() on a stubbed vscode: (1) the external viewer button opens the PDF of the active file (a document with its own
 // \documentclass has its own PDF, not main.pdf); (2) the label of the compile button in the status bar: Chapter / Figure / Separate / Main
 const path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = require(path.join(ext, 'package.json'));
 
 const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'tss-btn-'));

@@ -1,7 +1,7 @@
 'use strict';
 // node tests/keyFormulas.test.js [path/to/extension]  - keyFormulasPure.js: the mark %! key, the draft of "Підсумки", toggleKey
 const path = require('path'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const K = require(path.join(ext, 'keyFormulasPure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

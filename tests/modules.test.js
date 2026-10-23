@@ -1,7 +1,7 @@
 'use strict';
 // node tests/modules.test.js [path/to/extension]  - the modules as a whole: they load, the require graph is whole, *Pure.js stay free of vscode
 const path = require('path'), fs = require('fs'), vm = require('vm'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
 const files = fs.readdirSync(ext).filter((f) => f.endsWith('.js')).sort();
 const src = Object.fromEntries(files.map((f) => [f, fs.readFileSync(path.join(ext, f), 'utf8')]));

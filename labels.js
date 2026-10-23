@@ -93,9 +93,11 @@ async function checkLabels(showMessage) {
   }
   const byFile = new Map();
   // plain entries: the Diagnostic objects are made only for the files whose set of problems changed (PI.diagSetter)
-  const add = (file, l, message, sev, code) => {
+  const add = (file, l, message, sev, code, related) => {
     if (!byFile.has(file)) byFile.set(file, []);
-    byFile.get(file).push({ line: l.line, col: l.col, len: l.len, message, severity: sev, code });
+    const e = { line: l.line, col: l.col, len: l.len, message, severity: sev, code };
+    if (related && related.length) { e.related = related; e.relKey = related.map((r) => r.file + ':' + r.line + ':' + r.col).join('|'); }
+    byFile.get(file).push(e);
   };
   let dup = 0;
   let undef = 0;
@@ -104,7 +106,9 @@ async function checkLabels(showMessage) {
   for (const [name, arr] of defs) {
     if (arr.length > 1) {
       dup++;
-      arr.forEach((x) => add(x.file, x.l, tr('Мітка «{0}» визначена {1} разів', name, arr.length), vscode.DiagnosticSeverity.Error, 'label-duplicate'));
+      // where the other definitions are (at most 5), so the copy that should go can be found from the message
+      arr.forEach((x) => add(x.file, x.l, tr('Мітка «{0}» визначена {1} разів', name, arr.length), vscode.DiagnosticSeverity.Error, 'label-duplicate',
+        arr.filter((y) => y !== x).slice(0, 5).map((y) => ({ file: y.file, line: y.l.line, col: y.l.col, len: y.l.len, message: tr('Інше визначення цієї мітки') }))));
     }
   }
   for (const [file, data] of idx) {
@@ -126,14 +130,10 @@ async function checkLabels(showMessage) {
         unused++;
         add(file, l, tr('Мітка «{0}» ніде не використана', l.name), sevMap[sevName], 'label-unused');
       }
-      for (let i = l.envs.length - 1; i >= 0; i--) {
-        const pre = prefixes[l.envs[i]];
-        if (typeof pre !== 'string') continue;
-        if (pre && !l.name.startsWith(pre)) {
-          badPrefix++;
-          add(file, l, tr('Мітка в «{0}» має починатися з «{1}»', l.envs[i], pre), vscode.DiagnosticSeverity.Warning, 'label-prefix');
-        }
-        break;
+      const rule = P.labelPrefixRule(l, prefixes);
+      if (rule && rule.pre && !l.name.startsWith(rule.pre)) {
+        badPrefix++;
+        add(file, l, tr('Мітка в «{0}» має починатися з «{1}»', rule.env, rule.pre), vscode.DiagnosticSeverity.Warning, 'label-prefix');
       }
     }
   }

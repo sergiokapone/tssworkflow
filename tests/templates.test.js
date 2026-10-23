@@ -2,7 +2,7 @@
 // node tests/templates.test.js [path/to/extension]
 const path = require('path');
 const assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const T = require(path.join(ext, 'templatesPure.js'));
 let n = 0;
 const t = (name, fn) => { fn(); n++; console.log('ok  ' + name); };

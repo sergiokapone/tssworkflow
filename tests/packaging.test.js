@@ -4,7 +4,7 @@
 // 0.20.0 shipped without build.js (a leftover line `build.js` in .vscodeignore) and died with "Cannot find module './build'"
 // on activation, although every other test passed, because they run on the source folder, where the file exists.
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let n = 0;
 const tests = [];
 const t = (name, fn) => tests.push([name, fn]);

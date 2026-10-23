@@ -1,7 +1,7 @@
 'use strict';
 // node tests/manifest.test.js [path/to/extension]  - package.json against the code: commands, settings, menus, files, activation events
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const pk = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
 const c = pk.contributes;
 const code = fs.readdirSync(ext).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(ext, f), 'utf8')).join('\n');

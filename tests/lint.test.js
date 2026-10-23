@@ -1,7 +1,7 @@
 'use strict';
 // node tests/lint.test.js [path/to/extension]  - ESLint over the extension: undefined names, unused variables, unreachable code (skipped without eslint)
 const path = require('path'), assert = require('assert'), { spawnSync } = require('child_process');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 let bin;
 try { bin = path.join(path.dirname(require.resolve('eslint/package.json', { paths: [process.cwd(), __dirname, path.join(__dirname, '..')] })), 'bin', 'eslint.js'); }
 catch (e) { console.log('skip: eslint is not installed (npm i -D eslint)'); process.exit(0); }

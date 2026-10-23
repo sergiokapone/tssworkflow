@@ -1,7 +1,7 @@
 'use strict';
 // node tests/projectInfo.test.js [path/to/extension]  - the vscode-free helpers: projectInfoPure.js, corePure.js, macrosPure.js
 const path = require('path');
-const dir = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const dir = path.resolve(process.argv[2] || require('./_ext'));
 const P = require(path.join(dir, 'corePure.js'));
 const X = require(path.join(dir, 'projectInfoPure.js'));
 const M = require(path.join(dir, 'macrosPure.js'));

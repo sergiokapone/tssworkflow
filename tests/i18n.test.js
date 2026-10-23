@@ -2,7 +2,7 @@
 // node tests/i18n.test.js [path/to/extension]
 // i18n.js and i18nEn.js: the language of the messages; every tr('...') of the code has its English text, the placeholders agree, nothing is unused.
 const path = require('path'), fs = require('fs'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const I = require(path.join(ext, 'i18n'));
 const EN = require(path.join(ext, 'i18nEn'));
 let n = 0;

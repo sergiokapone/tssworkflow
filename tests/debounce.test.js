@@ -2,7 +2,7 @@
 // node tests/debounce.test.js [path/to/extension]
 // util.debounce / cancelTimer / timerPending / disposeTimers: the one place of the "clearTimeout + setTimeout" pairs.
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop });
 const stub = new Proxy({ workspace: { createFileSystemWatcher: () => null }, window: {}, Uri: {} }, { get: (o, k) => (k in o ? o[k] : noop) });
 const load = Module._load;

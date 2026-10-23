@@ -1,7 +1,7 @@
 'use strict';
 // node tests/debugState.test.js [path/to/extension]  - the state report: the text (pure) and the command (stubbed vscode)
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const noop = new Proxy(function () {}, { get: () => noop, apply: () => noop });
 const handlers = {}, shown = [];
 const stub = new Proxy({

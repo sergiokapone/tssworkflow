@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path'), fs = require('fs');
 const here = __dirname;
-const ext = path.resolve(process.argv[2] || path.join(here, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const docName = 'LaTeX-VSCode-setup.md';
 const docCandidates = [process.argv[3], path.join(here, docName), path.join(here, '..', docName)].filter(Boolean).map((p) => path.resolve(p));
 const doc = docCandidates.find((p) => fs.existsSync(p)) || null;

@@ -65,7 +65,7 @@ function sameEntries(a, b) {
   if (!b || a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     const x = a[i]; const y = b[i];
-    if (x.line !== y.line || x.col !== y.col || x.len !== y.len || x.severity !== y.severity || x.code !== y.code || x.message !== y.message) return false;
+    if (x.line !== y.line || x.col !== y.col || x.len !== y.len || x.severity !== y.severity || x.code !== y.code || x.message !== y.message || x.relKey !== y.relKey) return false;
   }
   return true;
 }
@@ -74,10 +74,15 @@ function toDiagnostic(e) {
   const d = new vscode.Diagnostic(new vscode.Range(e.line, e.col, e.line, e.col + e.len), e.message, e.severity);
   d.source = 'TSS Workflow';
   d.code = e.code;
+  // other places of the same problem (a duplicate label: where the other definitions are); only when this VS Code has the classes
+  if (e.related && e.related.length && vscode.Location && vscode.DiagnosticRelatedInformation) {
+    d.relatedInformation = e.related.map((r) => new vscode.DiagnosticRelatedInformation(
+      new vscode.Location(vscode.Uri.file(r.file), new vscode.Range(r.line, r.col, r.line, r.col + r.len)), r.message));
+  }
   return d;
 }
 
-// entries: { line, col, len, message, severity (vscode.DiagnosticSeverity), code }
+// entries: { line, col, len, message, severity (vscode.DiagnosticSeverity), code, related?: [{ file, line, col, len, message }], relKey? (the string that tells whether related changed) }
 function diagSetter(collection) {
   const last = new Map(); // fsPath -> the entries that are shown now
   return {

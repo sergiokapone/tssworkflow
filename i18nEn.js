@@ -1201,5 +1201,7 @@ module.exports = {
   "Розділи": "Chapters",
   "Початок": "Start",
   "Проблеми": "Problems",
-  "Мітки": "Labels"
+  "Мітки": "Labels",
+  "Інше визначення цієї мітки": "Another definition of this label",
+  "Не вдалося зберегти: {0}. Файли лишились зміненими в редакторі.": "Could not save: {0}. The files stay modified in the editor."
 };

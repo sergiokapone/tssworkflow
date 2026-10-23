@@ -2,7 +2,7 @@
 // node tests/lwCompat.test.js [path/to/extension]
 // lwCompatPure.js (the rules, the target of a write) and lwCompat.js (the command, the writes, the reminder at start) on a stub of vscode.
 const path = require('path'), assert = require('assert'), Module = require('module');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const L = require(path.join(ext, 'lwCompatPure.js'));
 let n = 0;
 const tests = [];

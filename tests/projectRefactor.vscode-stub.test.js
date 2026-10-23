@@ -1,7 +1,7 @@
 'use strict';
 // node tests/projectRefactor.vscode-stub.test.js [path/to/extension]  - projectRefactor.js end to end on a real temp folder with a vscode stub
 const Module = require('module'), path = require('path'), fs = require('fs'), os = require('os'), assert = require('assert');
-const ext = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(process.argv[2] || require('./_ext'));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tss3-'));
 const proj = path.join(tmp, 'proj');
 const store = path.join(tmp, 'store');

@@ -1,10 +1,10 @@
 'use strict';
 // node tests/nls.test.js [path/to/extension]
-// 0.21.10: the static texts of package.json (the submenus, the five panels, the welcome texts) are %keys% of package.nls.json (English,
+// 0.22.0: the static texts of package.json (the submenus, the five panels, the welcome texts) are %keys% of package.nls.json (English,
 // the default) and package.nls.uk.json (Ukrainian). The two files have the same keys, every %key% of the manifest is there, the welcome
 // texts of both languages have the same buttons, and viewTitles.js sets the titles of the panels from the setting of the extension.
 const assert = require('assert'), path = require('path'), fs = require('fs'), Module = require('module');
-const EXT = path.resolve(process.argv[2] || path.join(__dirname, '..', 'vsix', 'extension'));
+const EXT = path.resolve(process.argv[2] || require('./_ext'));
 const raw = fs.readFileSync(path.join(EXT, 'package.json'), 'utf8');
 const en = JSON.parse(fs.readFileSync(path.join(EXT, 'package.nls.json'), 'utf8'));
 const uk = JSON.parse(fs.readFileSync(path.join(EXT, 'package.nls.uk.json'), 'utf8'));

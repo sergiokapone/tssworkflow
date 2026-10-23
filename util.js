@@ -231,14 +231,28 @@ const cachingOn = () => caching;
 // sizes for the state report (debugState.js): the file-list cache and the open-documents Map (null while it is not built)
 const cacheStats = () => ({ caching, findCache: findCache.size, docMap: docMap ? docMap.size : null });
 
+// saves the documents (after a WorkspaceEdit on several files); returns the names of the files that could not be saved (they stay modified in the editor)
+async function saveDocs(docs) {
+  const failed = [];
+  for (const d of docs) {
+    let ok = true;
+    try { ok = (await d.save()) !== false; } catch (e) { ok = false; }
+    if (!ok) failed.push(path.basename(d.uri.fsPath));
+  }
+  return failed;
+}
+const warnUnsaved = (failed) => { if (failed.length) warn(tr('Не вдалося зберегти: {0}. Файли лишились зміненими в редакторі.', [...new Set(failed)].join(', '))); };
+
 // saves the open documents among the files (fsPath) that have unsaved changes (after a WorkspaceEdit on several files)
 async function saveDirtyDocs(paths) {
-  let saved = 0;
+  const docs = [];
   for (const abs of paths) {
     const d = openDocByPath(abs);
-    if (d && d.isDirty) { try { await d.save(); saved++; } catch (e) { /* stays modified */ } }
+    if (d && d.isDirty) docs.push(d);
   }
-  return saved;
+  const failed = await saveDocs(docs);
+  warnUnsaved(failed);
+  return docs.length - failed.length;
 }
 
 module.exports = {
@@ -257,6 +271,8 @@ module.exports = {
   EXCLUDE_PDF_VERSIONS,
   excludeGlob,
   saveDirtyDocs,
+  saveDocs,
+  warnUnsaved,
   cachingOn,
   findCached,
   initCaches,
