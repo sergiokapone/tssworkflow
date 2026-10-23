@@ -63,6 +63,24 @@ t('hover on \\ref: an optional info', () => {
   assert.deepStrictEqual(f.map((x) => [x.id, x.optional, x.fixes[0]]), [['hoverRef', true, { key: 'hover.ref.enabled', value: false }]]);
 });
 
+t('keymap: our Ctrl+Alt keys that LaTeX Workshop also takes (altKeymap off); nothing with altKeymap on or without a clash', () => {
+  const base = { 'latex.autoBuild.run': 'never', 'hover.ref.enabled': false };
+  const keys = [{ key: 'ctrl+alt+c', command: 'tssworkflow.copyFormula' }, { key: 'ctrl+alt+M', command: 'tssworkflow.tableOps' }, { key: 'ctrl+alt+w', command: 'tssworkflow.wrapEnv' }];
+  const f = L.lwFindings(base, { keys });
+  assert.deepStrictEqual(f.map((x) => [x.id, x.level, x.optional, x.fixes[0]]), [['keymap', 'warning', true, { key: 'bind.altKeymap.enabled', value: true }]]);
+  assert.ok(f[0].title.includes('Ctrl+Alt+C (copyFormula / clean)') && f[0].title.includes('Ctrl+Alt+M (tableOps / toggleMathPreviewPanel)') && !f[0].title.includes('wrapEnv'), f[0].title);
+  assert.deepStrictEqual(L.lwFindings(Object.assign({ 'bind.altKeymap.enabled': true }, base), { keys }), []);
+  assert.deepStrictEqual(L.lwFindings(base, { keys: [{ key: 'ctrl+alt+w', command: 'tssworkflow.wrapEnv' }] }), []);
+  assert.deepStrictEqual(L.lwFindings(base, {}), [], 'no keys given: no finding');
+});
+
+t('the keys of package.json that clash today are found (the rule sees the real keybindings)', () => {
+  const pk = require(path.join(ext, 'package.json'));
+  const f = L.lwFindings({ 'latex.autoBuild.run': 'never', 'hover.ref.enabled': false }, { keys: pk.contributes.keybindings });
+  const clashing = pk.contributes.keybindings.filter((k) => L.LW_CTRL_ALT[k.key]).map((k) => k.key);
+  assert.strictEqual(f.length, clashing.length ? 1 : 0, 'clashing: ' + clashing.join(', '));
+});
+
 t('needsNudge: only when both automatic builds are on', () => {
   const on = L.lwFindings({}, { compileOnSave: true });
   assert.strictEqual(L.needsNudge(on, { compileOnSave: true }), true);
@@ -113,7 +131,7 @@ t('check: LaTeX Workshop is not installed', async () => {
 });
 
 t('check: nothing to report', async () => {
-  reset(); st.lw = { 'latex.autoBuild.run': 'never', 'hover.ref.enabled': false };
+  reset(); st.lw = { 'latex.autoBuild.run': 'never', 'hover.ref.enabled': false, 'bind.altKeymap.enabled': true };
   const r = await LC.check();
   assert.deepStrictEqual(r.findings, []);
   assert.ok(st.infos[0].includes('Конфліктів'));
@@ -125,7 +143,8 @@ t('check: the list ticks the required fixes, not the optional ones; the ticked o
   st.picks = (items) => items.filter((i) => i.picked);
   const r = await LC.check();
   const labels = st.quick.items.map((i) => [i.picked, i.label.startsWith('$(warning)') ? 'warning' : 'info']);
-  assert.deepStrictEqual(labels, [[true, 'warning'], [true, 'warning'], [false, 'info']]);
+  // the last one: the clash of Ctrl+Alt+C / M with LaTeX Workshop (a warning, but optional: altKeymap moves the keys of LaTeX Workshop)
+  assert.deepStrictEqual(labels, [[true, 'warning'], [true, 'warning'], [false, 'info'], [false, 'warning']]);
   assert.ok(st.quick.items[0].description.includes('latex-workshop.latex.autoBuild.run → "never"'));
   assert.ok(st.quick.items[0].detail.length > 20);
   assert.strictEqual(st.quick.o.canPickMany, true);
@@ -138,7 +157,7 @@ t('check: Esc changes nothing; picking only an info without a fix changes nothin
   reset(); st.picks = undefined;
   assert.strictEqual((await LC.check()).applied, 0);
   assert.deepStrictEqual(st.updates, []);
-  reset(); st.lw = { 'latex.autoBuild.run': 'never', 'hover.ref.enabled': true };
+  reset(); st.lw = { 'latex.autoBuild.run': 'never', 'hover.ref.enabled': true, 'bind.altKeymap.enabled': true };
   st.picks = (items) => items;
   assert.strictEqual((await LC.check()).applied, 1, 'the optional hover fix, when the user ticks it');
   assert.deepStrictEqual(st.updates, [['hover.ref.enabled', false, 2]]);

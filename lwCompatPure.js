@@ -10,8 +10,12 @@ const LW_DEFAULTS = {
   'latex.autoClean.run': 'never',
   'latex.outDir': '%DIR%',
   'view.pdf.viewer': 'tab',
-  'hover.ref.enabled': true
+  'hover.ref.enabled': true,
+  'bind.altKeymap.enabled': false
 };
+// the Ctrl+Alt keys of LaTeX Workshop while bind.altKeymap.enabled is off (with it they become chords Ctrl+L Alt+…)
+const LW_CTRL_ALT = { 'ctrl+alt+b': 'build', 'ctrl+alt+c': 'clean', 'ctrl+alt+j': 'synctex', 'ctrl+alt+m': 'toggleMathPreviewPanel', 'ctrl+alt+v': 'view', 'ctrl+alt+x': 'activitybar' };
+const keyName = (k) => k.split('+').map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join('+');
 const val = (lw, k) => (lw && lw[k] !== undefined && lw[k] !== null ? lw[k] : LW_DEFAULTS[k]);
 
 /* -> [{ id, level: 'warning' | 'info', title, why, fixes: [{ key, value }], optional }]; a fix is a write into latex-workshop.<key>;
@@ -88,6 +92,21 @@ function lwFindings(lw, ours) {
       optional: true
     });
   }
+  // ours.keys: [{ key, command }] of this extension's keybindings; only a real clash is reported
+  if (val(lw, 'bind.altKeymap.enabled') !== true) {
+    const clash = (o.keys || []).filter((k) => LW_CTRL_ALT[String(k.key).toLowerCase()]);
+    if (clash.length) {
+      const list = clash.map((k) => keyName(String(k.key).toLowerCase()) + ' (' + String(k.command).replace(/^tssworkflow\./, '') + ' / ' + LW_CTRL_ALT[String(k.key).toLowerCase()] + ')').join(', ');
+      out.push({
+        id: 'keymap',
+        level: 'warning',
+        title: tr('Клавіші LaTeX Workshop збігаються з клавішами цього розширення: {0}', list),
+        why: tr('Поки latex-workshop.bind.altKeymap.enabled вимкнено, LaTeX Workshop займає Ctrl+Alt+B, C, J, M, V, X, і котра з двох команд спрацює, залежить від порядку завантаження розширень. З altKeymap клавіші LaTeX Workshop переходять на акорди Ctrl+L Alt+…, а Ctrl+Alt лишається цьому розширенню.'),
+        fixes: [{ key: 'bind.altKeymap.enabled', value: true }],
+        optional: true
+      });
+    }
+  }
   return out;
 }
 
@@ -103,4 +122,4 @@ function writeTarget(inspect, hasWorkspace) {
   return hasWorkspace ? 'workspace' : 'global';
 }
 
-module.exports = { LW_DEFAULTS, lwFindings, needsNudge, writeTarget };
+module.exports = { LW_DEFAULTS, LW_CTRL_ALT, lwFindings, needsNudge, writeTarget };

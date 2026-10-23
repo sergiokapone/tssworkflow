@@ -2,6 +2,8 @@
 /* lwCompat.js: "Check compatibility with LaTeX Workshop" and a reminder at start when both automatic builds are on.
  * The rules are in lwCompatPure.js. The fixes are written into the latex-workshop.* settings (the workspace, see writeTarget). */
 const vscode = require('vscode');
+const fs = require('fs');
+const path = require('path');
 const L = require('./lwCompatPure');
 const { tr } = require('./i18n');
 const { cfg, debounce } = require('./util');
@@ -17,7 +19,13 @@ function readLw() {
   for (const k of Object.keys(L.LW_DEFAULTS)) o[k] = c.get(k);
   return o;
 }
-const readOurs = () => ({ compileOnSave: !!cfg().get('compileOnSave', false), pdfViewer: cfg().get('pdfViewer', 'vscode') });
+// the keybindings of this extension (package.json): the clash with the Ctrl+Alt keys of LaTeX Workshop
+let ownKeys = null;
+const keysOfPackage = () => {
+  if (!ownKeys) { try { ownKeys = (JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).contributes.keybindings || []).map((k) => ({ key: k.key, command: k.command })); } catch (e) { ownKeys = []; } }
+  return ownKeys;
+};
+const readOurs = () => ({ compileOnSave: !!cfg().get('compileOnSave', false), pdfViewer: cfg().get('pdfViewer', 'vscode'), keys: keysOfPackage() });
 
 const TARGETS = () => ({ folder: vscode.ConfigurationTarget.WorkspaceFolder, workspace: vscode.ConfigurationTarget.Workspace, global: vscode.ConfigurationTarget.Global });
 

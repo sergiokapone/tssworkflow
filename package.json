@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -2427,11 +2427,6 @@
       {
         "command": "tssworkflow.wrapEnv",
         "key": "ctrl+alt+w",
-        "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
-      },
-      {
-        "command": "tssworkflow.wrapEnv",
-        "key": "ctrl+alt+numpad_add",
         "when": "editorTextFocus && (editorLangId == latex || editorLangId == tex)"
       },
       {
