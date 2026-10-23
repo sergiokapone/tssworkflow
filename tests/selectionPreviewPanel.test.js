@@ -24,6 +24,7 @@ async function scenario(text, selections, cfgValues, act, extra) {
   const rel = (extra && extra.file) || 'a.tex';
   doc.uri = { fsPath: dir + '/' + rel, toString: () => 'file://' + dir + '/' + rel, path: dir + '/' + rel };
   if (extra && extra.folders) vs.workspace.workspaceFolders = extra.folders.map((f) => ({ uri: { fsPath: f } }));
+  if (extra && extra.folders) vs.workspace.getWorkspaceFolder = () => vs.workspace.workspaceFolders[0];
   const st = { created: [], posted: [], revealed: [], disposed: 0, selectionChangedBy: 0, macrosDone: false };
   const listeners = { selection: [], editor: [], text: [] };
   vs.ViewColumn = { One: 1, Two: 2, Beside: -2 };
@@ -70,6 +71,7 @@ async function scenario(text, selections, cfgValues, act, extra) {
   Module._load = function (req, ...rest) {
     if (req === 'vscode') return vs;
     if (req === './macros') return { _allMacros: async () => { await sleep(100); st.macrosDone = true; return { cmds: new Map(macroEntries.map((e) => [e.name, e])), envs: new Map() }; } };
+    if (req === './tikzThumbs' && extra && extra.thumbs) return extra.thumbs;
     return orig.call(this, req, ...rest);
   };
   for (const key of Object.keys(require.cache)) if (key.startsWith(EXT) && /\.js$/.test(key)) delete require.cache[key];
@@ -349,6 +351,33 @@ async function scenario(text, selections, cfgValues, act, extra) {
     a.message({ type: 'open', name: '/etc/passwd', via: 'input' }); await a.sleep(100);
     eq(opened[opened.length - 1][0], 'warn', 'a file outside the project is not opened');
   }, { dir: path.join(tk, 'Chap'), folders: [tk], file: 'Chap.tex' });
+  // 0.25.0: the frame of \localinput becomes the thumbnails once tikzThumbs has them; the panel draws again when one is built
+  {
+    const png = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'tss-prev-thumbs-')), 'thumb-1.png'); // outside the project, as the cache is
+    fs.mkdirSync(path.dirname(png), { recursive: true });
+    fs.writeFileSync(png, 'p');
+    let ready = false, built = null;
+    const asked = [];
+    const thumbs = {
+      status: (root, f) => { asked.push([root, f]); return ready ? { state: 'ready', pngs: [png] } : { state: 'building' }; },
+      onDidBuild: (f) => { built = f; return { dispose() {} }; }
+    };
+    await scenario(FIGT, [[0, 0, 3, 12]], {}, async (a) => {
+      await a.command(); a.message({ type: 'ready' }); await a.sleep(500);
+      ok(a.renders().pop().html.includes('<a class="tikzf" href="#"'), 'not built yet: the frame');
+      eq(asked[0], [tk, path.join(tk, 'Chap', 'tikz', 'tribo.tikz')], 'the panel asks for the figure resolved like a click');
+      const before = a.renders().length;
+      ready = true;
+      built(path.join(tk, 'Chap', 'tikz', 'tribo.tikz'));
+      await a.sleep(400);
+      ok(a.renders().length > before, 'onDidBuild draws the panel again');
+      const h = a.renders().pop().html;
+      ok(h.includes('class="tikzf tikzimg"') && h.includes('<img src="https://webview.test' + png + '?t='), 'the picture through asWebviewUri: ' + h);
+      const roots = (a.st.panel.webview.options.localResourceRoots || []).map((u) => u.fsPath);
+      ok(roots.includes(path.dirname(png)), 'the folder of the thumbnails is allowed: ' + roots.join(', '));
+    }, { dir: path.join(tk, 'Chap'), folders: [tk], file: 'Chap.tex', thumbs });
+    fs.rmSync(path.dirname(png), { recursive: true, force: true });
+  }
   // the caret in the middle of a picture: a frame, not the code
   const INPIC = '\\begin{tikzpicture}[scale=1]\n\n\\draw (0,0) -- (1,1);\n\\node at (0,0) {$x$};\n\n\\end{tikzpicture}';
   await scenario(INPIC, [[2, 0, 3, 5]], {}, async (a) => {

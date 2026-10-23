@@ -144,6 +144,21 @@ function resolveTikz(name, doc) {
   return null;
 }
 
+// the resolver for P.render: the thumbnails of the figure of \localinput{name} (tikzThumbs.js), or null for the frame with the name;
+// a figure without a fresh thumbnail is queued by status(), and onDidBuild draws the panel again when it is done
+function tikzResolver(doc) {
+  return (name) => {
+    if (!ctl.panel) return null;
+    const f = resolveTikz(name, doc);
+    const folder = f && vscode.workspace.getWorkspaceFolder && vscode.workspace.getWorkspaceFolder(doc.uri);
+    if (!folder) return null;
+    const st = require('./tikzThumbs').status(folder.uri.fsPath, f);
+    if (st.state !== 'ready') return null;
+    allowFolder(path.dirname(st.pngs[0]));
+    return { srcs: st.pngs.map((p) => { let t = 0; try { t = Math.floor(fs.statSync(p).mtimeMs); } catch (e) { /* none */ } return ctl.panel.webview.asWebviewUri(vscode.Uri.file(p)).toString() + '?t=' + t; }) };
+  };
+}
+
 async function openTikz(m) {
   const doc = last && last.doc;
   if (!doc || !m || typeof m.name !== 'string') return;
@@ -250,7 +265,7 @@ async function update() {
   const where = path.basename(doc.uri.fsPath) + (fr.from ? ':' + fr.from + (fr.to !== fr.from ? '–' + fr.to : '') : '');
   const send = () => {
     if (!ctl.live(mine)) return;
-    const r = P.render(fr.text, { colors: TE.colorsNow(), steps: cfg().get('selectionPreview.steps', true) !== false, image: pictureResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
+    const r = P.render(fr.text, { colors: TE.colorsNow(), steps: cfg().get('selectionPreview.steps', true) !== false, image: pictureResolver(doc), tikz: tikzResolver(doc), macros: TE.textMacrosNow(doc), refInfo: refInfoFor(doc) });
     ctl.panel.webview.postMessage({ type: 'render', html: r.html, notes: r.notes, what: fr.what, where, macros: TE.macrosNow(doc) });
   };
   send();
@@ -294,7 +309,9 @@ function register(context) {
     vscode.workspace.onDidChangeTextDocument((e) => {
       const ed = vscode.window.activeTextEditor;
       if (ctl.panel && ed && e.document === ed.document && isTex(e.document)) ctl.schedule(350);
-    })
+    }),
+    // 0.25.0: a thumbnail asked for by the panel is ready: draw again, the frame becomes the picture
+    require('./tikzThumbs').onDidBuild(() => { if (ctl.panel) ctl.schedule(50); })
   );
 }
 

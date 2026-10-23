@@ -173,6 +173,20 @@ eq(html('\\input{chap.tex}'), '', '\\input of a .tex stays silent as before');
 ok(html('\\localinput{b}').includes('class="unk"') && !html('\\localinput{b}').includes('tikzf'), '\\localinput without .tikz outside a figure: as before');
 ok(html('\\input{a/b.tikz}').includes('data-open="a/b.tikz"'), 'a .tikz file outside a figure is a frame too');
 ok(!html('\\localinput{a"onclick="x.tikz}').includes('onclick="x'), 'the name is escaped');
+// 0.25.0: opts.tikz gives the thumbnails of the figure: the pictures stand in the frame (still a link to the file); unsafe sources dropped
+{
+  const FIG = '\\begin{figure}\\localinput{tribo.tikz}\\caption{c}\\end{figure}';
+  const asked = [];
+  const h = html(FIG, { tikz: (n) => { asked.push(n); return { srcs: ['https://w.test/a-1.png?t=1', 'https://w.test/a-2.png?t=1'] }; } });
+  eq(asked, ['tribo.tikz']);
+  ok(h.includes('<a class="tikzf tikzimg" href="#" data-open="tribo.tikz" data-via="localinput"'), h);
+  eq((h.match(/<img src="https:\/\/w\.test\/a-\d\.png\?t=1" alt="tribo\.tikz">/g) || []).length, 2, 'every page of the figure: ' + h);
+  assertSafe(h, FIG);
+  const bad = html(FIG, { tikz: () => ({ srcs: ['javascript:alert(1)', 'data:text/html,x'] }) });
+  ok(!bad.includes('<img') && bad.includes('>tribo.tikz</a>') && !bad.includes('tikzimg'), 'no safe source: the frame with the name: ' + bad);
+  ok(html(FIG, { tikz: () => null }).includes('<a class="tikzf" href="#"'), 'not ready: the frame as before');
+  ok(html(FIG, { tikz: () => { throw new Error('x'); } }).includes('>tribo.tikz</a>'), 'a throwing resolver does not break the preview');
+}
 // code of a picture without \begin: one frame for all the paragraphs of code
 r = R('\\draw[->] (0,0) -- (1,1);\n\\node at (0,0) {$x$};\n\n\\fill (1,1) circle (1pt);\n\\pgfmathsetmacro{\\angle}{atan(3/2)}\n\nЗвичайний текст.');
 eq(r.html, '<div class="ph">tikz: код рисунка, рисунок буде лише в PDF</div><p>Звичайний текст.</p>', 'the code of tikz is a frame: ' + r.html);

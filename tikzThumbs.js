@@ -61,6 +61,10 @@ function status(root, file) {
   return { state: 'building' };
 }
 
+// whoever shows thumbnails (the panel "Preview selection") is told when a figure is done: onDidBuild(file => ...) -> Disposable
+const listeners = new Set();
+function onDidBuild(f) { listeners.add(f); return { dispose: () => listeners.delete(f) }; }
+
 const waiters = new Map(); // dir -> [resolve]: the command of the chapter waits for its figures
 const settle = (dir, how) => { for (const r of waiters.get(dir) || []) r(how); waiters.delete(dir); };
 
@@ -93,6 +97,7 @@ async function pump() {
       try { await build(d); } finally { queued.delete(d.dir); }
       settle(d.dir, failed.has(d.dir) ? 'failed' : 'built');
       onBuilt(d);
+      for (const f of listeners) { try { f(d.file); } catch (e) { /* a listener must not stop the queue */ } }
     }
   } finally { busy = false; }
 }
@@ -185,4 +190,4 @@ function register(context, api) {
   context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.tikzThumbsChapter', () => buildChapter()));
 }
 
-module.exports = { register, status, hoverMd, buildChapter, _describe: describe, _setOnBuilt: (f) => { onBuilt = f || (() => {}); }, _idle: () => !busy && !queue.length };
+module.exports = { register, status, hoverMd, buildChapter, onDidBuild, _describe: describe, _setOnBuilt: (f) => { onBuilt = f || (() => {}); }, _idle: () => !busy && !queue.length };

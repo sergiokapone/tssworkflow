@@ -5,7 +5,8 @@
  *            draws with KaTeX (with the macros of the project), tables come from the model of the table editor
  *     notes  what is not drawn: commands and environments that were not understood (shown under the preview)
  *   opts: { colors: Map of project colours (tableEditorPure.colorDefs), limit: characters, default 200000,
- *           image: (name) => { src } | { skip: 'pdf' | 'missing' } finds the file of \includegraphics (without it: a frame with the name) }
+ *           image: (name) => { src } | { skip: 'pdf' | 'missing' } finds the file of \includegraphics (without it: a frame with the name),
+ *           tikz: (name) => { srcs } | null: the thumbnails of the figure of \localinput (tikzThumbs.js; without them: a frame with the name) }
  * This is not LaTeX: it understands the common text commands, lists, theorem-like blocks, formulas and tables; the PDF is
  * the only exact rendering. */
 
@@ -112,7 +113,7 @@ function displayMath(name, body, ctx) {
 
 /* --------------------------------- the converter --------------------------------- */
 function makeCtx(opts) {
-  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, refInfo: opts && typeof opts.refInfo === 'function' ? opts.refInfo : null, macros: opts && opts.macros ? opts.macros : null, steps: !!(opts && opts.steps), depth: 0, fig: 0, exp: 0 };
+  return { notes: new Set(), footnotes: [], verb: [], colors: (opts && opts.colors) || new Map(), image: opts && typeof opts.image === 'function' ? opts.image : null, tikz: opts && typeof opts.tikz === 'function' ? opts.tikz : null, refInfo: opts && typeof opts.refInfo === 'function' ? opts.refInfo : null, macros: opts && opts.macros ? opts.macros : null, steps: !!(opts && opts.steps), depth: 0, fig: 0, exp: 0 };
 }
 
 // \includegraphics[opt]{name}: the picture itself when the panel found the file (opts.image(name) -> { src } or
@@ -153,10 +154,16 @@ function refHtml(raw, open, close, ctx) {
   return open + names.map(link).join(', ') + close;
 }
 
-// \\localinput{x.tikz} / \\input{x.tikz}: a frame with the name of the file in the middle; a click opens the file (the panel resolves the name)
-function tikzFrame(name, via) {
+// \\localinput{x.tikz} / \\input{x.tikz}: a frame with the name of the file in the middle; a click opens the file (the panel resolves the name).
+// 0.25.0: opts.tikz(name) -> { srcs: [...] } when the thumbnails of the figure are built (tikzThumbs.js): the pictures stand in the frame
+const SAFE_SRC = (s) => typeof s === 'string' && s && !/^\s*(?:javascript|vbscript|data:(?!image\/))/i.test(s);
+function tikzFrame(name, via, ctx) {
   const base = String(name).split('/').pop();
-  return '<a class="tikzf" href="#" data-open="' + esc(name) + '" data-via="' + esc(via) + '" title="' + esc(tr('Відкрити {0}', name)) + '">' + esc(base) + '</a>';
+  let r = null;
+  if (ctx && ctx.tikz) { try { r = ctx.tikz(name); } catch (e) { r = null; } }
+  const srcs = r && Array.isArray(r.srcs) ? r.srcs.filter(SAFE_SRC) : [];
+  const inner = srcs.length ? srcs.map((s) => '<img src="' + esc(s) + '" alt="' + esc(base) + '">').join('') : esc(base);
+  return '<a class="tikzf' + (srcs.length ? ' tikzimg' : '') + '" href="#" data-open="' + esc(name) + '" data-via="' + esc(via) + '" title="' + esc(tr('Відкрити {0}', name)) + '">' + inner + '</a>';
 }
 const isTikzRef = (cmd, name, ctx) => !!name && !/[\\{}$]/.test(name) && (/\.tikz$/i.test(name) || (cmd === 'localinput' && ctx.fig > 0));
 
@@ -342,7 +349,7 @@ function inline(text, ctx) {
       if (name === 'localinput' || name === 'input') {
         const g = readGroup(text, i);
         const f = g ? g.text.trim() : '';
-        if (g && isTikzRef(name, f, ctx)) { i = g.end; out += tikzFrame(f, name); continue; }
+        if (g && isTikzRef(name, f, ctx)) { i = g.end; out += tikzFrame(f, name, ctx); continue; }
       }
       if (Object.prototype.hasOwnProperty.call(SKIP_CMDS, name)) {
         let skip = SKIP_CMDS[name];
