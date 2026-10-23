@@ -80,8 +80,13 @@ jobs:
         with:
           name: tssworkflow-vsix
           path: '*.vsix'
+      # the body of the release: the section of the version in CHANGELOG.md (a tag without one fails here, before the release)
+      - name: release notes from CHANGELOG.md
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node .github/release-notes.js "${{ github.ref_name }}" release-notes.md
       - name: attach to the release of the tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: '*.vsix'
+          body_path: release-notes.md
