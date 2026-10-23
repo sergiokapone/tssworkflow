@@ -1,0 +1,20 @@
+# Weekly updates of the dev dependencies and of the GitHub Actions, one grouped PR each; CI checks every PR.
+# @types/vscode stays at the version of engines.vscode (1.74.0): newer types let code use API that 1.74 lacks, and vsce refuses the package.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        patterns: ['*']
+    ignore:
+      - dependency-name: '@types/vscode'
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

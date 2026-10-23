@@ -2449,6 +2449,7 @@
   "scripts": {
     "test": "node tests/run-all.js",
     "typecheck": "tsc -p .",
+    "lint": "eslint -c tests/eslint.config.js --no-warn-ignored .",
     "test:vscode": "node tests/integration/run.js"
   },
   "devDependencies": {
