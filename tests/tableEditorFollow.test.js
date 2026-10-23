@@ -7,7 +7,7 @@ const path = require('path');
 const Module = require('module');
 const EXT = path.resolve(__dirname, process.env.TSS_EXT || process.argv[2] || '../extension');
 const X = require(path.join(EXT, 'tableEditorPure.js'));
-const { makeVscode, Position, Range, Selection } = require('./vscodeStub');
+const { makeVscode } = require('./vscodeStub');
 
 let n = 0;
 const eq = (a, b, m) => { assert.deepStrictEqual(a, b, m); n++; };

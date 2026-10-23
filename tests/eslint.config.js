@@ -1,8 +1,8 @@
 'use strict';
 // used by tests/lint.test.js; no plugins or packages needed beyond eslint itself
 const g = (names) => Object.fromEntries(names.split(' ').map((n) => [n, 'readonly']));
-const NODE = g('process console Buffer setTimeout clearTimeout setInterval clearInterval setImmediate URL TextDecoder TextEncoder AbortController');
-const BROWSER = g('window document console setTimeout clearTimeout setInterval clearInterval requestAnimationFrame navigator getComputedStyle Node Event KeyboardEvent MouseEvent ClipboardEvent DOMParser acquireVsCodeApi ClipboardItem Blob IntersectionObserver ResizeObserver MutationObserver');
+const NODE = g('__dirname __filename process console Buffer setTimeout clearTimeout setInterval clearInterval setImmediate URL TextDecoder TextEncoder AbortController');
+const BROWSER = g('window document console setTimeout clearTimeout setInterval clearInterval requestAnimationFrame navigator getComputedStyle Node Event KeyboardEvent MouseEvent ClipboardEvent DOMParser acquireVsCodeApi T ClipboardItem Blob IntersectionObserver ResizeObserver MutationObserver');
 const BROWSER_DIRS = ['media/tableEditor/**', 'media/selectionPreview/**', 'media/common/**', 'media/formulaOverview/**', 'media/macroGallery/**'];
 const rules = {
   'no-undef': 'error', 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }],
@@ -10,7 +10,7 @@ const rules = {
   'no-func-assign': 'error', 'no-const-assign': 'error', 'no-self-assign': 'error', 'no-unsafe-finally': 'error',
 };
 module.exports = [
-  { ignores: ['media/katex/**', 'node_modules/**'] },
+  { ignores: ['media/katex/**', 'node_modules/**', '.vscode-test/**', 'vsix/**'] },
   { files: ['**/*.js'], ignores: BROWSER_DIRS, languageOptions: { sourceType: 'commonjs', ecmaVersion: 2022, globals: NODE }, rules },
   { files: BROWSER_DIRS.map((d) => d.replace('**', '**/*.js')), languageOptions: { sourceType: 'script', ecmaVersion: 2022, globals: BROWSER }, rules },
 ];

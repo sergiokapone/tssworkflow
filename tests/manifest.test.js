@@ -68,6 +68,15 @@ t('every file that package.json points at exists', () => {
   assert.deepStrictEqual(missing, []);
 });
 
+t('the minimum version of VS Code in README.md is that of engines (README said 1.60 long after engines became ^1.74.0)', () => {
+  const readme = fs.readdirSync(ext).find((f) => /^readme\.md$/i.test(f));
+  if (!readme) return; // the packaged tree may have none
+  const min = /(\d+\.\d+)/.exec(pk.engines.vscode)[1];
+  const said = [...fs.readFileSync(path.join(ext, readme), 'utf8').matchAll(/VS Code (\d+\.\d+)(?:\.0)? or newer/g)].map((x) => x[1]);
+  assert.ok(said.length > 0, readme + ' does not say "VS Code X.Y or newer"');
+  assert.deepStrictEqual([...new Set(said)], [min], readme + ' vs engines.vscode ' + pk.engines.vscode);
+});
+
 t('JSON files of the extension are valid', () => {
   const found = [];
   const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name === 'node_modules' || e.name === 'katex' || e.name.startsWith('.')) continue; /* .git, .vscode-test (a downloaded VS Code), .github: not the extension */ const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.json$/.test(e.name)) found.push(p); } };

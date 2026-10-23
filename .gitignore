@@ -6,3 +6,8 @@ Thumbs.db
 extension.vsixmanifest
 [Content_Types].xml
 .vscode-test/
+
+# Claude Code (local settings and notes)
+.claude/
+CLAUDE.md
+CLAUDE.local.md

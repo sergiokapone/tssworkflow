@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.1
+Без нових команд і налаштувань: тести, які досі тихо пропускались, тепер виконуються.
+- **Пропуск через відсутній пакет у CI — помилка.** typecheck, lint і webview-тест таблиць без `typescript` / `eslint` / `jsdom` локально, як і раніше, пишуть `skip:`, а в CI (змінна `CI`) чи з `TSS_STRICT=1` падають (`tests/_skip.js`): зламаний `npm ci` більше не проходить непомітно. Локально devDependencies не були встановлені, тож «усі 83 пройшли» означало без перевірки типів і без webview.
+- **ESLint у `devDependencies`** (раніше його не було ніде, і `tests/lint.test.js` завжди пропускався, також у CI). Перший справжній прогін: конфіг не знав `__dirname` і глобальної `T` webview-скриптів (`media/common/i18n.js`) і сканував `.vscode-test/` (завантажений VS Code); виправлено, до ігнорованих додано `.vscode-test/` і `vsix/`. Сім невикористаних змінних у тестах прибрано; у коді розширення знахідок немає (181 файл).
+- **`npm run test:vscode` на встановленому VS Code**: поза CI `tests/integration/run.js` бере `Code.exe`, знайдений через PATH, і нічого не завантажує (`.vscode-test/` займала 1,4 ГБ: stable і 1.74.0). `VSCODE_TEST_PATH` — інший виконуваний файл, `VSCODE_TEST_VERSION` — завантажити версію в `.vscode-test/`, як у CI. Усі 8 проходять у VS Code 1.143.1.
+- **README**: мінімальна версія VS Code 1.74 (було 1.60, хоча `engines` давно `^1.74.0`), без застарілого розділу «New in 0.7» — натомість посилання на `CHANGELOG.md`. `tests/manifest.test.js` звіряє версію в README з `engines`.
+- `.claude/`, `CLAUDE.md`, `CLAUDE.local.md` — у `.gitignore` і `.vscodeignore` (локальні налаштування Claude Code).
+
 ## 0.24.0
 Без нових команд і налаштувань: перевірки, які ловлять помилки до того, як вони потраплять у `.vsix`.
 - **CI** (`.github/workflows/ci.yml`): на кожен push у `main`, pull request і тег. `npm test` на Ubuntu і Windows (0.22.2 показав, що тести, написані на одній системі, ламаються на іншій); тести у справжньому VS Code (stable на Ubuntu й Windows, 1.74.0 — найстаріша з `engines` — на Ubuntu); потім `.vsix` як артефакт, а для тегу `v*` — файл у релізі GitHub.

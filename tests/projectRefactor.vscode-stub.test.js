@@ -43,7 +43,6 @@ const mkUntitled = (content) => {
   return d;
 };
 const orig = Module._load;
-const treeItems = [];
 const stub = {
   Uri, Range, WorkspaceEdit, DocumentLink, CodeLens,
   RelativePattern: class { constructor(b, p) { this.base = b; this.pattern = p; } },

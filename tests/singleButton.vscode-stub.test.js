@@ -123,7 +123,7 @@ const cwdOf = (task) => task.execution.options && task.execution.options.cwd;
     eq(opened(), 0, kind + ': ' + key + ' = false: the PDF is not opened');
     for (const other of [['chapter', 'openPdf.chapter'], ['separate', 'openPdf.separate'], ['main', 'openPdf.main']]) {
       if (other[0] === kind) continue;
-      const tt = await build(other[0]);
+      await build(other[0]);
       eq([other[0], opened()], [other[0], 1], other[0] + ' is not affected by ' + key);
     }
     delete cfgv[key];

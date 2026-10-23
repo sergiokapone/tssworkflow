@@ -61,7 +61,7 @@ write('B/B.tex', 'Розділ Б.\n\\includechapter{A}\n');
 write('commented.tex', 'Це не повинно рахуватись нікуди ніколи.\n');
 
 (async () => {
-  const FL = req('filesAndLabels.js');
+  req('filesAndLabels.js');
   const U = req('util.js');
   const deep = req('wordCount.js').deepWords;
   const expectedAll = words('main.tex') + words('A/A.tex') + words('A/sec.tex') + words('extra.tex') + words('B/B.tex');

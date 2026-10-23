@@ -14,3 +14,7 @@ package-lock.json
 tsconfig.json
 .vscode-test/**
 .github/**
+
+.claude/**
+CLAUDE.md
+CLAUDE.local.md

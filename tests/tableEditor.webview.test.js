@@ -4,7 +4,7 @@ const path = require('path'), fs = require('fs'), assert = require('assert');
 const ext = path.resolve(process.argv[2] || require('./_ext'));
 let JSDOM;
 try { JSDOM = require(require.resolve('jsdom', { paths: [process.cwd(), __dirname, path.join(__dirname, '..')] })).JSDOM; }
-catch (e) { console.log('skip: jsdom is not installed (npm i -D jsdom)'); process.exit(0); }
+catch (e) { require('./_skip')('jsdom is not installed (npm ci)'); }
 const T = require(path.join(ext, 'tableEditorPure.js'));
 const MP = require(path.join(ext, 'macrosPure.js'));
 let n = 0;

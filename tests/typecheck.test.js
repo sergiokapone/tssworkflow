@@ -6,7 +6,7 @@ const { spawnSync } = require('child_process');
 const ext = path.resolve(process.argv[2] || require('./_ext'));
 let tsc;
 try { tsc = require.resolve('typescript/bin/tsc', { paths: [ext, process.cwd(), __dirname, path.join(__dirname, '..')] }); }
-catch (e) { console.log('skip: typescript is not installed (npm i)'); process.exit(0); }
+catch (e) { require('./_skip')('typescript is not installed (npm ci)'); }
 if (!fs.existsSync(path.join(ext, 'tsconfig.json'))) { console.log('skip: no tsconfig.json in ' + ext); process.exit(0); }
 const r = spawnSync(process.execPath, [tsc, '-p', ext], { encoding: 'utf8', cwd: ext });
 const out = ((r.stdout || '') + (r.stderr || '')).trim();
