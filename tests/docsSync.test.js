@@ -54,7 +54,7 @@ t('docs.test.js catches a stub row and a changelog row that landed in a table of
   const p = copy('stub.md', (s) => s.replace(/^(\|\s*`wrapWidth`\s*\|\s*ціле\s*\|)/m, '| 0.19.2 | Рефакторинг без нових команд. | — | — | — | — |\n$1'));
   const d = docTest(p);
   assert.notStrictEqual(d.status, 0);
-  assert.ok(/neither a setting nor a command|move it to section 10/.test(d.stdout + d.stderr), d.stdout + d.stderr);
+  assert.ok(/neither a setting nor a command/.test(d.stdout + d.stderr), d.stdout + d.stderr);
 });
 
 console.log('\n' + n + ' tests passed');

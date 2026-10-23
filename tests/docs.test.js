@@ -64,7 +64,7 @@ t('the reference names the current version', () => {
   const m = /з `package\.json` (\d+\.\d+\.\d+)/.exec(s8.join('\n'));
   assert.ok(m, 'section 8 should say "з `package.json` X.Y.Z"');
   assert.strictEqual(m[1], pk.version);
-  assert.ok(doc.some((l) => l.startsWith('| ' + pk.version + ' |')), 'the changelog table of section 10 has no row for ' + pk.version);
+  // the changelog table of section 10 is closed at 0.24.1: newer versions live only in CHANGELOG.md (tests/releaseNotes.test.js)
 });
 
 t('every module of the extension is described in the reference', () => {
@@ -96,7 +96,7 @@ t('the tables of sections 7 and 8 hold only rows of settings / commands (or of k
       odd.push(l.slice(0, 70));
     }
   }
-  assert.deepStrictEqual(odd, [], 'a row that is neither a setting nor a command (move it to section 10)');
+  assert.deepStrictEqual(odd, [], 'a row that is neither a setting nor a command (a changelog row belongs to CHANGELOG.md)');
 });
 
 console.log('\n' + n + ' tests passed');

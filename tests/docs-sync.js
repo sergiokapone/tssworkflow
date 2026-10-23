@@ -10,7 +10,7 @@
 const path = require('path'), fs = require('fs');
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const write = process.argv.includes('--write');
-const ext = path.resolve(args[0] || path.join(__dirname, '..', 'vsix', 'extension'));
+const ext = path.resolve(args[0] || require('./_ext'));
 const docPath = path.resolve(args[1] || [path.join(__dirname, '..', 'LaTeX-VSCode-setup.md'), path.join(__dirname, '..', '..', 'LaTeX-VSCode-setup.md')].find((p) => fs.existsSync(p)) || 'LaTeX-VSCode-setup.md');
 const pk = JSON.parse(fs.readFileSync(path.join(ext, 'package.json'), 'utf8'));
 const raw = fs.readFileSync(docPath, 'utf8');
