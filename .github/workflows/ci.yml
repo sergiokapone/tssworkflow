@@ -74,7 +74,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx --yes @vscode/vsce@3 package --out tssworkflow-${{ github.sha }}.vsix
+      # the name of the version in package.json: tssworkflow-0.24.0.vsix (the same name as a local vsce package)
+      - run: npx --yes @vscode/vsce@3 package --out "tssworkflow-$(node -p "require('./package.json').version").vsix"
       - uses: actions/upload-artifact@v4
         with:
           name: tssworkflow-vsix
