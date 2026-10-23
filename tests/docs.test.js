@@ -80,6 +80,30 @@ t('the reference does not mention modules that were renamed or removed (the chan
   assert.deepStrictEqual([...new Set(stale)], []);
 });
 
+t('section 8 names, for each command, exactly the editor-title menu it is in (menu `icon` «Ukrainian label»)', () => {
+  const nlsUk = path.join(ext, 'package.nls.uk.json');
+  if (!fs.existsSync(nlsUk)) return;
+  const uk = JSON.parse(fs.readFileSync(nlsUk, 'utf8'));
+  const name = {};
+  for (const sm of pk.contributes.submenus || []) {
+    if (!pk.contributes.menus['editor/title'].some((x) => x.submenu === sm.id)) continue;
+    const label = uk[String(sm.label).replace(/%/g, '')] || sm.label;
+    name[sm.id] = 'меню `' + String(sm.icon || '').replace(/^\$\(|\)$/g, '') + '` «' + label.replace(/^TSS Workflow:\s*/, '') + '»';
+  }
+  const want = {};
+  for (const [id, n] of Object.entries(name)) for (const x of pk.contributes.menus[id]) (want[x.command.replace(/^tssworkflow\./, '')] ||= []).push(n);
+  const names = Object.values(name);
+  const bad = [];
+  for (const r of cmdRows) {
+    const id = r[1].replace(/`/g, '');
+    const said = names.filter((n) => r[3].includes(n)).sort();
+    const is = (want[id] || []).slice().sort();
+    if (JSON.stringify(said) !== JSON.stringify(is)) bad.push(id + ': the reference says [' + said.join(', ') + '], package.json has [' + is.join(', ') + ']');
+  }
+  const stale = doc.filter((l) => /меню `(?:edit|list-tree|gear)` «/.test(l)).flatMap((l) => [...l.matchAll(/меню `[a-z-]+` «[^»]+»/g)].map((m) => m[0])).filter((m) => !names.includes(m));
+  assert.deepStrictEqual(bad.concat([...new Set(stale)].map((m) => 'no such menu: ' + m)), []);
+});
+
 t('no stub row (a table row with the marker `ЗАПОВНИТИ ОПИС`) is left (tests/docs-sync.js adds them for a setting or a command that has no row yet)', () => {
   const left = doc.map((l, i) => [i + 1, l]).filter(([, l]) => l.startsWith('|') && /ЗАПОВНИТИ ОПИС/.test(l)).map(([i, l]) => 'line ' + i + ': ' + l.slice(0, 60));
   assert.deepStrictEqual(left, []);

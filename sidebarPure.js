@@ -12,13 +12,10 @@ const GROUPS = [
     ['toggleCompileOnSave', 'Збірка при збереженні (вкл./викл.)', 'save'],
     ['openPdfExternal', 'PDF у зовнішній програмі', 'link-external'],
     ['externalForwardSearch', 'SyncTeX: показати рядок у PDF', 'go-to-file'],
-    ['synctexDiagnose', 'Діагностика SyncTeX (чи є цей файл у PDF)', 'debug-line-by-line'],
-    ['cleanAux', 'Видалити допоміжні файли (PDF лишити)', 'trash'],
-    ['clean', 'Видалити допоміжні файли й PDF', 'trash'],
     ['buildParts', 'Зібрати лише вибрані частини (\\part)', 'layers'],
-    ['showHooks', 'Хуки виводу сторінки (shipout)', 'debug-console'],
-    ['checkLatexWorkshop', 'Сумісність із LaTeX Workshop', 'shield'],
-    ['debugState', 'Стан розширення (витоки, таймери, кеші)', 'pulse']
+    ['savePdfCopy', 'Зберегти копію PDF з датою', 'save-as'],
+    ['cleanAux', 'Видалити допоміжні файли (PDF лишити)', 'trash'],
+    ['clean', 'Видалити допоміжні файли й PDF', 'trash']
   ] },
   { id: 'new', en: 'Templates & new files', label: 'Шаблони й нові файли', icon: 'new-file', expanded: true, items: [
     ['newFromTemplate', 'Новий документ із шаблона…', 'new-file'],
@@ -36,26 +33,34 @@ const GROUPS = [
     ['unwrap', 'Склеїти рядки абзацу', 'list-flat'],
     ['wrap', 'Розбити абзац за шириною', 'word-wrap'],
     ['sentences', 'Одне речення в рядок', 'list-ordered'],
+    ['formatSelection', 'Оформити виділене (напівжирний, курсив, підкреслення…)', 'bold'],
     ['unicodeToLatex', 'Unicode → LaTeX', 'symbol-operator'],
     ['toggleIffalse', 'Обгорнути / зняти \\iffalse … \\fi', 'comment']
   ] },
-  { id: 'structure', en: 'Structure, formulas, tables', label: 'Структура, формули, таблиці', icon: 'symbol-structure', items: [
-    ['convertEnv', 'Змінити формульне середовище / мітку', 'symbol-namespace'],
+  { id: 'structure', en: 'Structure', label: 'Структура', icon: 'symbol-structure', items: [
     ['wrapEnv', 'Обгорнути виділене в середовище', 'symbol-namespace'],
     ['wrapCmd', 'Обгорнути виділене в команду', 'symbol-namespace'],
-    ['formatSelection', 'Оформити виділене (напівжирний, курсив, підкреслення…)', 'bold'],
-    ['previewSelection', 'Показати виділене відрендереним (фокус лишається в редакторі)', 'open-preview'],
-    ['copyFormula', 'Копіювати формулу як MathML (для Word)', 'copy'],
-    ['displayToEquation', '\\[ … \\] → equation*', 'symbol-numeric'],
     ['frameSections', 'Обрамити заголовки й формули', 'symbol-boolean'],
     ['reframeSections', 'Переобрамити заголовки й формули', 'refresh'],
+    ['renumberBeamer', 'Пронумерувати слайди beamer', 'list-ordered']
+  ] },
+  { id: 'formulas', en: 'Formulas', label: 'Формули', icon: 'symbol-numeric', items: [
+    ['convertEnv', 'Змінити формульне середовище / мітку', 'symbol-namespace'],
+    ['displayToEquation', '\\[ … \\] → equation*', 'symbol-numeric'],
+    ['previewSelection', 'Показати виділене відрендереним (фокус лишається в редакторі)', 'open-preview'],
+    ['copyFormula', 'Копіювати формулу як MathML (для Word)', 'copy'],
+    ['listEquations', 'Список усіх формул проєкту', 'symbol-numeric'],
+    ['formulaOverview', 'Формули проєкту відрендерені (пошук, не використовуються)', 'symbol-ruler'],
+    ['markKeyFormula', 'Позначити / зняти ключову формулу (%! key)', 'star'],
+    ['keyFormulasDraft', 'Чернетка «Підсумки» з ключових формул', 'checklist']
+  ] },
+  { id: 'tables', en: 'Tables & TikZ', label: 'Таблиці й TikZ', icon: 'table', items: [
+    ['editTable', 'Редагувати таблицю візуально', 'table'],
     ['alignTable', 'Вирівняти таблицю по &', 'table'],
     ['formatTblr', 'Форматувати tblr / longtblr (параметри й клітинки)', 'table'],
-    ['formatTikz', 'Розкласти \\tikz{…} по рядках (один оператор на рядок)', 'list-tree'],
-    ['renumberBeamer', 'Пронумерувати слайди beamer', 'list-ordered'],
     ['tableOps', 'Дії з таблицею', 'table'],
-    ['editTable', 'Редагувати таблицю візуально', 'table'],
     ['tableFromFile', 'Таблиця з CSV / XLSX / буфера в tblr', 'table'],
+    ['formatTikz', 'Розкласти \\tikz{…} по рядках (один оператор на рядок)', 'list-tree'],
     ['extractTikz', 'Винести tikzpicture під курсором у tikz/', 'export'],
     ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export']
   ] },
@@ -64,15 +69,8 @@ const GROUPS = [
     ['pickFile', 'Вибрати ім\u02bcя файла для \\localinput / \\includegraphics', 'file-code'],
     ['pictures', 'Панель рисунків', 'file-media'],
     ['pickRef', 'Вставити \\ref (вибір мітки)', 'symbol-key'],
-    ['renameLabel', 'Перейменувати мітку (з усіма \\ref)', 'edit'],
-    ['projectWordCount', 'Слова проєкту (за розділами й файлами)', 'pencil'],
-    ['listEquations', 'Список усіх формул проєкту', 'symbol-numeric'],
     ['pickMacro', 'Перейти до макроса з .cls/.sty', 'symbol-method'],
-    ['macroGallery', 'Галерея макросів класу (відрендерені, з прапорцями KaTeX/MathJax)', 'extensions'],
-    ['formulaOverview', 'Формули проєкту відрендерені (пошук, не використовуються)', 'symbol-ruler'],
-    ['markKeyFormula', 'Позначити / зняти ключову формулу (%! key)', 'star'],
-    ['keyFormulasDraft', 'Чернетка «Підсумки» з ключових формул', 'checklist'],
-    ['macroInfo', 'Де визначено макрос (діагностика)', 'question']
+    ['macroGallery', 'Галерея макросів класу (відрендерені, з прапорцями KaTeX/MathJax)', 'extensions']
   ] },
   { id: 'checks', en: 'Checks', label: 'Перевірки', icon: 'checklist', items: [
     ['checkLabels', 'Мітки: дублі й невизначені', 'checklist'],
@@ -93,11 +91,11 @@ const GROUPS = [
     ['bibDuplicates', 'Дублі в .bib (DOI, назва)', 'files'],
     ['dstuBib', '.bib за ДСТУ 8302:2015', 'law'],
     ['bibNormalizeKeys', 'Ключі .bib: прізвище+рік (і \\cite)', 'symbol-key'],
-    ['savePdfCopy', 'Зберегти копію PDF з датою', 'save-as'],
     ['latexdiff', 'Зміни розділу від ревізії git (latexdiff)', 'git-compare']
   ] },
   { id: 'refactor', en: 'Refactoring & snapshots', label: 'Рефакторинг і знімки', icon: 'replace-all', items: [
     ['renameChapter', 'Перейменувати розділ (папка, файл, посилання)', 'edit'],
+    ['renameLabel', 'Перейменувати мітку (з усіма \\ref)', 'edit'],
     ['replaceInProject', 'Замінити по проєкту (без коментарів і verbatim)', 'replace-all'],
     ['notationReport', 'Узгодженість позначень (\\varepsilon / \\epsilon …)', 'symbol-operator'],
     ['termsReport', 'Терміни: вжито до означення, немає в покажчику', 'book'],
@@ -108,11 +106,19 @@ const GROUPS = [
   ] },
   { id: 'info', en: 'Information', label: 'Інформація', icon: 'graph', items: [
     ['projectStats', 'Статистика проєкту', 'graph'],
+    ['projectWordCount', 'Слова проєкту (за розділами й файлами)', 'pencil'],
     ['todoList', 'Список TODO / FIXME', 'tasklist']
+  ] },
+  { id: 'diag', en: 'Diagnostics', label: 'Діагностика', icon: 'pulse', items: [
+    ['checkEnvironment', 'Doctor: перевірити середовище (latexmk, lualatex, …)', 'pulse'],
+    ['checkLatexWorkshop', 'Сумісність із LaTeX Workshop', 'shield'],
+    ['synctexDiagnose', 'Діагностика SyncTeX (чи є цей файл у PDF)', 'debug-line-by-line'],
+    ['macroInfo', 'Де визначено макрос (діагностика)', 'question'],
+    ['showHooks', 'Хуки виводу сторінки (shipout)', 'debug-console'],
+    ['debugState', 'Стан розширення (витоки, таймери, кеші)', 'pulse']
   ] },
   { id: 'project', en: 'Project & settings', label: 'Проєкт і налаштування', icon: 'gear', items: [
     ['initProjectSettings', 'Створити .vscode/settings.json', 'file-add'],
-    ['checkEnvironment', 'Doctor: перевірити середовище (latexmk, lualatex, …)', 'pulse'],
     ['reloadMacros', 'Перечитати макроси з .cls/.sty', 'refresh'],
     ['generateMathJax', 'Файл макросів для MathJax', 'symbol-misc'],
     ['@settings', 'Налаштування розширення', 'settings-gear', { raw: 'workbench.action.openSettings', args: ['tssworkflow'], en: 'Extension settings' }]

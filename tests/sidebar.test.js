@@ -16,6 +16,22 @@ t('coverage notices a missing, a duplicate and an unknown command', () => {
   assert.deepStrictEqual(r.missing, ['brandNew']);
   assert.deepStrictEqual(r.unknown, ['stopBuild']);
 });
+t('the submenus of the editor title follow the groups of the panel: group "<n>_<group id>", the command really in that group, no repeated order', () => {
+  const groupOf = {};
+  for (const g of S.GROUPS) for (const it of g.items) groupOf['tssworkflow.' + it[0]] = g.id;
+  const bad = [];
+  for (const id of ['tssworkflow.submenu.text', 'tssworkflow.submenu.nav', 'tssworkflow.submenu.build']) {
+    const items = pk.contributes.menus[id];
+    assert.ok(items && items.length, id + ' is empty');
+    const orders = items.map((x) => x.group);
+    assert.strictEqual(new Set(orders).size, orders.length, id + ': two items with the same group@order');
+    for (const x of items) {
+      const m = /^\d+_([a-z]+)@\d+$/.exec(x.group || '');
+      if (!m || groupOf[x.command] !== m[1]) bad.push(id + ': ' + x.command + ' in "' + x.group + '", the panel has it in "' + groupOf[x.command] + '"');
+    }
+  }
+  assert.deepStrictEqual(bad, []);
+});
 t('formatKey / keyMap', () => {
   assert.strictEqual(S.formatKey('ctrl+alt+t'), 'Ctrl+Alt+T');
   assert.strictEqual(S.formatKey('shift+f5'), 'Shift+F5');
