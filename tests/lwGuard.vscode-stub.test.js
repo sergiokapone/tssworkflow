@@ -92,7 +92,11 @@ Module._load = function (req, ...a) {
         if (cmd !== 'ps' && cmd !== 'powershell.exe') return realCp.execFile(cmd, args, opts, cb);
         S.psCalls++;
         const lines = typeof S.ps === 'function' ? S.ps(S.psCalls) : S.ps;
-        setImmediate(() => (S.psFail ? cb(new Error('no ps'), '', '') : cb(null, lines.join('\n') + '\n', '')));
+        // on Windows the guard asks PowerShell for JSON (Get-CimInstance): the same lines in that form
+        const out = cmd === 'powershell.exe'
+          ? JSON.stringify(lines.map((l) => /^\s*(\d+)\s+(.*\S)\s*$/.exec(l)).filter(Boolean).map((m) => ({ ProcessId: +m[1], Name: 'perl.exe', CommandLine: m[2] })))
+          : lines.join('\n') + '\n';
+        setImmediate(() => (S.psFail ? cb(new Error('no ps'), '', '') : cb(null, out, '')));
         return { on() {}, kill() {} };
       }
     });

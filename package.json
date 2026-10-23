@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.22.1",
+  "version": "0.22.2",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -441,6 +441,11 @@
       {
         "command": "tssworkflow.savePdfCopy",
         "title": "TSS Workflow: Save PDF copy with a date"
+      },
+      {
+        "command": "tssworkflow.preflight",
+        "title": "TSS Workflow: Check before print (fonts, picture resolution, log, TODO)",
+        "icon": "$(checklist)"
       },
       {
         "command": "tssworkflow.editTable",
@@ -1055,6 +1060,17 @@
           "default": 5,
           "minimum": 0,
           "description": "Minimum Overfull \\hbox width (pt) to report"
+        },
+        "tssworkflow.preflight.minDpi": {
+          "type": "integer",
+          "default": 300,
+          "minimum": 1,
+          "markdownDescription": "Check before print: a raster picture printed below this resolution (ppi, as placed on the page, read with `pdfimages -list`) is reported. 300 is the usual demand of a printing house; 150 is enough for a PDF read on screen."
+        },
+        "tssworkflow.preflight.requireCmyk": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Check before print: report RGB pictures as a problem (the printing house wants CMYK). Off: they are only counted."
         },
         "tssworkflow.frameRules": {
           "type": "object",
@@ -1834,6 +1850,14 @@
           "default": true,
           "description": "Renumber Beamer Slides: do not number the frame with \\titlepage / \\maketitle; the first following frame is slide 1."
         },
+        "tssworkflow.excludeFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "More folders that are not part of the project: labels, the chapters panel, the statistics, the search of .bib/.sty/pictures and the renames do not look into them. A plain name (`old`) means `**/old/**`; a value with `/` or `*` is a glob. `build`, `.archive`, `node_modules` and `.git` are always excluded."
+        },
         "tssworkflow.fileMacros": {
           "type": "object",
           "default": {
@@ -2399,5 +2423,11 @@
   "galleryBanner": {
     "color": "#1f4e79",
     "theme": "dark"
+  },
+  "scripts": {
+    "test": "node tests/run-all.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.3"
   }
 }

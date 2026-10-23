@@ -7,7 +7,7 @@ const vscode = require('vscode');
 const VT = require('./viewTitles');
 const P = require('./corePure');
 const { tr } = require('./i18n');
-const { EXCLUDE, cfg, debounce } = require('./util');
+const { excludeNow, cfg, debounce } = require('./util');
 
 
 class EmptyTree {
@@ -16,7 +16,7 @@ class EmptyTree {
 }
 
 async function detectHasTex() {
-  const found = await vscode.workspace.findFiles('**/*.{tex,tikz}', EXCLUDE, 1);
+  const found = await vscode.workspace.findFiles('**/*.{tex,tikz}', excludeNow(), 1);
   return found.length > 0;
 }
 

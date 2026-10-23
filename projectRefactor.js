@@ -19,7 +19,7 @@ const { tr } = require('./i18n');
 const TERMS = require('./termsPure');
 const C = require('./chaptersPure');
 const P = require('./corePure');
-const { EXCLUDE, SEL_ANY, cfg, debounce, errText, info, projectRoot, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
+const { excludeNow, SEL_ANY, cfg, debounce, errText, info, projectRoot, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
 const { posix } = require('./corePure');
 
 const SRC_GLOB = '**/*.{tex,tikz,cls,sty,bib}';
@@ -42,7 +42,7 @@ const mainSettings = () => ({
 
 // the source files of the project: [{ path: 'rel/with/slashes', abs, text }]; `exts` limits the extensions
 async function projectFiles(root, exts) {
-  const found = await vscode.workspace.findFiles(new vscode.RelativePattern(root, SRC_GLOB), EXCLUDE, 5000);
+  const found = await vscode.workspace.findFiles(new vscode.RelativePattern(root, SRC_GLOB), excludeNow(), 5000);
   const out = [];
   for (const u of found) {
     const ext = path.extname(u.fsPath).toLowerCase();
@@ -549,7 +549,7 @@ let bibCache = null;
 async function bibEntries() {
   if (bibCache) return bibCache;
   const out = [];
-  const found = await vscode.workspace.findFiles('**/*.bib', EXCLUDE, 200);
+  const found = await vscode.workspace.findFiles('**/*.bib', excludeNow(), 200);
   for (const u of found) {
     const t = textOfPath(u.fsPath);
     if (t === null) continue;
@@ -709,4 +709,5 @@ function register(context, api) {
 }
 
 exports.register = register;
+exports.reportDoc = reportDoc; // the report documents of other modules (preflight.js) get the same links and the refresh lens
 exports._t = { collectProblems, ProblemsProvider, citeCompletion, citeHover, takeSnapshot, listSnapshots };

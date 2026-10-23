@@ -298,6 +298,7 @@ const LOG_FILE_RE = /^(?:\.{0,2}\/|[A-Za-z]:[\\/]|\/)?[^\s()]+\.(?:tex|tikz|sty|
 const LOG_MSG_START = /^(?:Overfull|Underfull|LaTeX (?:Font )?(?:Warning|Info|Error)|Package|Class|Missing|Runaway|!|l\.\d|\[\]|\s*\\|\s*\(\w[\w-]*\)\s{2,})/;
 
 // Extracts overfull boxes and undefined references / citations together with the source file.
+// kind: 'overfull' (with pts), 'ref' or 'cite': what an item is, whatever the language of its message.
 // `log` should be produced with max_print_line=10000 (no wrapped lines).
 function parseLog(log, minOverfull) {
   const lines = log.split(/\r?\n/);
@@ -313,13 +314,13 @@ function parseLog(log, minOverfull) {
       const pts = parseFloat(m[1]);
       const ln = parseInt(m[2] || m[3] || m[4] || m[5], 10);
       const f = top();
-      if (f && pts >= minOverfull) issues.push({ file: f, line: ln - 1, severity: 'warning', message: tr('Overfull \\hbox: {0}pt завширшки', pts) });
+      if (f && pts >= minOverfull) issues.push({ kind: 'overfull', pts, file: f, line: ln - 1, severity: 'warning', message: tr('Overfull \\hbox: {0}pt завширшки', pts) });
       continue;
     }
     m = /^LaTeX Warning: (Reference|Citation) `([^']*)' on page \S+ undefined on input line (\d+)\./.exec(line);
     if (m) {
       const f = top();
-      if (f) issues.push({ file: f, line: parseInt(m[3], 10) - 1, severity: 'warning', message: m[1] === 'Reference' ? tr('Невизначене посилання «{0}» (за логом LaTeX)', m[2]) : tr('Невизначена цитата «{0}» (за логом LaTeX)', m[2]) });
+      if (f) issues.push({ kind: m[1] === 'Reference' ? 'ref' : 'cite', file: f, line: parseInt(m[3], 10) - 1, severity: 'warning', message: m[1] === 'Reference' ? tr('Невизначене посилання «{0}» (за логом LaTeX)', m[2]) : tr('Невизначена цитата «{0}» (за логом LaTeX)', m[2]) });
       continue;
     }
     // biblatex: Package biblatex Warning: Citation 'key' undefined on input line N.
@@ -327,7 +328,7 @@ function parseLog(log, minOverfull) {
     m = /^Package (?:biblatex|natbib) Warning: Citation [`']([^'`]*)'(?: on page \S+)? undefined on input line (\d+)\./.exec(line);
     if (m) {
       const f = top();
-      if (f) issues.push({ file: f, line: parseInt(m[2], 10) - 1, severity: 'warning', message: tr('Невизначена цитата «{0}» (за логом LaTeX)', m[1]) });
+      if (f) issues.push({ kind: 'cite', file: f, line: parseInt(m[2], 10) - 1, severity: 'warning', message: tr('Невизначена цитата «{0}» (за логом LaTeX)', m[1]) });
       continue;
     }
     if (LOG_MSG_START.test(line)) continue;

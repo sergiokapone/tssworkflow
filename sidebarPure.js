@@ -81,7 +81,8 @@ const GROUPS = [
     ['unusedEquations', 'Нумеровані формули без посилань', 'symbol-numeric'],
     ['unusedPackages', 'Невикористані \\usepackage', 'package'],
     ['missingPackages', 'Відсутні пакети з логу (tlmgr)', 'cloud-download'],
-    ['ltexDictionary', 'LTeX: додати слова у словник', 'book']
+    ['ltexDictionary', 'LTeX: додати слова у словник', 'book'],
+    ['preflight', 'Перевірка перед друком', 'verified']
   ] },
   { id: 'biblio', en: 'Bibliography & versions', label: 'Бібліографія й версії', icon: 'git-compare', items: [
     ['bibFromDoi', 'BibTeX за DOI', 'library'],

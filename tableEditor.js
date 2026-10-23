@@ -11,7 +11,7 @@ const X = require('./tableEditorPure');
 const M = require('./macros');
 const MP = require('./macrosPure');
 const MJ = require('./mathjaxFile');
-const { EXCLUDE_PDF_VERSIONS, cfg, debounce, isTex, openDocByPath } = require('./util');
+const { excludePdfNow, cfg, debounce, isTex, openDocByPath } = require('./util');
 const K = require('./webviewKit');
 const WI = require('./webviewI18n');
 const { tr, getLang } = require('./i18n');
@@ -46,7 +46,7 @@ function projectColors() {
     const results = [];
     const files = new Set();
     try {
-      const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', EXCLUDE_PDF_VERSIONS, 3000);
+      const found = await vscode.workspace.findFiles('**/*.{tex,cls,sty}', excludePdfNow(), 3000);
       const t1 = Date.now();
       const read = async (u, k) => {
         const open = openDocByPath(u.fsPath);

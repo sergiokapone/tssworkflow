@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
 const features = require('./features');
-const { EXCLUDE, PIC_EXTS, debounce } = require('./util');
+const { excludeNow, PIC_EXTS, REF_CTX, debounce, isTexDoc } = require('./util');
 const build = require('./build');
 const { setLang, tr } = require('./i18n');
 const VT = require('./viewTitles');
@@ -136,16 +136,15 @@ const refDefinition = {
     // 1) current file
     const here = findLabelIn(doc.getText(), hit.name, path.basename(doc.uri.fsPath, path.extname(doc.uri.fsPath)));
     if (here) return new vscode.Location(doc.uri, here);
-    // 2) other .tex/.tikz files of the workspace (same folder first)
-    const files = await vscode.workspace.findFiles('**/*.{tex,tikz}', EXCLUDE, 1000);
+    // 2) other .tex/.tikz files of the workspace (same folder first), from the cached index of labels.js:
+    //    a file is read again only when it changed, not on every Ctrl+hover
+    const idx = await require('./labels').buildIndex();
     const dir = path.dirname(doc.uri.fsPath);
-    files.sort((a, b) => Number(b.fsPath.startsWith(dir)) - Number(a.fsPath.startsWith(dir)));
+    const files = [...idx.keys()].sort((a, b) => Number(b.startsWith(dir)) - Number(a.startsWith(dir)));
     for (const f of files) {
-      if (f.fsPath === doc.uri.fsPath) continue;
-      let txt;
-      try { txt = fs.readFileSync(f.fsPath, 'utf8'); } catch (e) { continue; }
-      const p = findLabelIn(txt, hit.name, path.basename(f.fsPath, path.extname(f.fsPath)));
-      if (p) return new vscode.Location(f, p);
+      if (f === doc.uri.fsPath) continue;
+      const l = ((idx.get(f) || {}).labels || []).find((x) => x.name === hit.name);
+      if (l) return new vscode.Location(vscode.Uri.file(f), new vscode.Position(l.line, l.col));
     }
     return undefined;
   }
@@ -386,7 +385,7 @@ async function offerProjectSettings(context) {
     if (fs.existsSync(path.join(f.uri.fsPath, '.vscode', 'settings.json'))) continue;
     const key = 'tssworkflow.noSettingsPrompt:' + f.uri.fsPath.toLowerCase();
     if (context.globalState.get(key)) continue;
-    const tex = await vscode.workspace.findFiles(new vscode.RelativePattern(f, '**/*.tex'), EXCLUDE, 1);
+    const tex = await vscode.workspace.findFiles(new vscode.RelativePattern(f, '**/*.tex'), excludeNow(), 1);
     if (!tex.length) continue;
     const create = tr('Створити');
     const dontAsk = tr('Не питати для цієї папки');
@@ -450,14 +449,15 @@ function activate(context) {
     vscode.commands.registerCommand('tssworkflow.pickFile', pickFile),
     vscode.commands.registerCommand('tssworkflow.alignTable', alignTable),
     vscode.commands.registerCommand('tssworkflow.unwrap', unwrapParagraph),
+    // typing inside \localinput{ / \includegraphics{ (file names) or \ref{ & co. (labels) opens the suggest list
     vscode.workspace.onDidChangeTextDocument((e) => {
       const ed = vscode.window.activeTextEditor;
       if (!ed || e.document !== ed.document || !e.contentChanges.length) return;
       if (!e.contentChanges[0].text) return; // deletion
-      const id = e.document.languageId;
-      if (id !== 'latex' && id !== 'tex' && !e.document.uri.fsPath.toLowerCase().endsWith('.tikz')) return;
+      if (!isTexDoc(e.document)) return;
       const pos = ed.selection.active;
-      if (!argContext(e.document.lineAt(pos.line).text, pos.character)) return;
+      const line = e.document.lineAt(pos.line).text;
+      if (!argContext(line, pos.character) && !REF_CTX.test(line.slice(0, pos.character))) return;
       debounce('suggest', 30, () => vscode.commands.executeCommand('editor.action.triggerSuggest'));
     })
   );
@@ -478,6 +478,7 @@ function activate(context) {
   require('./synctex').register(context, { activePdf: build.activePdf });
   require('./buildTasks').register(context, { run: build.runForTask, outcome: build.outcome, stop: build.stopBuild });
   require('./lwCompat').register(context);
+  require('./preflight').register(context);
   // 0.20.1: the report with the numbers that grow when something leaks
   require('./debugState').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template

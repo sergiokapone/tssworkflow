@@ -206,7 +206,8 @@ t('no code recognizes a diagnostic or a message by its Ukrainian words (that bre
 const FL = require(path.join(ext, 'filesAndLabelsPure'));
 t('filesAndLabelsPure: the diagnostics of the paths of \\input (braces of {{1}} stay, the code and the fix do not depend on the language), the errors of .xlsx', () => {
   const table = FL.fileMacroTable({});
-  const ex = (set) => (p) => set.includes(p.replace(/\\/g, '/'));
+  // the code resolves the paths (on Windows '/p/Ch' becomes 'D:\p\Ch'): the expected ones are resolved the same way
+  const ex = (set) => (p) => set.map((s) => path.resolve(s)).includes(path.resolve(p));
   const run = (lang) => {
     I.setLang(lang);
     const missing = FL.checkFileRefs(['\\input{nope}'], table, { dir: '/p/Ch', root: '/p', inputRoot: 'root', exists: ex([]) });

@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
 const { tr } = require('./i18n');
-const { EXCLUDE, cfg, docLines, info, listFiles, texFiles, textOf } = require('./util');
+const { excludeNow, cfg, docLines, info, listFiles, texFiles, textOf } = require('./util');
 
 /* ------- code that typography leaves alone: tssworkflow.protectedCommands ------ */
 const syncUserCode = () => P.setProtectedCommands(cfg().get('protectedCommands', []));
@@ -80,8 +80,8 @@ async function picturesPanel() {
 async function unusedFiles() {
   const tex = await texFiles();
   const texts = tex.map((f) => ({ p: f.fsPath, t: textOf(f) }));
-  const pics = await vscode.workspace.findFiles('**/Pictures/**/*.{png,jpg,jpeg,gif,webp,svg,pdf,eps,tif,tiff}', EXCLUDE, 5000);
-  const tikz = await vscode.workspace.findFiles('**/tikz/**/*.{tikz,tex}', EXCLUDE, 5000);
+  const pics = await vscode.workspace.findFiles('**/Pictures/**/*.{png,jpg,jpeg,gif,webp,svg,pdf,eps,tif,tiff}', excludeNow(), 5000);
+  const tikz = await vscode.workspace.findFiles('**/tikz/**/*.{tikz,tex}', excludeNow(), 5000);
   const unused = pics.concat(tikz).filter((f) => {
     const base = path.basename(f.fsPath).replace(/\.[^.]+$/, '');
     const re = new RegExp('(?<![\\w-])' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\w-])');

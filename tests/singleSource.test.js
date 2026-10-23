@@ -49,6 +49,27 @@ t('EXCLUDE and EXCLUDE_PDF_VERSIONS keep the exact globs the modules had before 
   } finally { Module._load = load; }
 });
 
+t('tssworkflow.excludeFolders: excludeNow / excludePdfNow add the folders of the setting at the moment of the call; no module passes the fixed EXCLUDE', () => {
+  let setting;
+  const ws = { getConfiguration: () => ({ get: (k, d) => (k === 'excludeFolders' && setting !== undefined ? setting : d) }) };
+  const stub = new Proxy({ workspace: ws, window: {}, Uri: {} }, { get: (o, k) => (k in o ? o[k] : new Proxy(function () {}, {})) });
+  const load = Module._load;
+  Module._load = function (r, ...a) { return r === 'vscode' ? stub : load.call(this, r, ...a); };
+  const file = path.join(ext, 'util.js');
+  delete require.cache[file];
+  try {
+    const U = require(file);
+    assert.strictEqual(U.excludeNow(), U.EXCLUDE, 'no setting: the fixed list');
+    setting = ['old', ' drafts/** ', '**/data/*.csv', '', 'a{b,c}', 42];
+    assert.strictEqual(U.excludeNow(), '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/old/**,drafts/**,**/data/*.csv,**/abc/**,**/42/**}');
+    assert.strictEqual(U.excludePdfNow(), '{**/build/**,**/.archive/**,**/node_modules/**,**/.git/**,**/pdf-versions/**,**/old/**,drafts/**,**/data/*.csv,**/abc/**,**/42/**}');
+    setting = 'old';
+    assert.strictEqual(U.excludeNow(), U.EXCLUDE, 'not an array: ignored');
+  } finally { Module._load = load; delete require.cache[file]; }
+  const fixed = sources().filter(([f, s]) => f !== 'util.js' && /\bEXCLUDE(_PDF_VERSIONS)?\b/.test(s)).map(([f]) => f);
+  assert.deepStrictEqual(fixed, [], 'these modules ignore tssworkflow.excludeFolders');
+});
+
 t('saveDirtyDocs saves the open dirty documents among the paths, skips clean, closed and failing ones, and counts the saved', async () => {
   const saves = [];
   const mkdoc = (p, dirty, fail) => ({ uri: { fsPath: p, scheme: 'file' }, isDirty: dirty, save: async () => { saves.push(p); if (fail) throw new Error('read-only'); return true; } });

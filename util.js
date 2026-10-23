@@ -11,6 +11,17 @@ const { tr } = require('./i18n');
 const EXCLUDED_DIRS = ['**/build/**', '**/.archive/**', '**/node_modules/**', '**/.git/**'];
 const excludeGlob = (extra) => '{' + EXCLUDED_DIRS.concat(extra || []).join(',') + '}';
 const EXCLUDE = excludeGlob();
+// tssworkflow.excludeFolders: more folders the user keeps out of the project (old versions, a copy of a book, a big data folder);
+// a plain name `old` means `**/old/**`, anything with / or * is taken as a glob
+function userExcludes() {
+  let v = [];
+  try { v = vscode.workspace.getConfiguration('tssworkflow').get('excludeFolders', []); } catch (e) { v = []; }
+  return (Array.isArray(v) ? v : []).map((s) => String(s || '').trim().replace(/[{},]/g, '')).filter(Boolean)
+    .map((s) => (/[/*]/.test(s) ? s : '**/' + s + '/**'));
+}
+// the excludes of the moment (the setting may change while VS Code runs; findCached keys on the string, so a change is a new key)
+const excludeNow = () => excludeGlob(userExcludes());
+const excludePdfNow = () => excludeGlob(['**/pdf-versions/**'].concat(userExcludes()));
 // the list of the labels panel and of the renames: the copies kept in pdf-versions are not part of the project either
 const EXCLUDE_PDF_VERSIONS = excludeGlob(['**/pdf-versions/**']);
 const PIC_EXTS = ['.png', '.jpg', '.jpeg', '.pdf', '.svg', '.eps', '.webp', '.gif', '.tif', '.tiff'];
@@ -191,7 +202,7 @@ function openDocByPath(abs) {
 
 // workspace.findFiles with EXCLUDE (or the given exclude), cached while the watcher is alive; always returns a fresh array (callers may push into it)
 function findCached(glob, limit, exclude) {
-  const ex = exclude === undefined ? EXCLUDE : exclude;
+  const ex = exclude === undefined ? excludeNow() : exclude;
   if (!caching) return Promise.resolve(vscode.workspace.findFiles(glob, ex, limit));
   const key = glob + '|' + limit + '|' + ex;
   const c = findCache.get(key);
@@ -269,6 +280,8 @@ module.exports = {
   timerKeys,
   cacheStats,
   EXCLUDE_PDF_VERSIONS,
+  excludeNow,
+  excludePdfNow,
   excludeGlob,
   saveDirtyDocs,
   saveDocs,

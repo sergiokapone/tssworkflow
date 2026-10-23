@@ -8,7 +8,7 @@ const fs = require('fs');
 const P = require('./corePure');
 const X = require('./projectInfoPure');
 const M = require('./macros');
-const { EXCLUDE, SEL_ANY, cfg, debounce, info } = require('./util');
+const { excludeNow, SEL_ANY, cfg, debounce, info } = require('./util');
 const PI = require('./projectIndex');
 const { tr } = require('./i18n');
 
@@ -334,7 +334,7 @@ async function macroInfo() {
   const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const defRe = new RegExp('\\\\(?:(?:re)?new|provide|Declare(?:Robust)?|New|Renew|Provide)[A-Za-z]*\\*?\\s*\\{?\\s*\\\\' + esc + '(?![A-Za-z@])|\\\\(?:[gex]?def|let|csdef)\\s*\\\\' + esc + '(?![A-Za-z@])');
   const hits = [];
-  for (const f of await vscode.workspace.findFiles('**/*.{tex,cls,sty,ltx,tikz}', EXCLUDE, 2000)) {
+  for (const f of await vscode.workspace.findFiles('**/*.{tex,cls,sty,ltx,tikz}', excludeNow(), 2000)) {
     api.textOf(f).split(/\r?\n/).forEach((l, i) => { if (defRe.test(P.codePart(l))) hits.push({ f, line: i, text: l.trim().slice(0, 160) }); });
   }
   api.log(tr('[macros] \\{0} не знайдено сканером. Скановані джерела ({1}): {2}', name, sources.length, sources.map((s) => path.basename(s)).join(', ') || tr('немає')));
@@ -372,8 +372,8 @@ function register(context, apiIn) {
       if (!/\.(tex|tikz)$/i.test(d.fileName)) return;
       debounce('todo.refresh', 1200, () => todo.refresh());
     }),
-    vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.todoKeywords')) todo.refresh(); })
+    vscode.workspace.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('tssworkflow.todoKeywords') || e.affectsConfiguration('tssworkflow.excludeFolders')) todo.refresh(); })
   );
 }
 
-module.exports = { register, auxInfo };
+module.exports = { register, auxInfo, collectTodos };

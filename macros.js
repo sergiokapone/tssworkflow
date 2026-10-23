@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { tr } = require('./i18n');
 const M = require('./macrosPure');
-const { EXCLUDE, cfg, openDocByPath } = require('./util');
+const { excludeNow, cfg, openDocByPath } = require('./util');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{tex,tikz,cls,sty,ltx}' }];
 
@@ -75,7 +75,7 @@ async function resolveName(ref, baseDir, root) {
   // somewhere else in the project (class kept in a subfolder)
   if (/^(?:documentclass|usepackage|RequirePackage|RequirePackageWithOptions|LoadClass|LoadClassWithOptions)$/.test(ref.cmd)) {
     const base = path.basename(ref.name);
-    const found = await vscode.workspace.findFiles('**/' + base + (ref.cmd === 'documentclass' || /Class/.test(ref.cmd) ? '.cls' : '.sty'), EXCLUDE, 3);
+    const found = await vscode.workspace.findFiles('**/' + base + (ref.cmd === 'documentclass' || /Class/.test(ref.cmd) ? '.cls' : '.sty'), excludeNow(), 3);
     if (found.length) return found[0].fsPath;
   }
   return null;
@@ -91,7 +91,7 @@ async function collectSources(folder) {
   for (const item of cfg().get('macroFiles', []) || []) {
     if (typeof item !== 'string' || !item.trim()) continue;
     if (/[*?{]/.test(item)) {
-      for (const u of await vscode.workspace.findFiles(item, EXCLUDE, 200)) add(u.fsPath);
+      for (const u of await vscode.workspace.findFiles(item, excludeNow(), 200)) add(u.fsPath);
     } else add(path.resolve(root, item));
   }
 

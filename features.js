@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
 const { tr } = require('./i18n');
-const { REF_CTX, SEL, SEL_ANY, cancelTimer, cfg, debounce, execFileT, initCaches, isTexDoc, texFiles, textOf } = require('./util');
+const { SEL, SEL_ANY, cancelTimer, cfg, debounce, execFileT, initCaches, isTexDoc, texFiles, textOf } = require('./util');
 const { PREVIEW_SCHEME, applyWithPreview, convertEnv, displayToEquation, frameSectionsCmd, frameSettings, normalizeCmd, normalizeOptions, previewProvider, sentencesCmd, tableOps, typographyCmd, wrapParagraph } = require('./textCommands');
 const { buildIndex, checkLabels, diagLabels, refCompletion, renameProvider } = require('./labels');
 const { checkCitations, diagCites, initProjectSettings, ltexDictionary } = require('./settingsCitations');
@@ -85,16 +85,8 @@ function register(context, api) {
   subs.push(
     vscode.workspace.onDidOpenTextDocument(checkSyntax),
     vscode.workspace.onDidCloseTextDocument((d) => { cancelTimer(syntaxKey(d)); diagSyntax.delete(d.uri); }), // a closed document is not checked later
-    vscode.workspace.onDidChangeTextDocument((e) => {
-      if (isTexDoc(e.document)) later(e.document);
-      if (!e.contentChanges.length || !e.contentChanges[0].text) return;
-      const ed = vscode.window.activeTextEditor;
-      if (!ed || ed.document !== e.document || !isTexDoc(e.document)) return;
-      const pos = ed.selection.active;
-      if (REF_CTX.test(e.document.lineAt(pos.line).text.slice(0, pos.character))) {
-        debounce('suggest', 30, () => vscode.commands.executeCommand('editor.action.triggerSuggest'));
-      }
-    }),
+    // the suggest list after \ref{ is opened by the one typing listener of extension.js (with the file names)
+    vscode.workspace.onDidChangeTextDocument((e) => { if (isTexDoc(e.document)) later(e.document); }),
     vscode.workspace.onDidSaveTextDocument((d) => {
       if ((isTexDoc(d) || /\.bib$/i.test(d.fileName)) && cfg().get('diagnostics', true)) {
         debounce('citations', 800, () => checkCitations(false));
@@ -112,6 +104,8 @@ function register(context, api) {
         refreshAuto();
         vscode.workspace.textDocuments.forEach(checkSyntax);
       }
+      // a folder left the project (or came back): its labels stop (start) counting as duplicates
+      if (e.affectsConfiguration('tssworkflow.excludeFolders') && cfg().get('diagnostics', true)) debounce('labels.check', 500, () => checkLabels(false));
     })
   );
   vscode.workspace.textDocuments.forEach(checkSyntax);

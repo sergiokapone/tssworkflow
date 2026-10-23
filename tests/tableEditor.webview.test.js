@@ -23,6 +23,8 @@ const macros = MP.toKatexMacros(MP.scanMacros(['\\newcommand{\\vect}[1]{\\symbf{
 const dom = new JSDOM('<!DOCTYPE html><body><div id="bar"><span id="what"></span><span id="size"></span></div><div id="warn"></div><div id="info"></div><div id="toast"></div><div id="wrap" tabindex="0"><table id="t"></table></div><div id="hint"></div></body>', { runScripts: 'outside-only', pretendToBeVisual: true });
 const w = dom.window, posted = [];
 w.acquireVsCodeApi = () => ({ postMessage: (m) => posted.push(m), getState: () => null, setState: () => {} });
+// the order of the page (tableEditor.js): common/i18n.js (window.T), katex, the page itself
+w.eval(fs.readFileSync(path.join(ext, 'media', 'common', 'i18n.js'), 'utf8'));
 w.eval(fs.readFileSync(path.join(ext, 'media', 'katex', 'katex.min.js'), 'utf8'));
 w.eval(fs.readFileSync(path.join(ext, 'media', 'tableEditor', 'webview.js'), 'utf8'));
 w.dispatchEvent(new w.MessageEvent('message', { data: { type: 'model', view, macros, where: 't.tex:1' } }));

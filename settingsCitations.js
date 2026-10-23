@@ -4,7 +4,7 @@ const vscode = require('vscode');
 const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
-const { EXCLUDE, cfg, findCached, info, openDocByPath, texFiles, textOf } = require('./util');
+const { excludeNow, cfg, findCached, info, openDocByPath, texFiles, textOf } = require('./util');
 const { SEV } = require('./checksHovers');
 const PI = require('./projectIndex');
 const { tr } = require('./i18n');
@@ -65,7 +65,7 @@ async function initProjectSettings(arg) {
     // .sty/.cls in subfolders (the ones in the root are found through the preamble of the main file)
     let macroFiles = [];
     try {
-      const found = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.{sty,cls}'), EXCLUDE, 60);
+      const found = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*.{sty,cls}'), excludeNow(), 60);
       macroFiles = found.map((u) => path.relative(folder.uri.fsPath, u.fsPath).split(path.sep).join('/'))
         .filter((p) => p.includes('/')).sort().slice(0, 10);
     } catch (e) { macroFiles = []; }

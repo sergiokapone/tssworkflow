@@ -10,3 +10,4 @@ LaTeX-VSCode-setup.md
 extension.vsixmanifest
 [Content_Types].xml
 *.log
+package-lock.json

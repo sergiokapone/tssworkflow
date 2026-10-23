@@ -16,7 +16,7 @@ const fs = require('fs');
 const { tr } = require('./i18n');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { EXCLUDE_PDF_VERSIONS, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
+const { excludePdfNow, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
 const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
@@ -34,7 +34,7 @@ const existsFile = (p) => { try { return fs.statSync(p).isFile(); } catch (e) { 
 // [{ path (relative, with /), abs }] sorted by path; the text is not read (the list of files is cached until the watcher reports a change)
 async function projectList(exts, root) {
   const names = exts.map((e) => e.replace('.', ''));
-  const found = await findCached(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], 5000, EXCLUDE_PDF_VERSIONS);
+  const found = await findCached(names.length > 1 ? '**/*.{' + names.join(',') + '}' : '**/*.' + names[0], 5000, excludePdfNow());
   const out = [];
   for (const u of found) {
     const base = root || rootOf(u) || path.dirname(u.fsPath);
@@ -819,6 +819,7 @@ function register(context, helpers) {
     vscode.workspace.onDidCloseTextDocument((d) => diagFiles.delete(d.uri)),
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration('tssworkflow.fileMacros') || e.affectsConfiguration('tssworkflow.inputRoot') || e.affectsConfiguration('tssworkflow.rootRelativeMacros')) vscode.workspace.textDocuments.forEach(checkFiles);
+      if (e.affectsConfiguration('tssworkflow.excludeFolders')) labels.schedule(300); // the labels of a folder that left the project go at once
     })
   );
   try {

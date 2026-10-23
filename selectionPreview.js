@@ -10,7 +10,7 @@ const fs = require('fs');
 const P = require('./selectionPreviewPure');
 const { tr } = require('./i18n');
 const TE = require('./tableEditor');
-const { EXCLUDE, cfg, isTex } = require('./util');
+const { excludeNow, cfg, isTex } = require('./util');
 const K = require('./webviewKit');
 
 let extUri = null;
@@ -220,7 +220,7 @@ async function openRef(m) {
   else {
     const dir = path.dirname(doc.uri.fsPath);
     let files = [];
-    try { files = await vscode.workspace.findFiles('**/*.{tex,tikz}', EXCLUDE, 1000); } catch (e) { /* none */ }
+    try { files = await vscode.workspace.findFiles('**/*.{tex,tikz}', excludeNow(), 1000); } catch (e) { /* none */ }
     files.sort((a, b) => Number(b.fsPath.startsWith(dir)) - Number(a.fsPath.startsWith(dir)));
     for (const f of files) {
       if (f.fsPath === doc.uri.fsPath) continue;
