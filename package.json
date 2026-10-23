@@ -33,144 +33,177 @@
     "commands": [
       {
         "command": "tssworkflow.compilePdf",
-        "title": "TSS Workflow: Compile + open PDF",
+        "title": "Compile + open PDF",
+        "category": "TSS Workflow",
         "icon": "$(play)"
       },
       {
         "command": "tssworkflow.clean",
-        "title": "TSS Workflow: Delete aux files and PDF",
+        "title": "Delete aux files and PDF",
+        "category": "TSS Workflow",
         "icon": "$(trash)"
       },
       {
         "command": "tssworkflow.cleanAux",
-        "title": "TSS Workflow: Delete aux files (keep PDF)"
+        "title": "Delete aux files (keep PDF)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.pickFile",
-        "title": "TSS Workflow: Pick file name for \\localinput / \\includegraphics"
+        "title": "Pick file name for \\localinput / \\includegraphics",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.alignTable",
-        "title": "TSS Workflow: Align table columns (&)"
+        "title": "Align table columns (&)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.unwrap",
-        "title": "TSS Workflow: Join lines of paragraph (unwrap)",
+        "title": "Join lines of paragraph (unwrap)",
+        "category": "TSS Workflow",
         "icon": "$(list-flat)"
       },
       {
         "command": "tssworkflow.wrap",
-        "title": "TSS Workflow: Wrap paragraph to width (wrapWidth)"
+        "title": "Wrap paragraph to width (wrapWidth)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.typography",
-        "title": "TSS Workflow: Ukrainian typography (~, ---, «»)",
+        "title": "Ukrainian typography (~, ---, «»)",
+        "category": "TSS Workflow",
         "icon": "$(symbol-text)"
       },
       {
         "command": "tssworkflow.fixTypographyHints",
-        "title": "TSS Workflow: Fix typography hints in file (see fixAllCodes)"
+        "title": "Fix typography hints in file (see fixAllCodes)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.sentences",
-        "title": "TSS Workflow: One sentence per line"
+        "title": "One sentence per line",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.tableOps",
-        "title": "TSS Workflow: Table operations (columns, sort, transpose)",
+        "title": "Table operations (columns, sort, transpose)",
+        "category": "TSS Workflow",
         "icon": "$(table)"
       },
       {
         "command": "tssworkflow.convertEnv",
-        "title": "TSS Workflow: Convert formula environment / label"
+        "title": "Convert formula environment / label",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.displayToEquation",
-        "title": "TSS Workflow: Convert \\[ ... \\] to equation*"
+        "title": "Convert \\[ ... \\] to equation*",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.wrapEnv",
-        "title": "TSS Workflow: Wrap selection in environment (pick from list)"
+        "title": "Wrap selection in environment (pick from list)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.wrapCmd",
-        "title": "TSS Workflow: Wrap selection in command (pick from list)"
+        "title": "Wrap selection in command (pick from list)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.formatSelection",
-        "title": "TSS Workflow: Format selection (bold, italic, underline, ...)"
+        "title": "Format selection (bold, italic, underline, ...)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.previewSelection",
-        "title": "TSS Workflow: Preview selection (rendered, the focus stays in the editor)"
+        "title": "Preview selection (rendered, the focus stays in the editor)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.copyFormula",
-        "title": "TSS Workflow: Copy formula as MathML (for Word)"
+        "title": "Copy formula as MathML (for Word)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.pictures",
-        "title": "TSS Workflow: Pictures browser",
+        "title": "Pictures browser",
+        "category": "TSS Workflow",
         "icon": "$(file-media)"
       },
       {
         "command": "tssworkflow.unusedFiles",
-        "title": "TSS Workflow: Files in Pictures/ and tikz/ with no references"
+        "title": "Files in Pictures/ and tikz/ with no references",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.checkLabels",
-        "title": "TSS Workflow: Check duplicate / undefined labels",
+        "title": "Check duplicate / undefined labels",
+        "category": "TSS Workflow",
         "icon": "$(checklist)"
       },
       {
         "command": "tssworkflow.checkCitations",
-        "title": "TSS Workflow: Check \\cite keys against .bib files"
+        "title": "Check \\cite keys against .bib files",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.initProjectSettings",
-        "title": "TSS Workflow: Create .vscode/settings.json for this project"
+        "title": "Create .vscode/settings.json for this project",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.ltexDictionary",
-        "title": "TSS Workflow: Add LTeX spelling hits to the dictionary"
+        "title": "Add LTeX spelling hits to the dictionary",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.externalForwardSearch",
-        "title": "TSS Workflow: Show cursor line in the external viewer (SyncTeX)"
+        "title": "Show cursor line in the external viewer (SyncTeX)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.synctexDiagnose",
-        "title": "TSS Workflow: Diagnose SyncTeX (is this file in the PDF?)"
+        "title": "Diagnose SyncTeX (is this file in the PDF?)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.debugState",
-        "title": "TSS Workflow: Show state (leaks, timers, caches)"
+        "title": "Show state (leaks, timers, caches)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.checkLatexWorkshop",
-        "title": "TSS Workflow: Check compatibility with LaTeX Workshop"
+        "title": "Check compatibility with LaTeX Workshop",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.toggleCompileOnSave",
-        "title": "TSS Workflow: Toggle compile on save"
+        "title": "Toggle compile on save",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.frameSections",
-        "title": "TSS Workflow: Frame headings and formula environments (%% ---- / % ==== lines)"
+        "title": "Frame headings and formula environments (%% ---- / % ==== lines)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.normalize",
-        "title": "TSS Workflow: Normalize file (typography, tables, line breaks, frames, blank lines) with preview",
+        "title": "Normalize file (typography, tables, line breaks, frames, blank lines) with preview",
+        "category": "TSS Workflow",
         "icon": "$(tools)"
       },
       {
         "command": "tssworkflow.goToHeading",
-        "title": "TSS Workflow: Go to heading (whole project)",
+        "title": "Go to heading (whole project)",
+        "category": "TSS Workflow",
         "icon": "$(list-tree)"
       },
       {
         "command": "tssworkflow.compileCurrent",
-        "title": "TSS Workflow: Compile this file on its own (own preamble) + open PDF",
+        "title": "Compile this file on its own (own preamble) + open PDF",
+        "category": "TSS Workflow",
         "icon": {
           "light": "media/compile-current-light.svg",
           "dark": "media/compile-current-dark.svg"
@@ -178,303 +211,373 @@
       },
       {
         "command": "tssworkflow.compileMainPdf",
-        "title": "TSS Workflow: Compile whole document (main) + open PDF",
+        "title": "Compile whole document (main) + open PDF",
+        "category": "TSS Workflow",
         "icon": "$(run-all)"
       },
       {
         "command": "tssworkflow.normalizeOptions",
-        "title": "TSS Workflow: Normalize options (steps, line breaks)",
+        "title": "Normalize options (steps, line breaks)",
+        "category": "TSS Workflow",
         "icon": "$(settings-gear)"
       },
       {
         "command": "tssworkflow.openPdfExternal",
-        "title": "TSS Workflow: Open PDF in external viewer (SumatraPDF)",
+        "title": "Open PDF in external viewer (SumatraPDF)",
+        "category": "TSS Workflow",
         "icon": "$(link-external)"
       },
       {
         "command": "tssworkflow.pickMacro",
-        "title": "TSS Workflow: Go to macro (from project .cls/.sty)"
+        "title": "Go to macro (from project .cls/.sty)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.macroGallery",
-        "title": "TSS Workflow: Macro gallery (rendered commands of the class)"
+        "title": "Macro gallery (rendered commands of the class)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.reloadMacros",
-        "title": "TSS Workflow: Reload macros from .cls/.sty"
+        "title": "Reload macros from .cls/.sty",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.generateMathJax",
-        "title": "TSS Workflow: Generate MathJax macros file (for LaTeX Workshop formula preview)"
+        "title": "Generate MathJax macros file (for LaTeX Workshop formula preview)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.extractTikz",
-        "title": "TSS Workflow: Extract tikzpicture/circuitikz at cursor to tikz/ and insert \\localinput"
+        "title": "Extract tikzpicture/circuitikz at cursor to tikz/ and insert \\localinput",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.extractTikzAll",
-        "title": "TSS Workflow: Extract all tikzpicture/circuitikz in file (or selection) to tikz/"
+        "title": "Extract all tikzpicture/circuitikz in file (or selection) to tikz/",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.stopBuild",
-        "title": "TSS Workflow: Stop compilation",
+        "title": "Stop compilation",
+        "category": "TSS Workflow",
         "icon": "$(debug-stop)"
       },
       {
         "command": "tssworkflow.reframeSections",
-        "title": "TSS Workflow: Re-frame headings and formulas (replace existing frames)"
+        "title": "Re-frame headings and formulas (replace existing frames)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.unusedEquations",
-        "title": "TSS Workflow: Numbered equations nobody refers to"
+        "title": "Numbered equations nobody refers to",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.projectStats",
-        "title": "TSS Workflow: Project statistics (words, formulas, figures per chapter)",
+        "title": "Project statistics (words, formulas, figures per chapter)",
+        "category": "TSS Workflow",
         "icon": "$(graph)"
       },
       {
         "command": "tssworkflow.todoList",
-        "title": "TSS Workflow: List TODO / FIXME comments"
+        "title": "List TODO / FIXME comments",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.todoRefresh",
-        "title": "TSS Workflow: Refresh TODO view",
+        "title": "Refresh TODO view",
+        "category": "TSS Workflow",
         "icon": "$(refresh)"
       },
       {
         "command": "tssworkflow.macroInfo",
-        "title": "TSS Workflow: Where is this macro defined? (diagnose)"
+        "title": "Where is this macro defined? (diagnose)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.showHooks",
-        "title": "TSS Workflow: Show page output hooks (shipout)"
+        "title": "Show page output hooks (shipout)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.newChapter",
-        "title": "TSS Workflow: New chapter (folder, header, main.tex)"
+        "title": "New chapter (folder, header, main.tex)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.toggleIffalse",
-        "title": "TSS Workflow: Wrap in / unwrap \\iffalse ... \\fi"
+        "title": "Wrap in / unwrap \\iffalse ... \\fi",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.unicodeToLatex",
-        "title": "TSS Workflow: Unicode math characters to LaTeX"
+        "title": "Unicode math characters to LaTeX",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.bibFromDoi",
-        "title": "TSS Workflow: Add BibTeX entry from DOI"
+        "title": "Add BibTeX entry from DOI",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.latexdiff",
-        "title": "TSS Workflow: Changes of this chapter since a git revision (latexdiff PDF)"
+        "title": "Changes of this chapter since a git revision (latexdiff PDF)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.newFromTemplate",
-        "title": "TSS Workflow: New from template..."
+        "title": "New from template...",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.makeTemplate",
-        "title": "TSS Workflow: Make template from this document (or selection)..."
+        "title": "Make template from this document (or selection)...",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.manageTemplates",
-        "title": "TSS Workflow: Manage templates (open, rename, delete)..."
+        "title": "Manage templates (open, rename, delete)...",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.openTemplatesFolder",
-        "title": "TSS Workflow: Open user templates folder"
+        "title": "Open user templates folder",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.insertTemplate",
-        "title": "TSS Workflow: Insert template fragment..."
+        "title": "Insert template fragment...",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.openChapter",
-        "title": "TSS Workflow: Open chapter",
+        "title": "Open chapter",
+        "category": "TSS Workflow",
         "icon": "$(go-to-file)"
       },
       {
         "command": "tssworkflow.buildChapter",
-        "title": "TSS Workflow: Build this chapter and open PDF",
+        "title": "Build this chapter and open PDF",
+        "category": "TSS Workflow",
         "icon": "$(play)"
       },
       {
         "command": "tssworkflow.chapterHooks",
-        "title": "TSS Workflow: Page output hooks of this chapter"
+        "title": "Page output hooks of this chapter",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.refreshChapters",
-        "title": "TSS Workflow: Refresh the chapters panel",
+        "title": "Refresh the chapters panel",
+        "category": "TSS Workflow",
         "icon": "$(refresh)"
       },
       {
         "command": "tssworkflow.checkEnvironment",
-        "title": "TSS Workflow: Doctor (check environment, PATH, extensions)"
+        "title": "Doctor (check environment, PATH, extensions)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.renameChapter",
-        "title": "TSS Workflow: Rename chapter (folder, file, lists, paths, references)"
+        "title": "Rename chapter (folder, file, lists, paths, references)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.moveChapterUp",
-        "title": "TSS Workflow: Move chapter up",
+        "title": "Move chapter up",
+        "category": "TSS Workflow",
         "icon": "$(arrow-up)"
       },
       {
         "command": "tssworkflow.moveChapterDown",
-        "title": "TSS Workflow: Move chapter down",
+        "title": "Move chapter down",
+        "category": "TSS Workflow",
         "icon": "$(arrow-down)"
       },
       {
         "command": "tssworkflow.replaceInProject",
-        "title": "TSS Workflow: Replace in project (LaTeX-aware, with snapshot)"
+        "title": "Replace in project (LaTeX-aware, with snapshot)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.makeSnapshot",
-        "title": "TSS Workflow: Make snapshot of the project sources"
+        "title": "Make snapshot of the project sources",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.restoreSnapshot",
-        "title": "TSS Workflow: Restore snapshot"
+        "title": "Restore snapshot",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.normalizeProject",
-        "title": "TSS Workflow: Normalize all files of the project (with snapshot)"
+        "title": "Normalize all files of the project (with snapshot)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.notationReport",
-        "title": "TSS Workflow: Notation consistency across the project (\\varepsilon/\\epsilon, \\le/\\leq, ...)"
+        "title": "Notation consistency across the project (\\varepsilon/\\epsilon, \\le/\\leq, ...)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.termsReport",
-        "title": "TSS Workflow: Terms: used before defined, defined but not in the index"
+        "title": "Terms: used before defined, defined but not in the index",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.indexTerm",
-        "title": "TSS Workflow: Add \\index{...} to the selected term"
+        "title": "Add \\index{...} to the selected term",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.buildParts",
-        "title": "TSS Workflow: Build only chosen parts (\\part) of the main file"
+        "title": "Build only chosen parts (\\part) of the main file",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.refreshProblems",
-        "title": "TSS Workflow: Refresh the Problems panel",
+        "title": "Refresh the Problems panel",
+        "category": "TSS Workflow",
         "icon": "$(refresh)"
       },
       {
         "command": "tssworkflow.formatTblr",
-        "title": "TSS Workflow: Format tblr / longtblr / talltblr (options and cells)",
+        "title": "Format tblr / longtblr / talltblr (options and cells)",
+        "category": "TSS Workflow",
         "icon": "$(table)"
       },
       {
         "command": "tssworkflow.formatTikz",
-        "title": "TSS Workflow: Format inline \\tikz{...} (one statement per line)",
+        "title": "Format inline \\tikz{...} (one statement per line)",
+        "category": "TSS Workflow",
         "icon": "$(list-tree)"
       },
       {
         "command": "tssworkflow.renumberBeamer",
-        "title": "TSS Workflow: Renumber Beamer Slides (% === Слайд N ===)",
+        "title": "Renumber Beamer Slides (% === Слайд N ===)",
+        "category": "TSS Workflow",
         "icon": "$(list-ordered)"
       },
       {
         "command": "tssworkflow.missingPackages",
-        "title": "TSS Workflow: Missing packages from last log (tlmgr)"
+        "title": "Missing packages from last log (tlmgr)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.refreshLabels",
-        "title": "TSS Workflow: Refresh labels panel",
+        "title": "Refresh labels panel",
+        "category": "TSS Workflow",
         "icon": "$(refresh)"
       },
       {
         "command": "tssworkflow.labelsToggleFilter",
-        "title": "TSS Workflow: Labels without \\ref only / all",
+        "title": "Labels without \\ref only / all",
+        "category": "TSS Workflow",
         "icon": "$(filter)"
       },
       {
         "command": "tssworkflow.insertRefFromLabel",
-        "title": "TSS Workflow: Insert \\ref of the label",
+        "title": "Insert \\ref of the label",
+        "category": "TSS Workflow",
         "icon": "$(insert)"
       },
       {
         "command": "tssworkflow.pickRef",
-        "title": "TSS Workflow: Insert \\ref... (pick a label)"
+        "title": "Insert \\ref... (pick a label)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.unusedPackages",
-        "title": "TSS Workflow: Unused \\usepackage"
+        "title": "Unused \\usepackage",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.tableFromFile",
-        "title": "TSS Workflow: Table from CSV / XLSX / clipboard (tblr)"
+        "title": "Table from CSV / XLSX / clipboard (tblr)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.formatBib",
-        "title": "TSS Workflow: Format .bib (sort, align)"
+        "title": "Format .bib (sort, align)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.bibDuplicates",
-        "title": "TSS Workflow: Duplicates in .bib (DOI, title)"
+        "title": "Duplicates in .bib (DOI, title)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.bibNormalizeKeys",
-        "title": "TSS Workflow: Normalize .bib keys (surname+year) and \\cite"
+        "title": "Normalize .bib keys (surname+year) and \\cite",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.listEquations",
-        "title": "TSS Workflow: List of all numbered equations"
+        "title": "List of all numbered equations",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.formulaOverview",
-        "title": "TSS Workflow: Formulas of the project (rendered, with search)"
+        "title": "Formulas of the project (rendered, with search)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.markKeyFormula",
-        "title": "TSS Workflow: Mark / unmark the formula under the cursor as key (%! key)"
+        "title": "Mark / unmark the formula under the cursor as key (%! key)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.keyFormulasDraft",
-        "title": "TSS Workflow: Draft of the chapter summary from key formulas"
+        "title": "Draft of the chapter summary from key formulas",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.savePdfCopy",
-        "title": "TSS Workflow: Save PDF copy with a date"
+        "title": "Save PDF copy with a date",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.preflight",
-        "title": "TSS Workflow: Check before print (fonts, picture resolution, log, TODO)",
+        "title": "Check before print (fonts, picture resolution, log, TODO)",
+        "category": "TSS Workflow",
         "icon": "$(checklist)"
       },
       {
         "command": "tssworkflow.hyphenHelper",
-        "title": "TSS Workflow: Hyphenation of words that stick into the margin (from the log)"
+        "title": "Hyphenation of words that stick into the margin (from the log)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.dstuBib",
-        "title": "TSS Workflow: Check .bib against DSTU 8302:2015"
+        "title": "Check .bib against DSTU 8302:2015",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.floatPlacement",
-        "title": "TSS Workflow: Figures and tables far from their first reference"
+        "title": "Figures and tables far from their first reference",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.importPdfNotes",
-        "title": "TSS Workflow: Reviewer notes from a PDF to TODO comments"
+        "title": "Reviewer notes from a PDF to TODO comments",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.editTable",
-        "title": "TSS Workflow: Edit table visually (tblr, tabular...)"
+        "title": "Edit table visually (tblr, tabular...)",
+        "category": "TSS Workflow"
       },
       {
         "command": "tssworkflow.renameLabel",
-        "title": "TSS Workflow: Rename label (with all \\ref)",
+        "title": "Rename label (with all \\ref)",
+        "category": "TSS Workflow",
         "icon": "$(edit)"
       },
       {
         "command": "tssworkflow.projectWordCount",
-        "title": "TSS Workflow: Word count of the project (by chapter and file)"
+        "title": "Word count of the project (by chapter and file)",
+        "category": "TSS Workflow"
       }
     ],
     "menus": {
@@ -517,89 +620,103 @@
       ],
       "editor/context": [
         {
-          "command": "tssworkflow.alignTable",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.formatTblr",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.unwrap",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.typography",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.tableOps",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.convertEnv",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.displayToEquation",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.wrapEnv",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.wrapCmd",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
           "command": "tssworkflow.previewSelection",
-          "when": "(resourceLangId == latex || resourceLangId == tex) && editorHasSelection",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.sentences",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.wrap",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.frameSections",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.normalize",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.normalizeOptions",
-          "when": "resourceLangId == latex || resourceLangId == tex",
-          "group": "1_modification"
-        },
-        {
-          "command": "tssworkflow.editTable",
-          "when": "resourceLangId == latex",
+          "when": "editorHasSelection && (resourceLangId == latex || resourceLangId == tex)",
           "group": "tssworkflow@1"
         },
         {
+          "command": "tssworkflow.wrapEnv",
+          "when": "editorHasSelection && (resourceLangId == latex || resourceLangId == tex)",
+          "group": "tssworkflow@2"
+        },
+        {
+          "command": "tssworkflow.wrapCmd",
+          "when": "editorHasSelection && (resourceLangId == latex || resourceLangId == tex)",
+          "group": "tssworkflow@3"
+        },
+        {
+          "command": "tssworkflow.editTable",
+          "when": "tssworkflow.inTable",
+          "group": "tssworkflow@4"
+        },
+        {
+          "submenu": "tssworkflow.submenu.context",
+          "when": "resourceLangId == latex || resourceLangId == tex",
+          "group": "tssworkflow@9"
+        }
+      ],
+      "tssworkflow.submenu.context": [
+        {
+          "command": "tssworkflow.typography",
+          "group": "1_text@1"
+        },
+        {
+          "command": "tssworkflow.unwrap",
+          "group": "1_text@2"
+        },
+        {
+          "command": "tssworkflow.wrap",
+          "group": "1_text@3"
+        },
+        {
+          "command": "tssworkflow.sentences",
+          "group": "1_text@4"
+        },
+        {
+          "command": "tssworkflow.wrapEnv",
+          "group": "2_structure@1"
+        },
+        {
+          "command": "tssworkflow.wrapCmd",
+          "group": "2_structure@2"
+        },
+        {
+          "command": "tssworkflow.formatSelection",
+          "group": "2_structure@3"
+        },
+        {
+          "command": "tssworkflow.convertEnv",
+          "group": "2_structure@4"
+        },
+        {
+          "command": "tssworkflow.displayToEquation",
+          "group": "2_structure@5"
+        },
+        {
+          "command": "tssworkflow.frameSections",
+          "group": "2_structure@6"
+        },
+        {
+          "command": "tssworkflow.previewSelection",
+          "group": "3_formula@1"
+        },
+        {
           "command": "tssworkflow.copyFormula",
-          "when": "(resourceLangId == latex || resourceLangId == tex)",
-          "group": "1_modification"
+          "group": "3_formula@2"
+        },
+        {
+          "command": "tssworkflow.editTable",
+          "group": "4_tables@1"
+        },
+        {
+          "command": "tssworkflow.alignTable",
+          "group": "4_tables@2"
+        },
+        {
+          "command": "tssworkflow.formatTblr",
+          "group": "4_tables@3"
+        },
+        {
+          "command": "tssworkflow.tableOps",
+          "group": "4_tables@4"
+        },
+        {
+          "command": "tssworkflow.normalize",
+          "group": "5_normalize@1"
+        },
+        {
+          "command": "tssworkflow.normalizeOptions",
+          "group": "5_normalize@2"
         }
       ],
       "tssworkflow.submenu.text": [
@@ -2285,6 +2402,10 @@
         "id": "tssworkflow.submenu.build",
         "label": "%submenu.build%",
         "icon": "$(gear)"
+      },
+      {
+        "id": "tssworkflow.submenu.context",
+        "label": "%submenu.context%"
       }
     ],
     "taskDefinitions": [

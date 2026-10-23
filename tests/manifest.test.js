@@ -68,6 +68,23 @@ t('every file that package.json points at exists', () => {
   assert.deepStrictEqual(missing, []);
 });
 
+t('every command has the category "TSS Workflow" and a title without that prefix (menus show the title alone, the palette adds the category)', () => {
+  const bad = c.commands.filter((x) => x.category !== 'TSS Workflow' || /^TSS Workflow/.test(x.title)).map((x) => x.command);
+  assert.deepStrictEqual(bad, []);
+});
+
+t('the context menu of the editor stays short: its own items only when they fit (selection, a table), the rest in the submenu', () => {
+  const ctx = c.menus['editor/context'];
+  assert.ok(ctx.length <= 6, 'editor/context has ' + ctx.length + ' items: put the new one into tssworkflow.submenu.context');
+  for (const x of ctx) {
+    if (x.submenu) { assert.strictEqual(x.submenu, 'tssworkflow.submenu.context'); continue; }
+    assert.ok(/editorHasSelection|tssworkflow\.inTable/.test(x.when || ''), x.command + ' is always shown: give it a condition or move it into the submenu');
+  }
+  const sub = c.menus['tssworkflow.submenu.context'];
+  const orders = sub.map((x) => x.group);
+  assert.strictEqual(new Set(orders).size, orders.length, 'two items of the submenu have the same group@order');
+});
+
 t('the minimum version of VS Code in README.md is that of engines (README said 1.60 long after engines became ^1.74.0)', () => {
   const readme = fs.readdirSync(ext).find((f) => /^readme\.md$/i.test(f));
   if (!readme) return; // the packaged tree may have none

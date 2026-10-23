@@ -2,6 +2,7 @@
   "submenu.text": "TSS Workflow: Text and structure",
   "submenu.nav": "TSS Workflow: Navigation and checks",
   "submenu.build": "TSS Workflow: Build and cleanup",
+  "submenu.context": "TSS Workflow: Edit",
   "view.commands": "Commands",
   "view.chapters": "Chapters",
   "view.start": "Start",

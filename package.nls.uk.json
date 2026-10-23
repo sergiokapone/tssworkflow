@@ -2,6 +2,7 @@
   "submenu.text": "TSS Workflow: Текст і структура",
   "submenu.nav": "TSS Workflow: Навігація й перевірка",
   "submenu.build": "TSS Workflow: Збірка й прибирання",
+  "submenu.context": "TSS Workflow: Правка",
   "view.commands": "Команди",
   "view.chapters": "Розділи",
   "view.start": "Початок",

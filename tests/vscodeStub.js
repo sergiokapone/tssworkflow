@@ -102,6 +102,8 @@ function makeVscode(text, selections, pick, cfgValues, files) {
   };
   vs.window.onDidChangeTextEditorSelection = (f) => { vs.selectionListeners.push(f); return { dispose() {} }; };
   vs.selectionListeners = [];
+  vs.window.onDidChangeActiveTextEditor = (f) => { vs.activeEditorListeners.push(f); return { dispose() {} }; };
+  vs.activeEditorListeners = [];
   vs.window.showQuickPick = async (items, opts) => { vs.quickPickItems = items; vs.quickPickOpts = opts; return items.find((i) => i.label === (pick.menu || '')); };
   return { vs, ed, doc, handlers };
 }

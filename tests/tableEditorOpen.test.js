@@ -185,5 +185,23 @@ async function scenario(act) {
   eq(st.lensCount, 1);
   ok(st.macrosCalls >= 1 && st.logs.some((l) => /кольори проєкту/.test(l)), 'warm-up ran after the lens was shown');
 
+  // context key tssworkflow.inTable (the menu item "Edit table" shows only inside a table): set once, cleared outside, not resent
+  st = await scenario(async ({ st: s, vs, h, sleep: sl }) => {
+    const ctx = () => vs.executed.filter((x) => x[0] === 'setContext' && x[1] === 'tssworkflow.inTable').map((x) => x[2]);
+    const at = (line, ch) => { const p = new vs.Position(line, ch); h.ed.selection = new vs.Selection(p, p); };
+    const TE = require(path.join(EXT, 'tableEditor.js'));
+    at(1, 1); s.inside = TE._updateInTable(); TE._updateInTable();
+    s.afterInside = ctx();
+    h.doc.lines.push('', 'text'); h.doc.version = (h.doc.version || 0) + 1; at(4, 2); s.outside = TE._updateInTable();
+    for (const f of vs.selectionListeners) f({ textEditor: h.ed }); // the listener only schedules (debounce), nothing is sent at once
+    s.sentAtOnce = ctx().length;
+    await sl(200);
+    s.afterAll = ctx();
+  });
+  eq([st.inside, st.outside], [true, false]);
+  eq(st.afterInside, [true], 'inside a table: set once, a second check sends nothing');
+  eq(st.sentAtOnce, 2);
+  eq(st.afterAll, [true, false], 'outside: cleared; the debounced check after it sends nothing new');
+
   console.log('tableEditorOpen: ' + n + ' checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });

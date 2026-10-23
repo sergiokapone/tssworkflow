@@ -412,6 +412,31 @@ function registerSpanTools() {
   return subs.filter(Boolean);
 }
 
+// the tables of a document, once per version (the CodeLens and the context key below ask on every change / cursor move)
+let tablesMemo = { key: '', ver: -1, envs: [] };
+function tablesOf(doc) {
+  const key = doc.uri.toString();
+  if (tablesMemo.key !== key || tablesMemo.ver !== doc.version) tablesMemo = { key, ver: doc.version, envs: X.locateTables(doc.getText()) };
+  return tablesMemo.envs;
+}
+
+// context key tssworkflow.inTable: the cursor is inside a table the editor can open (the menu item "Edit table" shows only there)
+let inTable = false;
+function updateInTable() {
+  const ed = vscode.window.activeTextEditor;
+  let on = false;
+  try {
+    if (ed && isTex(ed.document)) {
+      const at = ed.document.offsetAt(ed.selection.active);
+      on = tablesOf(ed.document).some((e) => e.start <= at && at <= e.end);
+    }
+  } catch (e) { on = false; } // a menu hint only: never let it throw from a timer
+  if (on === inTable) return on;
+  inTable = on;
+  vscode.commands.executeCommand('setContext', 'tssworkflow.inTable', on);
+  return on;
+}
+
 function register(context, api) {
   if (api && api.log) log = api.log;
   context.subscriptions.push(
@@ -425,11 +450,13 @@ function register(context, api) {
       debounce('tableEditor.refresh', 250, () => push());
     }),
     ...registerSpanTools(),
+    vscode.window.onDidChangeTextEditorSelection(() => debounce('tableEditor.inTable', 120, updateInTable)),
+    vscode.window.onDidChangeActiveTextEditor(() => debounce('tableEditor.inTable', 120, updateInTable)),
     vscode.languages.registerCodeLensProvider(SEL, {
       provideCodeLenses(doc) {
         if (!cfg().get('tableEditor.codeLens', true)) return [];
         const out = [];
-        for (const e of X.locateTables(doc.getText())) {
+        for (const e of tablesOf(doc)) {
           const p = doc.positionAt(e.start);
           out.push(new vscode.CodeLens(new vscode.Range(p, p), { title: tr('$(table) Редагувати таблицю'), command: 'tssworkflow.editTable', arguments: [doc.uri, e.start] }));
         }
@@ -441,6 +468,7 @@ function register(context, api) {
 }
 
 exports.register = register;
+exports._updateInTable = updateInTable; // for tests/tableEditorOpen.test.js: the context key without waiting for the debounce
 exports._html = html; // for tests/tableEditorPage.vscode-stub.test.js: the HTML of the page of the panel
 exports.isOpen = () => ctl.isOpen(); // for the state report (debugState.js)
 // the caches of the colours and macros of the project are shared with the panel "Preview selection"
