@@ -22,6 +22,7 @@ function register(context, api) {
   syncUserCode();
   require('./macros').register(context, { log: (m) => outLog.appendLine(m) });
   require('./tikzExtract').register(context);
+  require('./tikzThumbs').register(context, { log: (m) => outLog.appendLine(m) });
   require('./wrapEnv').register(context);
   require('./wrapCmd').register(context);
   require('./selectionPreview').register(context);

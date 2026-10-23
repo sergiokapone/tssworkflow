@@ -1354,5 +1354,10 @@ module.exports = {
   "штамп": "stamp",
   "рисунків і таблиць не біля першого посилання: {0}": "figures and tables not near their first reference: {0}",
   "рисунків і таблиць без посилань: {0}": "figures and tables without references: {0}",
-  "рисунки й таблиці біля посилань ({0})": "figures and tables near their references ({0})"
+  "рисунки й таблиці біля посилань ({0})": "figures and tables near their references ({0})",
+  "немає драйвера {0} у корені проєкту (tssworkflow.driver)": "no driver {0} in the root of the project (tssworkflow.driver)",
+  "lualatex не знайдено в PATH": "lualatex is not found in PATH",
+  "pdftocairo не знайдено в PATH (Poppler; у TeX Live для Windows він є)": "pdftocairo is not found in PATH (Poppler; TeX Live for Windows has it)",
+  "Мініатюра збирається; наведи ще раз за кілька секунд.": "The thumbnail is being built; hover again in a few seconds.",
+  "Мініатюру не зібрано: {0}": "The thumbnail was not built: {0}"
 };

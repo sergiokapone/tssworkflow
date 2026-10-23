@@ -168,6 +168,9 @@ const hoverProvider = {
       const md = new vscode.MarkdownString();
       md.appendMarkdown('**' + path.basename(file) + '**  ' + tr('({0} рядків)', lines.length) + '\n\n');
       md.appendCodeblock(lines.slice(0, 15).join('\n') + (lines.length > 15 ? '\n...' : ''), 'latex');
+      // 0.25.0: a figure X/tikz/name.tikz shows its rendered pictures (built in the background on the first hover)
+      const folder = vscode.workspace.getWorkspaceFolder(doc.uri);
+      if (folder) return new vscode.Hover(require('./tikzThumbs').hoverMd(folder.uri.fsPath, file, md), range);
       return new vscode.Hover(md, range);
     }
     return undefined;

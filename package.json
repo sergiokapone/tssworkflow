@@ -1800,6 +1800,11 @@
           "minimum": 0,
           "description": "Largest picture (MB) the hover on \\includegraphics draws as a thumbnail; a larger file gets a short message and the 'Open image' link instead. 0: never draw thumbnails"
         },
+        "tssworkflow.tikzThumbs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Hover on \\localinput{name}: show the rendered pictures of the figure X/tikz/name.tikz. The first hover builds the figure in the background (lualatex through the driver, one pass, no shell escape, only in a trusted workspace; pdftocairo makes the pictures) into the storage of the workspace; it is rebuilt when the figure, the driver or a .cls/.sty of the root changes"
+        },
         "tssworkflow.figureTemplate": {
           "type": "array",
           "items": {
