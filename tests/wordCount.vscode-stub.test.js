@@ -153,6 +153,27 @@ write('commented.tex', 'Це не повинно рахуватись нікуд
     } finally { wc.countWords = origCount; vscode.window.activeTextEditor = undefined; }
   });
 
+  t('English (tssworkflow.language): the item of the status bar and its tooltip say the same in English; Ukrainian is as before', async () => {
+    const I = req('i18n.js');
+    const text = 'One two three four five.\n';
+    const run = (lang, file) => {
+      I.setLang(lang);
+      const doc = mkDoc(f(file), 1, text);
+      doc.getText = (r) => (r ? 'two three' : text);
+      vscode.window.activeTextEditor = { document: doc, selection: { isEmpty: false } };
+      req('wordCount.js').register({ subscriptions: [], extensionUri: Uri.file(ext) });
+      return statusItems[statusItems.length - 1];
+    };
+    try {
+      const en = run('en', 'wc-en.tex');
+      assert.strictEqual(en.text, '$(pencil) 2 of 5 words');
+      assert.strictEqual(en.tooltip, 'Words in wc-en.tex: 5 (without commands, formulas, comments, figures)\nIn the selection: 2\nClick: words in all project files. Turn off: tssworkflow.wordCount');
+      const uk = run('uk', 'wc-uk.tex');
+      assert.strictEqual(uk.text, '$(pencil) 2 із 5 сл.');
+      assert.strictEqual(uk.tooltip, 'Слів у wc-uk.tex: 5 (без команд, формул, коментарів, рисунків)\nУ виділенні: 2\nКлік: слова в усіх файлах проєкту. Вимкнути: tssworkflow.wordCount');
+    } finally { I.setLang('uk'); vscode.window.activeTextEditor = undefined; }
+  });
+
   for (const [name, fn] of tests) { await fn(); n++; console.log('ok  ' + name); }
   fs.rmSync(tmp, { recursive: true, force: true });
   console.log('\n' + n + ' tests passed');
