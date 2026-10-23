@@ -402,7 +402,7 @@ class LabelsProvider {
       }
       return groups.map(({ g, labels }) => {
         const unused = labels.filter((l) => !l.uses).length;
-        const t = new vscode.TreeItem(g.path, vscode.TreeItemCollapsibleState.Expanded);
+        const t = /** @type {any} */ (new vscode.TreeItem(g.path, vscode.TreeItemCollapsibleState.Expanded));
         t.description = labels.length + (unused ? tr(' · без \\ref: {0}', unused) : '');
         t.iconPath = vscode.ThemeIcon.File;
         t.resourceUri = g.abs ? vscode.Uri.file(g.abs) : undefined;
@@ -413,7 +413,7 @@ class LabelsProvider {
     return el.tssChildren || [];
   }
   labelItem(g, l) {
-    const t = new vscode.TreeItem(l.name, vscode.TreeItemCollapsibleState.None);
+    const t = /** @type {any} */ (new vscode.TreeItem(l.name, vscode.TreeItemCollapsibleState.None));
     t.description = (l.ctx ? l.ctx + ' · ' : '') + (l.uses ? '×' + l.uses : tr('немає \\ref'));
     t.tooltip = l.name + (l.ctx ? '\n' + l.ctx : '') + '\n' + g.path + ':' + (l.line + 1) + '\n' + (l.uses ? tr('Посилань \\ref: {0}', l.uses) : tr('Жодного \\ref на цю мітку'));
     t.iconPath = new vscode.ThemeIcon(l.uses ? 'symbol-key' : 'warning');
@@ -721,6 +721,7 @@ async function listEquationsCmd() {
   let auxFn = null;
   try { auxFn = require('./projectInfo').auxInfo; } catch (e) { /* optional */ }
   const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
+  /** @type {Array<import('vscode').QuickPickItem & Record<string, any>>} */
   const items = [];
   let total = 0;
   let noLabel = 0;

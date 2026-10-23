@@ -82,8 +82,10 @@ async function imageUrisOf(dataTransfer) {
     !seen.has(u.fsPath) && seen.add(u.fsPath));
 }
 
+// the API of drop / paste edit kinds is newer than engines ^1.74: it is used only when it is there
+const vsx = /** @type {any} */ (vscode);
 function editKind() {
-  return vscode.DocumentDropOrPasteEditKind ? vscode.DocumentDropOrPasteEditKind.Empty.append('latex', 'figure') : undefined;
+  return vsx.DocumentDropOrPasteEditKind ? vsx.DocumentDropOrPasteEditKind.Empty.append('latex', 'figure') : undefined;
 }
 
 const dropProvider = {
@@ -99,7 +101,7 @@ const dropProvider = {
         sn.value += one.value; // already escaped
       });
       const k = editKind();
-      return k ? new vscode.DocumentDropEdit(sn, tr('Вставити як рисунок'), k) : new vscode.DocumentDropEdit(sn);
+      return k ? new vsx.DocumentDropEdit(sn, tr('Вставити як рисунок'), k) : new vscode.DocumentDropEdit(sn);
     } catch (err) {
       warn(tr('Не вдалося вставити рисунок: {0}', err && err.message ? err.message : err));
       return undefined;
@@ -123,7 +125,7 @@ const pasteProvider = {
       const stem = X.uniqueStem(existingNames(dir), X.pasteName(new Date()), ext);
       fs.writeFileSync(path.join(dir, stem + ext), Buffer.from(bytes));
       const sn = figureSnippet(doc, ranges[0].start, stem);
-      return [new vscode.DocumentPasteEdit(sn, tr('Вставити як рисунок'), editKind())];
+      return [new vsx.DocumentPasteEdit(sn, tr('Вставити як рисунок'), editKind())];
     } catch (err) {
       warn(tr('Не вдалося вставити рисунок з буфера: {0}', err && err.message ? err.message : err));
       return undefined;
@@ -253,6 +255,7 @@ async function toggleIffalse() {
 }
 
 /* ================================ Unicode -> LaTeX ============================== */
+let mhchemWarned = false; // the hint about mhchem is given once per session
 async function unicodeToLatex() {
   const ed = vscode.window.activeTextEditor;
   if (!ed) return;
@@ -265,8 +268,8 @@ async function unicodeToLatex() {
   if (!r.count) { info(tr('Unicode-символів для заміни не знайдено.')); return; }
   await ed.edit((b) => b.replace(range, r.text));
   vscode.window.setStatusBarMessage(tr('Unicode → LaTeX: замінено {0}', r.count) + (r.chem ? tr(' (з них \\ce: {0})', r.chem) : ''), 3000);
-  if (r.chem && !unicodeToLatex.warned && !/mhchem/.test(full)) {
-    unicodeToLatex.warned = true;
+  if (r.chem && !mhchemWarned && !/mhchem/.test(full)) {
+    mhchemWarned = true;
     info(tr('Хімічні формули огорнуто в \\ce{}: у преамбулі має бути \\usepackage[version=4]{mhchem}.'));
   }
 }
@@ -520,11 +523,11 @@ function register(context) {
   try {
     if (vscode.languages.registerDocumentDropEditProvider) {
       const k = editKind();
-      context.subscriptions.push(vscode.languages.registerDocumentDropEditProvider(SEL, dropProvider,
+      context.subscriptions.push(vsx.languages.registerDocumentDropEditProvider(SEL, dropProvider,
         k ? { providedDropEditKinds: [k], dropMimeTypes: ['text/uri-list', 'files'] } : undefined));
     }
-    if (vscode.languages.registerDocumentPasteEditProvider && editKind()) {
-      context.subscriptions.push(vscode.languages.registerDocumentPasteEditProvider(SEL, pasteProvider,
+    if (vsx.languages.registerDocumentPasteEditProvider && editKind()) {
+      context.subscriptions.push(vsx.languages.registerDocumentPasteEditProvider(SEL, pasteProvider,
         { providedPasteEditKinds: [editKind()], pasteMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'] }));
     }
   } catch (err) { /* the API of this VS Code differs: no picture drop / paste */ }

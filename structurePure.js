@@ -375,7 +375,7 @@ function syntaxChecks(lines, exists) {
     const inc = /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)\}/g;
     lines.forEach((line, i) => {
       const code = codePart(line);
-      for (const [re, kind, prefix] of [[lin, 'tikz', 'tikz/'], [inc, 'pic', 'Pictures/']]) {
+      for (const [re, kind, prefix] of /** @type {Array<[RegExp, string, string]>} */ ([[lin, 'tikz', 'tikz/'], [inc, 'pic', 'Pictures/']])) {
         let m;
         re.lastIndex = 0;
         while ((m = re.exec(code)) !== null) {

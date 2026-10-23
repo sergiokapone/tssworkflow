@@ -1,0 +1,86 @@
+# Tests on every push and pull request: the unit tests and the type check (npm test), then the extension in a real VS Code
+# (tests/integration: the current stable and the oldest version of engines, 1.74.0). The .vsix is built after the tests and kept
+# as an artifact; a tag v* also attaches it to a GitHub release.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: npm test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  vscode:
+    name: VS Code ${{ matrix.vscode }} (${{ matrix.os }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, vscode: stable }
+          - { os: ubuntu-latest, vscode: 1.74.0 }
+          - { os: windows-latest, vscode: stable }
+    runs-on: ${{ matrix.os }}
+    env:
+      VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: vscode-${{ runner.os }}-${{ matrix.vscode }}
+      - name: tests in VS Code (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:vscode
+      - name: tests in VS Code
+        if: runner.os != 'Linux'
+        run: npm run test:vscode
+
+  package:
+    name: .vsix
+    needs: [test, vscode]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx --yes @vscode/vsce@3 package --out tssworkflow-${{ github.sha }}.vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tssworkflow-vsix
+          path: '*.vsix'
+      - name: attach to the release of the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.vsix'

@@ -52,7 +52,7 @@ async function collect() {
   const list = G.buildItems(all, files, mj, render);
   const root = (vscode.workspace.workspaceFolders || [])[0];
   const rel = (f) => (root ? path.relative(root.uri.fsPath, f).split(path.sep).join('/') : path.basename(f));
-  list.forEach((it) => { it.fileName = rel(it.file); });
+  list.forEach((it) => { /** @type {any} */ (it).fileName = rel(it.file); });
   return { list, katex, mjFile: texts.length > 0 };
 }
 

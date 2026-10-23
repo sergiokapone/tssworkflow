@@ -170,7 +170,7 @@ function register(context, helpers) {
   const vscode = require('vscode');
   const fs = require('fs');
   const path = require('path');
-  const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
+  const cfg = () => /** @type {any} */ (vscode.workspace.getConfiguration('tssworkflow'));
   const info = (m, ...btn) => vscode.window.showInformationMessage(m, ...btn);
   const isTikzFile = (doc) => doc.uri.fsPath.toLowerCase().endsWith('.tikz');
   const docLines = (doc) => {

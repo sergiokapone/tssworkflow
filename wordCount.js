@@ -114,6 +114,7 @@ async function projectWordCountCmd() {
   for (const r of rows) { const k = r.path.includes('/') ? r.path.split('/')[0] : tr('(корінь)'); byCh.set(k, (byCh.get(k) || 0) + r.words); }
   const order = FL.chapterOrder();
   const sep = vscode.QuickPickItemKind && vscode.QuickPickItemKind.Separator;
+  /** @type {Array<import('vscode').QuickPickItem & Record<string, any>>} */
   const items = [{ label: tr('$(pencil) Усього: {0} слів у {1} файлах', total, rows.length), description: tr('без команд, формул, коментарів, рисунків') }];
   if (sep) items.push({ label: tr('За розділами'), kind: sep });
   [...byCh].sort((a, b) => (FL.chapterRank(order, a[0] + '/x') - FL.chapterRank(order, b[0] + '/x')) || (a[0] < b[0] ? -1 : 1)).forEach(([k, n]) => items.push({ label: '$(folder) ' + k, description: tr('{0} сл. · {1}%', n, Math.round(100 * n / total)) }));

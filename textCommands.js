@@ -152,7 +152,7 @@ async function closePreview(uri) {
   if (tg && tg.all) {
     for (const g of tg.all) {
       for (const t of g.tabs) {
-        const inp = t.input;
+        const inp = /** @type {any} */ (t.input);
         if (inp && inp.modified && inp.modified.toString() === uri.toString()) { await tg.close(t); return; }
       }
     }

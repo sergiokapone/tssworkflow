@@ -360,7 +360,7 @@ function pdfDiag(stage, full) {
   try {
     const val = (sec, key) => {
       const c = vscode.workspace.getConfiguration(sec);
-      const ins = c.inspect(key) || {};
+      const ins = /** @type {any} */ (c.inspect(key) || {});
       return key + ' = ' + JSON.stringify({ eff: c.get(key), user: ins.globalValue, workspace: ins.workspaceValue, folder: ins.workspaceFolderValue });
     };
     const lw = vscode.extensions.getExtension(LW_ID);
@@ -382,7 +382,7 @@ function pdfDiag(stage, full) {
     else {
       for (const g of tg.all) {
         lines.push(tr('група {0}', g.viewColumn) + (g.isActive ? tr(' (активна)') : '') + ': ' + (g.tabs.map((t) => {
-          const inp = t.input || {};
+          const inp = /** @type {any} */ (t.input || {});
           return t.label + ' [' + (inp.viewType || (inp.uri ? 'file' : '?')) + ']';
         }).join(', ') || tr('порожня')));
       }
@@ -426,6 +426,7 @@ async function openInLatexWorkshop(pdf) {
 
 // runs latexmk and, when it finishes, parses the log and (optionally) opens the PDF
 let buildSeq = 0;
+/** @param {{ folder: any, cwd?: string, args: string[], job: string, label: string, openPdf?: any, done?: Function, exe?: string, repeat?: number, steps?: any[] }} o */
 async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, done, exe, repeat, steps }) {
   if (building) { busyWarning(); if (done) done(); return; }
   if (guarding) { if (done) done(); return; } // the same question is already asked
@@ -446,7 +447,7 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
   const env = { max_print_line: '10000', error_line: '254', half_error_line: '238' };
   const id = ++buildSeq;
   // from here on and until the process ends no other build can start (set before the first await)
-  building = { id, job, label, started: Date.now(), execution: null, abort: null };
+  building = /** @type {any} */ ({ id, job, label, started: Date.now(), execution: null, abort: null });
   // tssworkflow.compilePasses.*: the engine is run exactly N times in a row, with the bibliography tools between the first and the
   // second run when the build has them (a pass number that is known, not guessed from the log); without steps: one command, repeat times
   const stepList = steps && steps.length ? steps : Array.from({ length: Math.max(1, Math.min(9, Math.floor(Number(repeat) || 1))) }, () => ({ exe, args, tex: true }));
@@ -503,7 +504,7 @@ async function runBuild({ folder, cwd: cwdOverride, args, job, label, openPdf, d
     if (ev.exitCode === 0) {
       lastPdf = path.join(cwd, job + '.pdf');
       if (openPdf) {
-        const viewer = cfg.get('pdfViewer', 'vscode');
+        const viewer = /** @type {string} */ (cfg.get('pdfViewer', 'vscode'));
         pdfDiag(tr('до відкриття PDF ({0})', viewer), true);
         debounce('build.pdfDiag', 3000, () => pdfDiag(tr('через 3 с після відкриття')));
         if (viewer === 'external') {

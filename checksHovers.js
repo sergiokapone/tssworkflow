@@ -138,7 +138,7 @@ const hoverProvider = {
       let found = P.scanLabelsAndRefs(doc.getText(), base).labels.find((l) => l.name === ref.name);
       let file = doc.uri.fsPath;
       if (!found) {
-        const idx = await buildIndex(false);
+        const idx = await buildIndex();
         for (const [fp, data] of idx) {
           const l = data.labels.find((x) => x.name === ref.name);
           if (l) { found = l; file = fp; break; }
@@ -186,6 +186,7 @@ async function goToHeading() {
     if (seen.has(fp) || !fs.existsSync(fp)) return;
     seen.add(fp);
     const lines = textOf(vscode.Uri.file(fp)).split(/\r?\n/);
+    /** @type {Array<{ line: number, h?: any, inc?: string }>} */
     const events = P.scanHeadings(lines).map((h) => ({ line: h.line, h }));
     lines.forEach((l, i) => {
       const m = /^\s*\\includechapter\{([^}]*)\}/.exec(P.codePart(l));

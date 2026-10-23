@@ -23,6 +23,7 @@ let deco = null; // decoration types of the table / row shown in the file
 let followRow = null;
 let target = null; // { uri, start, name }
 let selfEdit = 0;
+/** @type {(message: string) => void} */
 let log = () => {};
 let openedAt = 0; // when the tab was created: the time to the first picture is logged on 'ready'
 const ms = (t0) => Date.now() - t0;
@@ -314,7 +315,7 @@ async function openTable(context, uri, start) {
 // \SetCell[r=,c=] in the body <-> cell{i}{j} = {r=,c=}{…} in the options of tblr; both ways of writing are read, and when one
 // cell has a merge in both places (or two merges overlap) the editor warns
 let spanDiag = null;
-const spanKinds = () => (vscode.CodeActionKind || {});
+const spanKinds = () => /** @type {any} */ (vscode.CodeActionKind || {});
 
 function spanEdit(doc, env, text) {
   const we = new vscode.WorkspaceEdit();
@@ -392,7 +393,7 @@ function warm(doc) {
 // the warnings about merged cells and the lightbulb actions; nothing is registered where the host lacks the API (test stubs)
 function registerSpanTools() {
   const subs = [];
-  const langs = vscode.languages || {};
+  const langs = /** @type {any} */ (vscode.languages || {});
   if (typeof langs.registerCodeActionsProvider === 'function') {
     const k = spanKinds();
     subs.push(langs.registerCodeActionsProvider(SEL, spanActions, { providedCodeActionKinds: [k.RefactorRewrite, k.QuickFix].filter(Boolean) }));

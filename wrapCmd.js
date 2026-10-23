@@ -136,6 +136,7 @@ async function formatSelection(name) {
   if (!ranges.length) { vscode.window.showInformationMessage(tr('Виділи текст (або постав курсор на слово), який треба оформити.')); return; }
   let spec = typeof name === 'string' ? P.formatSpec(name) : null;
   if (!spec) {
+    /** @type {Array<import('vscode').QuickPickItem & Record<string, any>>} */
     const items = [];
     let group = '';
     for (const f of P.FORMAT_MENU) {

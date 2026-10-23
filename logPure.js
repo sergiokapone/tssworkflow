@@ -315,6 +315,7 @@ function boxText(lines, from) {
 function parseLog(log, minOverfull) {
   const lines = log.split(/\r?\n/);
   const stack = [];
+  /** @type {Array<{ kind: string, pts?: number, file: string, line: number, endLine?: number, box?: string, severity: string, message: string }>} */
   const issues = [];
   const top = () => {
     for (let i = stack.length - 1; i >= 0; i--) if (stack[i] && /\.(tex|tikz)$/i.test(stack[i])) return stack[i];

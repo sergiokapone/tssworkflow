@@ -89,7 +89,7 @@ function findEnvs(text, names) {
     if (k < 0) continue;
     const b = stack[k];
     stack.length = k;
-    envs.push({ name: b.name, start: b.index, bodyStart: b.end, bodyEnd: tok.index, end: tok.end });
+    envs.push(/** @type {any} */ ({ name: b.name, start: b.index, bodyStart: b.end, bodyEnd: tok.index, end: tok.end }));
   }
   envs.sort((a, b) => a.start - b.start);
   for (const e of envs) e.hasNested = envs.some((o) => o !== e && o.start > e.start && o.end <= e.end);

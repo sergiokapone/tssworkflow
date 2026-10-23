@@ -1,0 +1,15 @@
+{
+  "//": "Type check of the JavaScript of the extension (no build, nothing is emitted): npm run typecheck. tests/typecheck.test.js runs it with the other tests. Types of VS Code are those of engines ^1.74; newer API is used through casts to any where it is optional.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "commonjs",
+    "lib": ["es2022"],
+    "types": ["node", "vscode"],
+    "skipLibCheck": true,
+    "strict": false
+  },
+  "include": ["*.js"]
+}

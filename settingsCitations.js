@@ -57,7 +57,7 @@ async function initProjectSettings(arg) {
           { placeHolder: tr('У папці кілька .tex і немає main.tex. Який файл головний (mainFile)?') }
         );
         if (!pick) return;
-        mainFile = pick.label;
+        mainFile = /** @type {any} */ (pick).label;
       } else {
         mainFile = r.file;
       }

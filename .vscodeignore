@@ -11,3 +11,6 @@ extension.vsixmanifest
 [Content_Types].xml
 *.log
 package-lock.json
+tsconfig.json
+.vscode-test/**
+.github/**

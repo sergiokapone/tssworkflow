@@ -24,7 +24,7 @@ function pickTyped(base, placeHolder, parse) {
       // with arguments typed the typed entry is the one wanted; a bare name must not hide the usual matches
       qp.items = p.withArgs ? [typed, ...base] : [...base, typed];
     });
-    qp.onDidAccept(() => { const sel = qp.selectedItems[0]; finish(sel && sel.pick ? sel.pick : undefined); });
+    qp.onDidAccept(() => { const sel = /** @type {any} */ (qp.selectedItems[0]); finish(sel && sel.pick ? sel.pick : undefined); });
     qp.onDidHide(() => finish(undefined));
     qp.show();
   });

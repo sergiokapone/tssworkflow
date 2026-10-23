@@ -34,6 +34,9 @@ const SEL = [
 const SEL_ANY = [{ language: 'latex' }, { language: 'tex' }, { pattern: '**/*.tikz' }];
 const REF_CTX = new RegExp('\\\\(?:' + P.REF_CMDS + ')\\*?\\{([^}]*)$');
 
+/** The settings of the extension. `get` is typed loosely on purpose: a value comes from the user's settings.json, so the
+ * default must not narrow its type (with the default 'job' the value is any string, not the literal 'job').
+ * @returns {{ get: (key: string, fallback?: any) => any, update: vscode.WorkspaceConfiguration['update'], inspect: (key: string) => any, has: (key: string) => boolean }} */
 const cfg = () => vscode.workspace.getConfiguration('tssworkflow');
 const isTexDoc = (doc) =>
   doc.languageId === 'latex' || doc.languageId === 'tex' || doc.uri.fsPath.toLowerCase().endsWith('.tikz');

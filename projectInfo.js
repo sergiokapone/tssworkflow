@@ -91,7 +91,7 @@ async function unusedEquations() {
     r
   }));
   // moving over an item shows the formula in the editor
-  qp.onDidChangeActive((act) => { if (act[0]) openAt(act[0].r.f, act[0].r.it.line, true); });
+  qp.onDidChangeActive((act) => { const a = /** @type {any} */ (act[0]); if (a) openAt(a.r.f, a.r.it.line, true); });
   const chosen = await new Promise((resolve) => {
     qp.onDidAccept(() => { resolve(qp.selectedItems.slice()); qp.hide(); });
     qp.onDidHide(() => resolve([]));

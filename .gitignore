@@ -5,3 +5,4 @@ vsix/
 Thumbs.db
 extension.vsixmanifest
 [Content_Types].xml
+.vscode-test/

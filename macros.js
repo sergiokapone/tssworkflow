@@ -10,6 +10,7 @@ const { excludeNow, cfg, openDocByPath } = require('./util');
 
 const SELECTOR = [{ scheme: 'file', pattern: '**/*.{tex,tikz,cls,sty,ltx}' }];
 
+/** @type {(message: string) => void} */
 let log = () => {};
 
 /* ------------------------------ sources ------------------------------ */

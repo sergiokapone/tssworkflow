@@ -21,9 +21,10 @@ function load(extPath) {
   if (katex) return katex;
   const dir = path.join(extPath, 'media', 'katex');
   const k = require(path.join(dir, 'katex.min.js'));
-  const orig = Module._load;
-  Module._load = function (request, ...rest) { return request === 'katex' ? k : orig.call(this, request, ...rest); };
-  try { require(path.join(dir, 'mhchem.min.js')); } catch (e) { /* \ce is then unknown: the formula with it is not copied */ } finally { Module._load = orig; }
+  const M = /** @type {any} */ (Module);
+  const orig = M._load;
+  M._load = function (request, ...rest) { return request === 'katex' ? k : orig.call(this, request, ...rest); };
+  try { require(path.join(dir, 'mhchem.min.js')); } catch (e) { /* \ce is then unknown: the formula with it is not copied */ } finally { M._load = orig; }
   const win = {};
   try { vm.runInNewContext(fs.readFileSync(path.join(dir, 'optmacros.js'), 'utf8'), { window: win }); optFn = win.tssKatexMacros || null; } catch (e) { optFn = null; }
   katex = k;

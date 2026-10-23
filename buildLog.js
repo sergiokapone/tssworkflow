@@ -48,6 +48,7 @@ function setLogDiagnostics(folder, items) {
 function builtinLog(folder, job) {
   let log;
   try { log = fs.readFileSync(path.join(folder, job + '.log'), 'utf8'); } catch (e) { outLog.appendLine(tr('[builtin] немає {0}.log', job)); return; }
+  /** @type {any[]} */
   const items = P.parseLog(log, cfg().get('overfullThreshold', 5)).map((it) => ({
     file: it.file, line: it.line, message: it.message, severity: vscode.DiagnosticSeverity.Warning, source: 'LaTeX log'
   }));

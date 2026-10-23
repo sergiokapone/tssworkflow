@@ -70,7 +70,7 @@ t('every file that package.json points at exists', () => {
 
 t('JSON files of the extension are valid', () => {
   const found = [];
-  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name === 'node_modules' || e.name === 'katex') continue; const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.json$/.test(e.name)) found.push(p); } };
+  const walk = (d) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name === 'node_modules' || e.name === 'katex' || e.name.startsWith('.')) continue; /* .git, .vscode-test (a downloaded VS Code), .github: not the extension */ const p = path.join(d, e.name); if (e.isDirectory()) walk(p); else if (/\.json$/.test(e.name)) found.push(p); } };
   walk(ext);
   assert.ok(found.length >= 3);
   for (const f of found) JSON.parse(fs.readFileSync(f, 'utf8'));

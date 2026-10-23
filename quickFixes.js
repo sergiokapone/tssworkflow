@@ -21,7 +21,7 @@ function mkFix(title, d, edit) {
 // all label names of the project (cached index)
 async function allLabelNames() {
   const names = new Set();
-  for (const data of (await buildIndex(false)).values()) data.labels.forEach((l) => names.add(l.name));
+  for (const data of (await buildIndex()).values()) data.labels.forEach((l) => names.add(l.name));
   return names;
 }
 

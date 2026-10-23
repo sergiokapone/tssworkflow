@@ -143,7 +143,7 @@ function keyMap(keybindings) {
 function coverage(commandIds) {
   const ids = commandIds.map((c) => c.replace(/^tssworkflow\./, ''));
   const seen = {};
-  for (const g of GROUPS) for (const it of g.items) { const o = it[3]; if (!(o && o.raw)) seen[it[0]] = (seen[it[0]] || 0) + 1; }
+  for (const g of GROUPS) for (const it of g.items) { const o = /** @type {any} */ (it[3]); if (!(o && o.raw)) seen[it[0]] = (seen[it[0]] || 0) + 1; }
   return {
     missing: ids.filter((c) => !seen[c] && !EXCLUDED.includes(c)),
     duplicates: Object.keys(seen).filter((c) => seen[c] > 1),
