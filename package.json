@@ -259,6 +259,12 @@
         "category": "TSS Workflow"
       },
       {
+        "command": "tssworkflow.tikzThumbsChapter",
+        "title": "Build thumbnails of the chapter's TikZ figures (hover on \\localinput)",
+        "category": "TSS Workflow",
+        "icon": "$(file-media)"
+      },
+      {
         "command": "tssworkflow.stopBuild",
         "title": "Stop compilation",
         "category": "TSS Workflow",
@@ -840,6 +846,10 @@
         {
           "command": "tssworkflow.extractTikzAll",
           "group": "4_tables@8"
+        },
+        {
+          "command": "tssworkflow.tikzThumbsChapter",
+          "group": "4_tables@9"
         }
       ],
       "tssworkflow.submenu.nav": [

@@ -34,6 +34,15 @@ function figureOf(root, file, sub) {
   return { chapter: parts[0], tikz: parts[2].replace(/\.tikz$/i, ''), rel };
 }
 
+// the chapter of a file: X for X/X.tex and for a figure X/<sub>/name.tikz, else null
+function chapterOf(root, file, sub) {
+  const fig = figureOf(root, file, sub);
+  if (fig) return fig.chapter;
+  const parts = path.relative(root, file).split(path.sep);
+  if (parts.length === 2 && !parts[0].startsWith('..') && parts[1].replace(/\.tex$/i, '') === parts[0] && /\.tex$/i.test(parts[1])) return parts[0];
+  return null;
+}
+
 // the folder of a figure in the cache (stable for the figure) and the key of its current picture: the figure, the driver and the
 // classes / packages of the root, each by its path, time and size (a change of any of them makes the thumbnail stale)
 const hash = (s) => crypto.createHash('sha1').update(s).digest('hex').slice(0, 16);
@@ -55,4 +64,4 @@ function logError(log) {
   return lines.slice(i, i + 2).map((l) => l.trim()).filter(Boolean).join(' ').slice(0, 300);
 }
 
-module.exports = { PREVIEW_ENVS, MAX_PAGES, DPI, pretex, latexArgs, cairoArgs, figureOf, folderOf, keyOf, pages, logError };
+module.exports = { PREVIEW_ENVS, MAX_PAGES, DPI, pretex, latexArgs, cairoArgs, figureOf, chapterOf, folderOf, keyOf, pages, logError };

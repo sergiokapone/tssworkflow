@@ -62,8 +62,21 @@ function load(opts) {
     workspace: { isTrusted: opts.trusted !== false, getConfiguration: () => ({ get: (k, d) => (conf[k] !== undefined ? conf[k] : d) }) },
     Uri: { file: (p) => ({ fsPath: p, toString: () => 'file:///' + p.replace(/\\/g, '/') }) },
     MarkdownString: class { constructor() { this.value = ''; } appendMarkdown(s) { this.value += s; return this; } appendCodeblock(s) { this.value += '```' + s + '```'; return this; } },
-    window: {}, commands: {}, languages: {}, Range: class {}, Position: class {}
+    window: {}, languages: {}, Range: class {}, Position: class {},
+    commands: { registerCommand: (id, f) => { handlers[id] = f; return { dispose() {} }; } },
+    ProgressLocation: { Notification: 15 }
   };
+  const handlers = {};
+  // the chapter command: the active editor, its folder, the messages and the progress (opts.cancelAfter: cancel after N reports)
+  const msgs = [];
+  vs.window.showInformationMessage = vs.window.showWarningMessage = (m) => { msgs.push(m); };
+  vs.window.withProgress = async (o, task) => {
+    let cancel = null, reports = 0;
+    const token = { onCancellationRequested: (f) => { cancel = f; } };
+    return task({ report: () => { reports++; if (opts.cancelAfter && reports === opts.cancelAfter + 1 && cancel) cancel(); } }, token);
+  };
+  vs.workspace.getWorkspaceFolder = () => (opts.root ? { uri: { fsPath: opts.root } } : undefined);
+  if (opts.active) vs.window.activeTextEditor = { document: { uri: { fsPath: opts.active } } };
   const orig = Module._load;
   Module._load = function (req, ...rest) {
     if (req === 'vscode') return vs;
@@ -75,8 +88,8 @@ function load(opts) {
   try {
     const M = require(path.join(ext, 'tikzThumbs.js'));
     const storage = tmp('tss-thumbs-store-');
-    M.register({ storageUri: { fsPath: storage } }, { log: () => {} });
-    return { M, storage, vs };
+    M.register({ storageUri: { fsPath: storage }, subscriptions: [] }, { log: () => {} });
+    return { M, storage, vs, handlers, msgs };
   } finally { Module._load = orig; }
 }
 function project() {
@@ -175,6 +188,46 @@ t('stub: untrusted workspace or tikzThumbs = false: nothing is built, the hover 
     await new Promise((r) => setTimeout(r, 20));
     assert.deepStrictEqual(calls, []);
   }
+});
+
+t('chapterOf: X/X.tex and X/tikz/name.tikz give X; other files nothing', () => {
+  const root = path.join(os.tmpdir(), 'proj');
+  assert.strictEqual(T.chapterOf(root, path.join(root, 'Charges', 'Charges.tex')), 'Charges');
+  assert.strictEqual(T.chapterOf(root, path.join(root, 'Charges', 'tikz', 'Columb.tikz')), 'Charges');
+  assert.strictEqual(T.chapterOf(root, path.join(root, 'Charges', 'Other.tex')), null);
+  assert.strictEqual(T.chapterOf(root, path.join(root, 'main.tex')), null);
+});
+
+t('command tikzThumbsChapter: the figures of the chapter of the active file, fresh ones skipped, a summary', async () => {
+  const { root, fig } = project();
+  fs.writeFileSync(path.join(root, 'A', 'A.tex'), '\\chapter{A}');
+  fs.writeFileSync(path.join(root, 'A', 'tikz', 'g.tikz'), '\\begin{tikzpicture}\\end{tikzpicture}');
+  fs.writeFileSync(path.join(root, 'A', 'tikz', 'notes.txt'), 'not a figure');
+  const calls = [];
+  const { M, handlers, msgs } = load({ run: fakeRun(calls), root, active: path.join(root, 'A', 'A.tex') });
+  const first = built(M); M.status(root, fig); await first; // f is fresh already
+  calls.length = 0;
+  const res = await handlers['tssworkflow.tikzThumbsChapter']();
+  assert.deepStrictEqual(res, { built: 1, fresh: 1, failed: [], cancelled: 0 });
+  assert.deepStrictEqual(calls.map((c) => c[0]), ['lualatex', 'pdftocairo'], 'only g is built');
+  assert.strictEqual(M.status(root, path.join(root, 'A', 'tikz', 'g.tikz')).state, 'ready');
+  assert.ok(/зібрано 1, уже були 1, помилок 0/.test(msgs[msgs.length - 1]), msgs.join(' | '));
+  const again = await handlers['tssworkflow.tikzThumbsChapter']();
+  assert.deepStrictEqual(again, { built: 0, fresh: 2, failed: [], cancelled: 0 }, 'everything fresh: nothing to build');
+});
+
+t('command tikzThumbsChapter: cancel drops the figures not started yet; not a chapter file: a warning', async () => {
+  const { root } = project();
+  for (const n of ['g', 'h', 'k']) fs.writeFileSync(path.join(root, 'A', 'tikz', n + '.tikz'), '\\begin{tikzpicture}\\end{tikzpicture}');
+  const calls = [];
+  const { handlers } = load({ run: fakeRun(calls), root, active: path.join(root, 'A', 'tikz', 'g.tikz'), cancelAfter: 1 });
+  const res = await handlers['tssworkflow.tikzThumbsChapter']();
+  assert.strictEqual(res.built + res.cancelled, 4);
+  assert.ok(res.built >= 1 && res.cancelled >= 1, JSON.stringify(res));
+  assert.strictEqual(calls.filter((c) => c[0] === 'lualatex').length, res.built, 'a cancelled figure is never started');
+  const other = load({ run: fakeRun([]), root, active: path.join(root, 'main.tex') });
+  assert.strictEqual(await other.handlers['tssworkflow.tikzThumbsChapter'](), null);
+  assert.ok(/Відкрий файл розділу/.test(other.msgs[0]));
 });
 
 /* ---- a real build (only with TeX on PATH) ---- */

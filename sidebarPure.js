@@ -62,7 +62,8 @@ const GROUPS = [
     ['tableFromFile', 'Таблиця з CSV / XLSX / буфера в tblr', 'table'],
     ['formatTikz', 'Розкласти \\tikz{…} по рядках (один оператор на рядок)', 'list-tree'],
     ['extractTikz', 'Винести tikzpicture під курсором у tikz/', 'export'],
-    ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export']
+    ['extractTikzAll', 'Винести всі tikzpicture у tikz/', 'export'],
+    ['tikzThumbsChapter', 'Мініатюри рисунків розділу (підказка на \\localinput)', 'file-media']
   ] },
   { id: 'nav', en: 'Navigation', label: 'Навігація', icon: 'list-tree', items: [
     ['goToHeading', 'Перейти до заголовка (весь проєкт)', 'list-tree'],

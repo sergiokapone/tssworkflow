@@ -61,11 +61,28 @@ function status(root, file) {
   return { state: 'building' };
 }
 
+const waiters = new Map(); // dir -> [resolve]: the command of the chapter waits for its figures
+const settle = (dir, how) => { for (const r of waiters.get(dir) || []) r(how); waiters.delete(dir); };
+
+// queues the figure (once); the promise resolves with 'built' | 'failed' | 'cancelled' when its turn is over
 function request(d) {
-  if (queued.has(d.dir)) return;
-  queued.add(d.dir);
-  queue.push(d);
-  if (!busy) pump();
+  const p = new Promise((resolve) => { if (!waiters.has(d.dir)) waiters.set(d.dir, []); waiters.get(d.dir).push(resolve); });
+  if (!queued.has(d.dir)) {
+    queued.add(d.dir);
+    queue.push(d);
+    if (!busy) pump();
+  }
+  return p;
+}
+
+// drops the queued (not yet started) figures of these folders
+function cancel(dirs) {
+  for (let i = queue.length - 1; i >= 0; i--) {
+    if (!dirs.has(queue[i].dir)) continue;
+    const [d] = queue.splice(i, 1);
+    queued.delete(d.dir);
+    settle(d.dir, 'cancelled');
+  }
 }
 
 async function pump() {
@@ -74,9 +91,46 @@ async function pump() {
     while (queue.length) {
       const d = queue.shift();
       try { await build(d); } finally { queued.delete(d.dir); }
+      settle(d.dir, failed.has(d.dir) ? 'failed' : 'built');
       onBuilt(d);
     }
   } finally { busy = false; }
+}
+
+/* "Build thumbnails of the chapter's figures": every X/tikz/*.tikz of the chapter of the active file (X/X.tex or a figure of X),
+ * in the background with a cancellable progress; the fresh ones are not rebuilt. -> { built, fresh, failed: [rel], cancelled } */
+async function buildChapter() {
+  const ed = vscode.window.activeTextEditor;
+  const folder = ed && vscode.workspace.getWorkspaceFolder(ed.document.uri);
+  const chapter = folder && T.chapterOf(folder.uri.fsPath, ed.document.uri.fsPath, sub());
+  if (!chapter) { vscode.window.showWarningMessage(tr('Відкрий файл розділу (X/X.tex) або рисунок із X/tikz/.')); return null; }
+  if (!enabled()) { vscode.window.showWarningMessage(tr('Мініатюри вимкнено (tssworkflow.tikzThumbs) або робоча тека не довірена.')); return null; }
+  const root = folder.uri.fsPath;
+  const dir = path.join(root, chapter, sub());
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((n) => /\.tikz$/i.test(n)).sort((a, b) => a.localeCompare(b)); } catch (e) { /* no folder */ }
+  const all = names.map((n) => describe(root, path.join(dir, n))).filter(Boolean);
+  if (!all.length) { vscode.window.showInformationMessage(tr('У {0}/{1}/ немає рисунків .tikz.', chapter, sub())); return null; }
+  const todo = all.filter((d) => !pngsOf(d));
+  const res = { built: 0, fresh: all.length - todo.length, failed: [], cancelled: 0 };
+  if (todo.length) {
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: tr('Мініатюри рисунків розділу {0}', chapter), cancellable: true }, async (progress, token) => {
+      const dirs = new Set(todo.map((d) => d.dir));
+      if (token) token.onCancellationRequested(() => cancel(dirs));
+      let done = 0;
+      progress.report({ message: '0 / ' + todo.length });
+      await Promise.all(todo.map((d) => request(d).then((how) => {
+        if (how === 'built') res.built++; else if (how === 'failed') res.failed.push(d.fig.rel); else res.cancelled++;
+        done++;
+        progress.report({ increment: 100 / todo.length, message: done + ' / ' + todo.length + ': ' + d.fig.tikz });
+      })));
+    });
+  }
+  const text = tr('Мініатюри розділу {0}: зібрано {1}, уже були {2}, помилок {3}.', chapter, res.built, res.fresh, res.failed.length) +
+    (res.cancelled ? ' ' + tr('Скасовано: {0}.', res.cancelled) : '') +
+    (res.failed.length ? ' ' + tr('Не зібрано: {0} (причина — у підказці на \\localinput).', res.failed.slice(0, 3).map((r) => path.basename(r)).join(', ') + (res.failed.length > 3 ? '…' : '')) : '');
+  (res.failed.length ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(text);
+  return res;
 }
 
 async function build(d) {
@@ -128,6 +182,7 @@ function register(context, api) {
   if (api && api.log) log = api.log;
   const base = context.storageUri ? context.storageUri.fsPath : (context.globalStorageUri ? context.globalStorageUri.fsPath : context.globalStoragePath);
   storage = base ? path.join(base, 'tikz-thumbs') : null;
+  context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.tikzThumbsChapter', () => buildChapter()));
 }
 
-module.exports = { register, status, hoverMd, _describe: describe, _setOnBuilt: (f) => { onBuilt = f || (() => {}); }, _idle: () => !busy && !queue.length };
+module.exports = { register, status, hoverMd, buildChapter, _describe: describe, _setOnBuilt: (f) => { onBuilt = f || (() => {}); }, _idle: () => !busy && !queue.length };

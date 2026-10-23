@@ -1359,5 +1359,12 @@ module.exports = {
   "lualatex не знайдено в PATH": "lualatex is not found in PATH",
   "pdftocairo не знайдено в PATH (Poppler; у TeX Live для Windows він є)": "pdftocairo is not found in PATH (Poppler; TeX Live for Windows has it)",
   "Мініатюра збирається; наведи ще раз за кілька секунд.": "The thumbnail is being built; hover again in a few seconds.",
-  "Мініатюру не зібрано: {0}": "The thumbnail was not built: {0}"
+  "Мініатюру не зібрано: {0}": "The thumbnail was not built: {0}",
+  "Відкрий файл розділу (X/X.tex) або рисунок із X/tikz/.": "Open a chapter file (X/X.tex) or a figure of X/tikz/.",
+  "Мініатюри вимкнено (tssworkflow.tikzThumbs) або робоча тека не довірена.": "Thumbnails are off (tssworkflow.tikzThumbs) or the workspace is not trusted.",
+  "У {0}/{1}/ немає рисунків .tikz.": "There are no .tikz figures in {0}/{1}/.",
+  "Мініатюри рисунків розділу {0}": "Thumbnails of the figures of chapter {0}",
+  "Мініатюри розділу {0}: зібрано {1}, уже були {2}, помилок {3}.": "Thumbnails of chapter {0}: built {1}, already there {2}, failed {3}.",
+  "Скасовано: {0}.": "Cancelled: {0}.",
+  "Не зібрано: {0} (причина — у підказці на \\localinput).": "Not built: {0} (the reason is in the hover on \\localinput)."
 };
