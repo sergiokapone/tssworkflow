@@ -6,6 +6,7 @@
 const path = require('path');
 const { tr } = require('./i18n');
 const L = require('./logPure');
+const FL = require('./floatsPure');
 
 const posix = (p) => String(p).replace(/\\/g, '/');
 
@@ -253,6 +254,15 @@ function formatReport(d, o) {
     }
     if (!any) { add(OK, tr('лог чистий')); body.push(tr('Помилок, невизначених посилань, відсутніх гліфів і Overfull \\hbox немає.'), ''); }
   }
+
+  // floats far from their first reference (floatsPure.js): only when the .aux and the .synctex were readable
+  if (d.floats && d.floats.r) {
+    const fr = d.floats.r;
+    if (fr.far.length + fr.before.length) add(WARN, tr('рисунків і таблиць не біля першого посилання: {0}', fr.far.length + fr.before.length));
+    if (fr.unref.length) add(WARN, tr('рисунків і таблиць без посилань: {0}', fr.unref.length));
+    if (!fr.far.length && !fr.before.length && !fr.unref.length && fr.total) add(OK, tr('рисунки й таблиці біля посилань ({0})', fr.total));
+    body.push(FL.formatFloats(fr, { level: '##', maxDist: opt.floatMaxPages }));
+  } else if (d.floats && d.floats.error) body.push('## ' + tr('Плаваючі об\'єкти й перші посилання'), '', d.floats.error, '');
 
   // the sources
   body.push(tr('## Джерела'), '');

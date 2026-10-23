@@ -11,6 +11,7 @@ const fs = require('fs');
 const F = require('./preflightPure');
 const P = require('./corePure');
 const PI = require('./projectIndex');
+const FLOATS = require('./floats');
 const { tr } = require('./i18n');
 const { cfg, errText, excludeNow, excludePdfNow, projectRoot, run, texFiles, warn } = require('./util');
 
@@ -130,10 +131,12 @@ async function compute(pdf, root, progress) {
   try { log = F.logFindings(await fs.promises.readFile(path.join(cwd, job + '.log'), 'utf8'), { cwd, root, overfull: cfg().get('overfullThreshold', 5) }); } catch (e) { log = null; }
   let pdfTime = 0;
   try { pdfTime = (await fs.promises.stat(pdf)).mtimeMs; } catch (e) { pdfTime = Date.now(); }
-  const [stale, todos, iffalse] = await Promise.all([staleSources(pdfTime, root), todoPlaces(root), iffalseBlocks(root)]);
+  const [stale, todos, iffalse, floats] = await Promise.all([
+    staleSources(pdfTime, root), todoPlaces(root), iffalseBlocks(root), FLOATS.compute(pdf, root).catch((e) => ({ error: errText(e) }))
+  ]);
   return F.formatReport(
-    { pdf, root, info: infoR.error ? null : F.parsePdfinfo(infoR.out), stale, fonts, fontFiles, images, imageFiles, log, todos, iffalse },
-    { minDpi, cmyk: !!cfg().get('preflight.requireCmyk', false) }
+    { pdf, root, info: infoR.error ? null : F.parsePdfinfo(infoR.out), stale, fonts, fontFiles, images, imageFiles, log, todos, iffalse, floats },
+    { minDpi, cmyk: !!cfg().get('preflight.requireCmyk', false), floatMaxPages: FLOATS.maxDist() }
   );
 }
 
@@ -156,4 +159,4 @@ function register(context) {
   context.subscriptions.push(vscode.commands.registerCommand('tssworkflow.preflight', preflightCmd));
 }
 
-module.exports = { register, _t: { compute, pictureFiles, staleSources } };
+module.exports = { register, tool, pool, _t: { compute, pictureFiles, staleSources } };

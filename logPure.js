@@ -297,6 +297,18 @@ function parseTexlogsieve(text, overfullThreshold) {
 const LOG_FILE_RE = /^(?:\.{0,2}\/|[A-Za-z]:[\\/]|\/)?[^\s()]+\.(?:tex|tikz|sty|cls|def|cfg|clo|fd|aux|bbl|lua|ldf|cnf|cut|sto|out|toc|lof|lot|code\.tex)$/i;
 const LOG_MSG_START = /^(?:Overfull|Underfull|LaTeX (?:Font )?(?:Warning|Info|Error)|Package|Class|Missing|Runaway|!|l\.\d|\[\]|\s*\\|\s*\(\w[\w-]*\)\s{2,})/;
 
+// The content of an overfull box: the lines after the message up to " []" or an empty line. TeX cuts its log lines at
+// max_print_line (79 bytes by default) wherever the limit falls, also inside a word, so the pieces are joined without a separator.
+function boxText(lines, from) {
+  let s = '';
+  for (let i = from; i < Math.min(lines.length, from + 40); i++) {
+    const l = lines[i];
+    if (!l.trim() || /^\s*\[\]\s*$/.test(l)) break;
+    s += l;
+  }
+  return s;
+}
+
 // Extracts overfull boxes and undefined references / citations together with the source file.
 // kind: 'overfull' (with pts), 'ref' or 'cite': what an item is, whatever the language of its message.
 // `log` should be produced with max_print_line=10000 (no wrapped lines).
@@ -308,13 +320,19 @@ function parseLog(log, minOverfull) {
     for (let i = stack.length - 1; i >= 0; i--) if (stack[i] && /\.(tex|tikz)$/i.test(stack[i])) return stack[i];
     return null;
   };
-  for (const line of lines) {
-    let m = /^Overfull \\hbox \(([\d.]+)pt too wide\) (?:in paragraph at lines (\d+)--\d+|in alignment at lines (\d+)--\d+|detected at line (\d+)|in paragraph at lines (\d+))/.exec(line);
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+    let m = /^Overfull \\hbox \(([\d.]+)pt too wide\) (?:in paragraph at lines (\d+)--(\d+)|in alignment at lines (\d+)--\d+|detected at line (\d+)|in paragraph at lines (\d+))/.exec(line);
     if (m) {
       const pts = parseFloat(m[1]);
-      const ln = parseInt(m[2] || m[3] || m[4] || m[5], 10);
+      const ln = parseInt(m[2] || m[4] || m[5] || m[6], 10);
       const f = top();
-      if (f && pts >= minOverfull) issues.push({ kind: 'overfull', pts, file: f, line: ln - 1, severity: 'warning', message: tr('Overfull \\hbox: {0}pt завширшки', pts) });
+      if (f && pts >= minOverfull) {
+        const it = { kind: 'overfull', pts, file: f, line: ln - 1, severity: 'warning', message: tr('Overfull \\hbox: {0}pt завширшки', pts) };
+        // a paragraph: its last line and the content of the box as TeX shows it (the words with the points where TeX may break them)
+        if (m[2]) { it.endLine = Math.max(ln, parseInt(m[3], 10)) - 1; it.box = boxText(lines, li + 1); }
+        issues.push(it);
+      }
       continue;
     }
     m = /^LaTeX Warning: (Reference|Citation) `([^']*)' on page \S+ undefined on input line (\d+)\./.exec(line);

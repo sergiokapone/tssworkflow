@@ -82,12 +82,16 @@ const GROUPS = [
     ['unusedPackages', 'Невикористані \\usepackage', 'package'],
     ['missingPackages', 'Відсутні пакети з логу (tlmgr)', 'cloud-download'],
     ['ltexDictionary', 'LTeX: додати слова у словник', 'book'],
-    ['preflight', 'Перевірка перед друком', 'verified']
+    ['preflight', 'Перевірка перед друком', 'verified'],
+    ['floatPlacement', 'Рисунки й таблиці далеко від посилання', 'file-media'],
+    ['hyphenHelper', 'Перенос слів, що вилазять на поле', 'whole-word'],
+    ['importPdfNotes', 'Примітки рецензента з PDF → TODO', 'comment-discussion']
   ] },
   { id: 'biblio', en: 'Bibliography & versions', label: 'Бібліографія й версії', icon: 'git-compare', items: [
     ['bibFromDoi', 'BibTeX за DOI', 'library'],
     ['formatBib', 'Форматувати .bib (сортування, вирівнювання)', 'list-flat'],
     ['bibDuplicates', 'Дублі в .bib (DOI, назва)', 'files'],
+    ['dstuBib', '.bib за ДСТУ 8302:2015', 'law'],
     ['bibNormalizeKeys', 'Ключі .bib: прізвище+рік (і \\cite)', 'symbol-key'],
     ['savePdfCopy', 'Зберегти копію PDF з датою', 'save-as'],
     ['latexdiff', 'Зміни розділу від ревізії git (latexdiff)', 'git-compare']

@@ -479,6 +479,10 @@ function activate(context) {
   require('./buildTasks').register(context, { run: build.runForTask, outcome: build.outcome, stop: build.stopBuild });
   require('./lwCompat').register(context);
   require('./preflight').register(context);
+  require('./hyphen').register(context);
+  require('./dstu').register(context);
+  require('./floats').register(context);
+  require('./annots').register(context);
   // 0.20.1: the report with the numbers that grow when something leaks
   require('./debugState').register(context);
   // a project with .tex files but without .vscode/settings.json: offer to create it from the template

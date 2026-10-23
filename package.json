@@ -17,7 +17,7 @@
     "url": "https://github.com/sergiokapone/tssworkflow/issues"
   },
   "qna": "https://github.com/sergiokapone/tssworkflow/issues",
-  "version": "0.22.2",
+  "version": "0.23.0",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -446,6 +446,22 @@
         "command": "tssworkflow.preflight",
         "title": "TSS Workflow: Check before print (fonts, picture resolution, log, TODO)",
         "icon": "$(checklist)"
+      },
+      {
+        "command": "tssworkflow.hyphenHelper",
+        "title": "TSS Workflow: Hyphenation of words that stick into the margin (from the log)"
+      },
+      {
+        "command": "tssworkflow.dstuBib",
+        "title": "TSS Workflow: Check .bib against DSTU 8302:2015"
+      },
+      {
+        "command": "tssworkflow.floatPlacement",
+        "title": "TSS Workflow: Figures and tables far from their first reference"
+      },
+      {
+        "command": "tssworkflow.importPdfNotes",
+        "title": "TSS Workflow: Reviewer notes from a PDF to TODO comments"
       },
       {
         "command": "tssworkflow.editTable",
@@ -1071,6 +1087,12 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Check before print: report RGB pictures as a problem (the printing house wants CMYK). Off: they are only counted."
+        },
+        "tssworkflow.floatMaxPages": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 0,
+          "markdownDescription": "Figures and tables far from their first reference (also a part of Check before print): how many pages after the page of the first `\\ref` a float may stand. 0: only on the same page; 1: the same or the next one."
         },
         "tssworkflow.frameRules": {
           "type": "object",
