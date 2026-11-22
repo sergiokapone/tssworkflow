@@ -16,7 +16,7 @@ const fs = require('fs');
 const { tr } = require('./i18n');
 const X = require('./filesAndLabelsPure');
 const X4 = require('./formattersPure');
-const { excludePdfNow, cancelTimer, cfg, debounce, docLines, findCached, info, isTex, saveDirtyDocs, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
+const { excludePdfNow, cancelTimer, cfg, debounce, docLines, findCached, info, isFileCached, isTex, listFilesCached, saveDirtyDocs, saveDocs, textOfPath, warn, warnUnsaved } = require('./util');
 const PI = require('./projectIndex');
 
 const isTexLike = (doc) => isTex(doc) || (!!doc && doc.uri.fsPath.toLowerCase().endsWith('.tikz'));
@@ -89,7 +89,7 @@ const genericEntries = () => table().filter((e) => !X.LEGACY_MACROS.has(e.macro)
 
 const linkProvider = {
   provideDocumentLinks(doc) {
-    const ctx = ctxFor(doc);
+    const ctx = { ...ctxFor(doc), exists: isFileCached }; // 0.25.1: VS Code asks for links on every edit
     const entries = genericEntries();
     const links = [];
     for (let i = 0; i < doc.lineCount; i++) {
@@ -104,20 +104,6 @@ const linkProvider = {
   }
 };
 
-function listFiles(root, exts, depth, rel) {
-  rel = rel || '';
-  let out = [];
-  let entries;
-  try { entries = fs.readdirSync(path.join(root, rel), { withFileTypes: true }); } catch (e) { return out; }
-  for (const e of entries) {
-    if (e.name.startsWith('.')) continue;
-    const r = rel ? rel + '/' + e.name : e.name;
-    if (e.isDirectory()) { if (depth > 0 && !/^(build|node_modules|pdf-versions)$/.test(e.name)) out = out.concat(listFiles(root, exts, depth - 1, r)); }
-    else if (exts.includes(path.extname(e.name).toLowerCase())) out.push(r);
-  }
-  return out;
-}
-
 const completion = {
   provideCompletionItems(doc, pos) {
     const before = doc.lineAt(pos.line).text.slice(0, pos.character);
@@ -129,7 +115,7 @@ const completion = {
       const range = new vscode.Range(pos.line, pos.character - m[1].length, pos.line, pos.character);
       const seen = new Set();
       const items = [];
-      for (const rel of listFiles(base, entry.exts, 3)) {
+      for (const rel of listFilesCached(base, entry.exts, 3)) {
         const text = rel.toLowerCase().endsWith('.tex') ? rel.slice(0, -4) : rel;
         if (seen.has(text)) continue;
         seen.add(text);

@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const P = require('./corePure');
 const features = require('./features');
-const { excludeNow, PIC_EXTS, REF_CTX, debounce, isTexDoc } = require('./util');
+const { excludeNow, PIC_EXTS, REF_CTX, debounce, existsCached, isTexDoc, listFilesCached } = require('./util');
 const build = require('./build');
 const { setLang, tr } = require('./i18n');
 const VT = require('./viewTitles');
@@ -30,10 +30,10 @@ function subOf(macro, fallback) {
 
 function resolveFile(dir, sub, name, exts) {
   const base = path.join(dir, sub, name);
-  if (fs.existsSync(base)) return base;
+  if (existsCached(base)) return base; // 0.25.1: memoized, document links ask on every edit
   if (!path.extname(name)) {
     for (const e of exts) {
-      if (fs.existsSync(base + e)) return base + e;
+      if (existsCached(base + e)) return base + e;
     }
   }
   return base; // let VS Code report "file not found"
@@ -160,19 +160,15 @@ const COMPLETE = [
   { re: /\\includegraphics(?:\[[^\]]*\])?\{([^}]*)$/, macro: '\\includegraphics', sub: 'Pictures', exts: PIC_EXTS, stripExt: true }
 ];
 
-function listFiles(root, exts, depth, rel) {
-  rel = rel || '';
-  let out = [];
-  let entries;
-  try { entries = fs.readdirSync(path.join(root, rel), { withFileTypes: true }); } catch (e) { return out; }
-  for (const e of entries) {
-    if (e.name.startsWith('.')) continue;
-    const r = rel ? rel + '/' + e.name : e.name;
-    if (e.isDirectory()) {
-      if (depth > 0) out = out.concat(listFiles(root, exts, depth - 1, r));
-    } else if (exts.includes(path.extname(e.name).toLowerCase())) {
-      out.push(r);
-    }
+// names offered for the argument of c.macro: paths under dir (without extension for c.stripExt), each once
+function argNames(dir, c) {
+  const seen = new Set();
+  const out = [];
+  for (const rel of listFilesCached(dir, c.exts, 3)) {
+    const text = c.stripExt ? rel.slice(0, rel.length - path.extname(rel).length) : rel;
+    if (seen.has(text)) continue;
+    seen.add(text);
+    out.push({ text, rel });
   }
   return out;
 }
@@ -188,12 +184,8 @@ const fileCompletion = {
       if (!m) continue;
       const range = new vscode.Range(pos.line, pos.character - m[1].length, pos.line, pos.character);
       const dir = path.join(path.dirname(doc.uri.fsPath), subOf(c.macro, c.sub));
-      const seen = new Set();
       const items = [];
-      for (const rel of listFiles(dir, c.exts, 3)) {
-        const text = c.stripExt ? rel.slice(0, rel.length - path.extname(rel).length) : rel;
-        if (seen.has(text)) continue;
-        seen.add(text);
+      for (const { text, rel } of argNames(dir, c)) {
         const it = new vscode.CompletionItem(text, vscode.CompletionItemKind.File);
         it.detail = c.sub + '/' + rel;
         it.range = range;
@@ -240,14 +232,7 @@ async function pickFile() {
     return;
   }
   const dir = path.join(path.dirname(ed.document.uri.fsPath), subOf(ctx.c.macro, ctx.c.sub));
-  const seen = new Set();
-  const items = [];
-  for (const rel of listFiles(dir, ctx.c.exts, 3)) {
-    const text = ctx.c.stripExt ? rel.slice(0, rel.length - path.extname(rel).length) : rel;
-    if (seen.has(text)) continue;
-    seen.add(text);
-    items.push({ label: text, description: ctx.c.sub + '/' + rel });
-  }
+  const items = argNames(dir, ctx.c).map(({ text, rel }) => ({ label: text, description: ctx.c.sub + '/' + rel }));
   if (!items.length) {
     vscode.window.showWarningMessage(tr('У папці {0} немає підхожих файлів.', dir));
     return;

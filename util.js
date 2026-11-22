@@ -100,6 +100,9 @@ function chunkRange(ed) {
   return { startLine: s, endLine: e };
 }
 
+// files with one of exts under root, as 'a/b.png' paths relative to root, at most depth folders deep;
+// hidden entries and build output (build, node_modules, pdf-versions) are skipped (0.25.1: one copy for all modules)
+const SKIP_DIRS = /^(build|node_modules|pdf-versions)$/;
 function listFiles(root, exts, depth, rel) {
   rel = rel || '';
   let out = [];
@@ -109,13 +112,31 @@ function listFiles(root, exts, depth, rel) {
     if (e.name.startsWith('.')) continue;
     const r = rel ? rel + '/' + e.name : e.name;
     if (e.isDirectory()) {
-      if (depth > 0) out = out.concat(listFiles(root, exts, depth - 1, r));
+      if (depth > 0 && !SKIP_DIRS.test(e.name)) out = out.concat(listFiles(root, exts, depth - 1, r));
     } else if (exts.includes(path.extname(e.name).toLowerCase())) {
       out.push(r);
     }
   }
   return out;
 }
+
+/* 0.25.1: short-lived memo of the disk for providers that VS Code calls on every keystroke (document links, file-name
+ * completion): a listing or an existence check is reused for FS_TTL ms. The tex watcher of initCaches does not see
+ * pictures added outside VS Code, so the time limit (not only the watcher) keeps the answers fresh. */
+const fsMemo = new Map(); // key -> { at, v }
+const FS_TTL = 5000;
+function memo(key, fn) {
+  const c = fsMemo.get(key);
+  const now = Date.now();
+  if (c && now - c.at < FS_TTL) return c.v;
+  if (fsMemo.size > 2000) fsMemo.clear();
+  const v = fn();
+  fsMemo.set(key, { at: now, v });
+  return v;
+}
+const listFilesCached = (root, exts, depth) => memo('l|' + root + '|' + exts.join(',') + '|' + depth, () => listFiles(root, exts, depth)).slice();
+const existsCached = (p) => memo('e|' + p, () => fs.existsSync(p));
+const isFileCached = (p) => memo('f|' + p, () => { try { return fs.statSync(p).isFile(); } catch (e) { return false; } });
 
 function textOf(uri) {
   const open = openDocByPath(uri.fsPath);
@@ -225,7 +246,7 @@ function initCaches(context) {
   try { w = vscode.workspace.createFileSystemWatcher('**/*.{tex,tikz,cls,sty,bib}'); } catch (e) { w = null; }
   if (!w || typeof w.onDidCreate !== 'function') return false;
   const subs = context.subscriptions;
-  const dropFiles = () => findCache.clear();
+  const dropFiles = () => { findCache.clear(); fsMemo.clear(); };
   const dropDocs = () => { docMap = null; };
   const on = (ev, fn) => { if (typeof ev === 'function') subs.push(ev(fn)); };
   subs.push(w);
@@ -306,7 +327,10 @@ module.exports = {
   isTex,
   isTexDoc,
   linesOf,
+  existsCached,
+  isFileCached,
   listFiles,
+  listFilesCached,
   projectRoot,
   replaceLines,
   texFiles,
