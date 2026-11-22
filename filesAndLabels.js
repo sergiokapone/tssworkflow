@@ -96,7 +96,7 @@ const linkProvider = {
       for (const r of X.findFileRefs(doc.lineAt(i).text, entries)) {
         const hit = X.resolveRef(r.entry, r.name, ctx);
         const link = new vscode.DocumentLink(new vscode.Range(i, r.start, i, r.start + r.len), vscode.Uri.file(hit.abs));
-        link.tooltip = 'Open ' + r.name;
+        link.tooltip = tr('Відкрити {0}', r.name);
         links.push(link);
       }
     }

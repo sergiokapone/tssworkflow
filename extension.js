@@ -184,7 +184,6 @@ let LOG = null; // output channel "TSS Workflow"
 const fileCompletion = {
   provideCompletionItems(doc, pos) {
     const before = doc.lineAt(pos.line).text.slice(0, pos.character);
-    if (LOG && /\\(localinput|includegraphics)/.test(before)) LOG.appendLine('completion asked: ' + before.slice(-60));
     for (const c of COMPLETE) {
       const m = c.re.exec(before);
       if (!m) continue;
@@ -199,7 +198,6 @@ const fileCompletion = {
         it.sortText = '0_' + text;
         items.push(it);
       }
-      if (LOG) LOG.appendLine('  -> ' + items.length + ' items from ' + dir);
       return items;
     }
     return undefined;
@@ -405,7 +403,7 @@ function activate(context) {
             const start = m.index + m[0].lastIndexOf('{') + 1;
             const range = new vscode.Range(i, start, i, start + m[1].length);
             const link = new vscode.DocumentLink(range, vscode.Uri.file(resolveFile(dir, subOf(rule.macro, rule.sub), name, rule.exts)));
-            link.tooltip = 'Open ' + name;
+            link.tooltip = tr('Відкрити {0}', name);
             links.push(link);
           }
         }
