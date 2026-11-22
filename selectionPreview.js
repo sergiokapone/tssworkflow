@@ -11,6 +11,7 @@ const P = require('./selectionPreviewPure');
 const { tr } = require('./i18n');
 const TE = require('./tableEditor');
 const { excludeNow, cfg, isTex } = require('./util');
+const { hasComment } = require('./texBasePure');
 const K = require('./webviewKit');
 
 let extUri = null;
@@ -220,7 +221,7 @@ function findLabelPos(text, name, base) {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = re.exec(lines[i]);
-    if (m && !lines[i].slice(0, m.index).replace(/\\./g, '').includes('%')) return { line: i, col: m.index, len: m[0].length };
+    if (m && !hasComment(lines[i].slice(0, m.index))) return { line: i, col: m.index, len: m[0].length };
   }
   return null;
 }

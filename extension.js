@@ -5,6 +5,7 @@ const P = require('./corePure');
 const features = require('./features');
 const { excludeNow, PIC_EXTS, REF_CTX, debounce, existsCached, isTexDoc, listFilesCached } = require('./util');
 const build = require('./build');
+const { hasComment } = require('./texBasePure');
 const { setLang, tr } = require('./i18n');
 const VT = require('./viewTitles');
 
@@ -46,7 +47,11 @@ function resolveFile(dir, sub, name, exts) {
  * ------------------------------------------------------------------ */
 const ENV_TOKEN = /\\(begin|end)\{([^{}]*)\}/g;
 
+// 0.25.1: linked editing asks on every cursor move; tokens are kept per document version (callers only read them)
+const envCache = new WeakMap(); // doc -> { v, toks }
 function envTokens(doc) {
+  const hit = envCache.get(doc);
+  if (hit && doc.version !== undefined && hit.v === doc.version) return hit.toks;
   const toks = [];
   for (let i = 0; i < doc.lineCount; i++) {
     const text = doc.lineAt(i).text;
@@ -54,11 +59,12 @@ function envTokens(doc) {
     let m;
     while ((m = ENV_TOKEN.exec(text)) !== null) {
       // skip commented-out tokens (unescaped %)
-      if (text.slice(0, m.index).replace(/\\./g, '').includes('%')) continue;
+      if (hasComment(text.slice(0, m.index))) continue;
       const start = m.index + m[0].indexOf('{') + 1;
       toks.push({ type: m[1], name: m[2], range: new vscode.Range(i, start, i, start + m[2].length) });
     }
   }
+  envCache.set(doc, { v: doc.version, toks });
   return toks;
 }
 
@@ -122,7 +128,7 @@ function findLabelIn(text, name, base) {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const m = re.exec(lines[i]);
-    if (m && !lines[i].slice(0, m.index).replace(/\\./g, '').includes('%')) {
+    if (m && !hasComment(lines[i].slice(0, m.index))) {
       return new vscode.Position(i, m.index);
     }
   }
