@@ -22,8 +22,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -44,13 +44,13 @@ jobs:
     env:
       VSCODE_TEST_VERSION: ${{ matrix.vscode }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .vscode-test
           key: vscode-${{ runner.os }}-${{ matrix.vscode }}
@@ -68,15 +68,15 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       # the name of the version in package.json: tssworkflow-0.24.0.vsix (the same name as a local vsce package)
       - run: npx --yes @vscode/vsce@3 package --out "tssworkflow-$(node -p "require('./package.json').version").vsix"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tssworkflow-vsix
           path: '*.vsix'
@@ -86,7 +86,7 @@ jobs:
         run: node .github/release-notes.js "${{ github.ref_name }}" release-notes.md
       - name: attach to the release of the tag
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: '*.vsix'
           body_path: release-notes.md
